@@ -1,0 +1,71 @@
+{
+  "recorded_against": "mock",
+  "recorded_at": "2026-10-01T23:43:19.447Z",
+  "request": {
+    "stage": "resolve_domain",
+    "input": {
+      "company": "Stripe",
+      "hint": "VP of Sales"
+    },
+    "maxSearches": 2
+  },
+  "response": {
+    "content": [
+      {
+        "type": "server_tool_use",
+        "id": "srvtoolu_373",
+        "name": "web_search",
+        "input": {
+          "query": "Stripe official site"
+        }
+      },
+      {
+        "type": "web_search_tool_result",
+        "tool_use_id": "srvtoolu_373",
+        "content": [
+          {
+            "type": "web_search_result",
+            "url": "https://stripe.com/",
+            "title": "https://stripe.com/",
+            "encrypted_content": "mock",
+            "page_age": null
+          }
+        ]
+      },
+      {
+        "type": "tool_use",
+        "id": "toolu_mock_374",
+        "name": "report_domain",
+        "input": {
+          "domain": "stripe.com",
+          "confidence": 0.92,
+          "source_url": "https://stripe.com/",
+          "alternatives": []
+        }
+      }
+    ],
+    "toolCalls": [
+      {
+        "id": "toolu_mock_374",
+        "name": "report_domain",
+        "input": {
+          "domain": "stripe.com",
+          "confidence": 0.92,
+          "source_url": "https://stripe.com/",
+          "alternatives": []
+        }
+      }
+    ],
+    "sources": [
+      "https://stripe.com/"
+    ],
+    "usage": {
+      "input_tokens": 4500,
+      "output_tokens": 180,
+      "web_search_requests": 1,
+      "web_fetch_requests": 0
+    },
+    "model": "claude-sonnet-5-5",
+    "stop_reason": "tool_use"
+  }
+}

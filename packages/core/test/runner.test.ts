@@ -246,3 +246,17 @@ describe("runPipeline", () => {
     expect(calls.filter((c) => c.stage === "discover_pattern")).toHaveLength(2);
   });
 });
+
+describe("rerunCompany company-first", () => {
+  it("looks people up again when the company has no rows", async () => {
+    const { ctx } = mockCtx({
+      resolve_domain: toolResponse("report_domain", { domain: "ramp.com", confidence: 1, source_url: null, alternatives: [] }),
+      discover_pattern: firstLast(),
+      find_people: toolResponse("extract_contacts", { mode: "people", companies: [], people: [{ first: "Daniel", last: "Kim", title: "Head of Sales" }], urls: [], notes: "" }),
+    });
+    ctx.options = { roleFilter: "Head of Sales" };
+    const rows: Contact[] = [];
+    await rerunCompany({ id: "ramp", name: "Ramp", patterns: [] }, [], ctx, { onRow: (r) => rows.push(r) });
+    expect(rows.map((r) => r.primary_email)).toEqual(["daniel.kim@ramp.com"]);
+  });
+});

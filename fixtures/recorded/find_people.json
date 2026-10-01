@@ -1,0 +1,93 @@
+{
+  "recorded_against": "mock",
+  "recorded_at": "2026-10-01T23:43:19.456Z",
+  "request": {
+    "stage": "find_people",
+    "input": {
+      "company": "Linear",
+      "domain": "linear.app",
+      "url": "https://linear.app/about",
+      "role_filter": "CEO, Head of Sales"
+    },
+    "vars": {
+      "company": "Linear",
+      "domain": "linear.app",
+      "role_filter": "CEO, Head of Sales"
+    },
+    "maxSearches": 1,
+    "maxFetches": 2
+  },
+  "response": {
+    "content": [
+      {
+        "type": "server_tool_use",
+        "id": "srvtoolu_381",
+        "name": "web_search",
+        "input": {
+          "query": "Linear leadership team"
+        }
+      },
+      {
+        "type": "web_search_tool_result",
+        "tool_use_id": "srvtoolu_381",
+        "content": [
+          {
+            "type": "web_search_result",
+            "url": "https://linear.app/about",
+            "title": "https://linear.app/about",
+            "encrypted_content": "mock",
+            "page_age": null
+          }
+        ]
+      },
+      {
+        "type": "tool_use",
+        "id": "toolu_mock_382",
+        "name": "extract_contacts",
+        "input": {
+          "mode": "people",
+          "companies": [],
+          "people": [
+            {
+              "first": "Avery",
+              "last": "Quinn",
+              "title": "CEO"
+            }
+          ],
+          "urls": [],
+          "notes": ""
+        }
+      }
+    ],
+    "toolCalls": [
+      {
+        "id": "toolu_mock_382",
+        "name": "extract_contacts",
+        "input": {
+          "mode": "people",
+          "companies": [],
+          "people": [
+            {
+              "first": "Avery",
+              "last": "Quinn",
+              "title": "CEO"
+            }
+          ],
+          "urls": [],
+          "notes": ""
+        }
+      }
+    ],
+    "sources": [
+      "https://linear.app/about"
+    ],
+    "usage": {
+      "input_tokens": 4500,
+      "output_tokens": 180,
+      "web_search_requests": 1,
+      "web_fetch_requests": 0
+    },
+    "model": "claude-sonnet-5-5",
+    "stop_reason": "tool_use"
+  }
+}

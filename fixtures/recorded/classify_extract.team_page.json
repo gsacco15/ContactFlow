@@ -1,0 +1,198 @@
+{
+  "recorded_against": "mock",
+  "recorded_at": "2026-10-01T23:43:19.429Z",
+  "request": {
+    "stage": "classify_extract",
+    "input": "Leadership | Gusto\n\nMeet the team building payroll, benefits and HR for small businesses.\n\nExecutive Team\n\nRenata Okafor\nChief Executive Officer\nRenata joined Gusto in 2019 after a decade scaling finance teams. She lives in Denver with her two kids.\n\nSamuel Whitfield\nChief Financial Officer\nSam previously ran FP&A at a public SaaS company and is a CPA.\n\nInes Carvalho-Mendes\nVP, People & Culture\nInes leads our people team across Denver, San Francisco and New York.\n\nKwame Asante\nVP of Sales\nKwame built our mid-market sales motion from zero to hundreds of reps.\n\nDepartments\n\nEngineering\nDanielle Fortier — SVP Engineering\nBefore Gusto, Danielle led infrastructure teams at two fintech startups.\n\nMarketing\nOliver Park — Head of Brand Marketing\n\nWant to join us? See open roles at gusto.com/careers\n"
+  },
+  "response": {
+    "content": [
+      {
+        "type": "tool_use",
+        "id": "toolu_mock_365",
+        "name": "extract_contacts",
+        "input": {
+          "mode": "people",
+          "companies": [
+            {
+              "name": "Leadership | Gusto"
+            },
+            {
+              "name": "Meet the team building payroll, benefits and HR for small businesses."
+            },
+            {
+              "name": "Executive Team"
+            },
+            {
+              "name": "Renata Okafor"
+            },
+            {
+              "name": "Chief Executive Officer"
+            },
+            {
+              "name": "Renata joined Gusto in 2019 after a decade scaling finance teams. She lives in Denver with her two kids."
+            },
+            {
+              "name": "Samuel Whitfield"
+            },
+            {
+              "name": "Chief Financial Officer"
+            },
+            {
+              "name": "Sam previously ran FP&A at a public SaaS company and is a CPA."
+            },
+            {
+              "name": "Ines Carvalho-Mendes"
+            },
+            {
+              "name": "VP, People & Culture"
+            },
+            {
+              "name": "Ines leads our people team across Denver, San Francisco and New York."
+            },
+            {
+              "name": "Kwame Asante"
+            },
+            {
+              "name": "VP of Sales"
+            },
+            {
+              "name": "Kwame built our mid-market sales motion from zero to hundreds of reps."
+            },
+            {
+              "name": "Departments"
+            },
+            {
+              "name": "Engineering"
+            },
+            {
+              "name": "Before Gusto, Danielle led infrastructure teams at two fintech startups."
+            },
+            {
+              "name": "Marketing"
+            },
+            {
+              "name": "Want to join us? See open roles at gusto.com/careers"
+            }
+          ],
+          "people": [
+            {
+              "first": "Danielle",
+              "last": "Fortier",
+              "title": "SVP Engineering",
+              "company": "Engineering",
+              "raw": "Danielle Fortier — SVP Engineering"
+            },
+            {
+              "first": "Oliver",
+              "last": "Park",
+              "title": "Head of Brand Marketing",
+              "company": "Marketing",
+              "raw": "Oliver Park — Head of Brand Marketing"
+            }
+          ],
+          "urls": [],
+          "notes": ""
+        }
+      }
+    ],
+    "toolCalls": [
+      {
+        "id": "toolu_mock_365",
+        "name": "extract_contacts",
+        "input": {
+          "mode": "people",
+          "companies": [
+            {
+              "name": "Leadership | Gusto"
+            },
+            {
+              "name": "Meet the team building payroll, benefits and HR for small businesses."
+            },
+            {
+              "name": "Executive Team"
+            },
+            {
+              "name": "Renata Okafor"
+            },
+            {
+              "name": "Chief Executive Officer"
+            },
+            {
+              "name": "Renata joined Gusto in 2019 after a decade scaling finance teams. She lives in Denver with her two kids."
+            },
+            {
+              "name": "Samuel Whitfield"
+            },
+            {
+              "name": "Chief Financial Officer"
+            },
+            {
+              "name": "Sam previously ran FP&A at a public SaaS company and is a CPA."
+            },
+            {
+              "name": "Ines Carvalho-Mendes"
+            },
+            {
+              "name": "VP, People & Culture"
+            },
+            {
+              "name": "Ines leads our people team across Denver, San Francisco and New York."
+            },
+            {
+              "name": "Kwame Asante"
+            },
+            {
+              "name": "VP of Sales"
+            },
+            {
+              "name": "Kwame built our mid-market sales motion from zero to hundreds of reps."
+            },
+            {
+              "name": "Departments"
+            },
+            {
+              "name": "Engineering"
+            },
+            {
+              "name": "Before Gusto, Danielle led infrastructure teams at two fintech startups."
+            },
+            {
+              "name": "Marketing"
+            },
+            {
+              "name": "Want to join us? See open roles at gusto.com/careers"
+            }
+          ],
+          "people": [
+            {
+              "first": "Danielle",
+              "last": "Fortier",
+              "title": "SVP Engineering",
+              "company": "Engineering",
+              "raw": "Danielle Fortier — SVP Engineering"
+            },
+            {
+              "first": "Oliver",
+              "last": "Park",
+              "title": "Head of Brand Marketing",
+              "company": "Marketing",
+              "raw": "Oliver Park — Head of Brand Marketing"
+            }
+          ],
+          "urls": [],
+          "notes": ""
+        }
+      }
+    ],
+    "sources": [],
+    "usage": {
+      "input_tokens": 1500,
+      "output_tokens": 180,
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "model": "claude-sonnet-5-5",
+    "stop_reason": "tool_use"
+  }
+}

@@ -1,0 +1,352 @@
+{
+  "recorded_against": "mock",
+  "recorded_at": "2026-10-01T23:43:19.422Z",
+  "request": {
+    "stage": "classify_extract",
+    "input": "Priya Raman (She/Her)\nView Priya Raman’s profile\n • 2nd\n2nd degree connection\nVP of Sales at Stripe\nSan Francisco Bay Area\nConnect\n\nMarcus Oyelaran\nView Marcus Oyelaran’s profile\n • 3rd+\n3rd+ degree connection\nHead of Revenue Operations | Stripe\nDublin, County Dublin, Ireland\nFollow\n\nJosé Álvarez-Ruiz, MBA\nView José Álvarez-Ruiz, MBA’s profile\n • 2nd\n2nd degree connection\nDirector of Partnerships at Notion\nNew York, NY\nConnect\n\nHannah Liebermann 🚀\nView Hannah Liebermann 🚀’s profile\n • 2nd\n2nd degree connection\nHead of Growth @ Notion | ex-Dropbox\nSan Francisco, CA\nMessage\n\nDr. Li Wei PhD\nView Dr. Li Wei PhD’s profile\n • 3rd+\n3rd+ degree connection\nVP Engineering at Datadog\nNew York City Metropolitan Area\nConnect\n\nMary Anne O'Brien\nView Mary Anne O'Brien’s profile\n • 2nd\n2nd degree connection\nChief Marketing Officer at Datadog\nBoston, MA\nConnect\n\nBob Smith Jr.\nView Bob Smith Jr.’s profile\n • 1st\n1st degree connection\nSenior Account Executive at Figma\nAustin, Texas Metropolitan Area\nMessage\n\nJean-Luc Picard\nView Jean-Luc Picard’s profile\n • 2nd\n2nd degree connection\nHead of Enterprise Sales, EMEA — Figma\nLondon, England, United Kingdom\nConnect\n\nAisha Bello\nView Aisha Bello’s profile\n • 2nd\n2nd degree connection\nVP Marketing at HubSpot\nCambridge, MA\nConnect\n\nTomasz Nowakowski\nView Tomasz Nowakowski’s profile\n • 3rd+\n3rd+ degree connection\nDirector, Sales Development at HubSpot\nDublin, Ireland\nFollow\n"
+  },
+  "response": {
+    "content": [
+      {
+        "type": "tool_use",
+        "id": "toolu_mock_363",
+        "name": "extract_contacts",
+        "input": {
+          "mode": "people",
+          "companies": [
+            {
+              "name": "Priya Raman (She/Her)"
+            },
+            {
+              "name": "View Priya Raman’s profile"
+            },
+            {
+              "name": "• 2nd"
+            },
+            {
+              "name": "2nd degree connection"
+            },
+            {
+              "name": "VP of Sales at Stripe"
+            },
+            {
+              "name": "San Francisco Bay Area"
+            },
+            {
+              "name": "Connect"
+            },
+            {
+              "name": "Marcus Oyelaran"
+            },
+            {
+              "name": "View Marcus Oyelaran’s profile"
+            },
+            {
+              "name": "• 3rd+"
+            },
+            {
+              "name": "3rd+ degree connection"
+            },
+            {
+              "name": "Head of Revenue Operations | Stripe"
+            },
+            {
+              "name": "Dublin, County Dublin, Ireland"
+            },
+            {
+              "name": "Follow"
+            },
+            {
+              "name": "José Álvarez-Ruiz, MBA"
+            },
+            {
+              "name": "View José Álvarez-Ruiz, MBA’s profile"
+            },
+            {
+              "name": "Director of Partnerships at Notion"
+            },
+            {
+              "name": "New York, NY"
+            },
+            {
+              "name": "Hannah Liebermann 🚀"
+            },
+            {
+              "name": "View Hannah Liebermann 🚀’s profile"
+            },
+            {
+              "name": "Head of Growth @ Notion | ex-Dropbox"
+            },
+            {
+              "name": "San Francisco, CA"
+            },
+            {
+              "name": "Message"
+            },
+            {
+              "name": "Dr. Li Wei PhD"
+            },
+            {
+              "name": "View Dr. Li Wei PhD’s profile"
+            },
+            {
+              "name": "VP Engineering at Datadog"
+            },
+            {
+              "name": "New York City Metropolitan Area"
+            },
+            {
+              "name": "Mary Anne O'Brien"
+            },
+            {
+              "name": "View Mary Anne O'Brien’s profile"
+            },
+            {
+              "name": "Chief Marketing Officer at Datadog"
+            },
+            {
+              "name": "Boston, MA"
+            },
+            {
+              "name": "Bob Smith Jr."
+            },
+            {
+              "name": "View Bob Smith Jr.’s profile"
+            },
+            {
+              "name": "• 1st"
+            },
+            {
+              "name": "1st degree connection"
+            },
+            {
+              "name": "Senior Account Executive at Figma"
+            },
+            {
+              "name": "Austin, Texas Metropolitan Area"
+            },
+            {
+              "name": "Jean-Luc Picard"
+            },
+            {
+              "name": "View Jean-Luc Picard’s profile"
+            },
+            {
+              "name": "London, England, United Kingdom"
+            },
+            {
+              "name": "Aisha Bello"
+            },
+            {
+              "name": "View Aisha Bello’s profile"
+            },
+            {
+              "name": "VP Marketing at HubSpot"
+            },
+            {
+              "name": "Cambridge, MA"
+            },
+            {
+              "name": "Tomasz Nowakowski"
+            },
+            {
+              "name": "View Tomasz Nowakowski’s profile"
+            },
+            {
+              "name": "Director, Sales Development at HubSpot"
+            },
+            {
+              "name": "Dublin, Ireland"
+            }
+          ],
+          "people": [
+            {
+              "first": "Head",
+              "last": "of Enterprise Sales, EMEA",
+              "title": "Figma",
+              "company": "2nd degree connection",
+              "raw": "Head of Enterprise Sales, EMEA — Figma"
+            }
+          ],
+          "urls": [],
+          "notes": ""
+        }
+      }
+    ],
+    "toolCalls": [
+      {
+        "id": "toolu_mock_363",
+        "name": "extract_contacts",
+        "input": {
+          "mode": "people",
+          "companies": [
+            {
+              "name": "Priya Raman (She/Her)"
+            },
+            {
+              "name": "View Priya Raman’s profile"
+            },
+            {
+              "name": "• 2nd"
+            },
+            {
+              "name": "2nd degree connection"
+            },
+            {
+              "name": "VP of Sales at Stripe"
+            },
+            {
+              "name": "San Francisco Bay Area"
+            },
+            {
+              "name": "Connect"
+            },
+            {
+              "name": "Marcus Oyelaran"
+            },
+            {
+              "name": "View Marcus Oyelaran’s profile"
+            },
+            {
+              "name": "• 3rd+"
+            },
+            {
+              "name": "3rd+ degree connection"
+            },
+            {
+              "name": "Head of Revenue Operations | Stripe"
+            },
+            {
+              "name": "Dublin, County Dublin, Ireland"
+            },
+            {
+              "name": "Follow"
+            },
+            {
+              "name": "José Álvarez-Ruiz, MBA"
+            },
+            {
+              "name": "View José Álvarez-Ruiz, MBA’s profile"
+            },
+            {
+              "name": "Director of Partnerships at Notion"
+            },
+            {
+              "name": "New York, NY"
+            },
+            {
+              "name": "Hannah Liebermann 🚀"
+            },
+            {
+              "name": "View Hannah Liebermann 🚀’s profile"
+            },
+            {
+              "name": "Head of Growth @ Notion | ex-Dropbox"
+            },
+            {
+              "name": "San Francisco, CA"
+            },
+            {
+              "name": "Message"
+            },
+            {
+              "name": "Dr. Li Wei PhD"
+            },
+            {
+              "name": "View Dr. Li Wei PhD’s profile"
+            },
+            {
+              "name": "VP Engineering at Datadog"
+            },
+            {
+              "name": "New York City Metropolitan Area"
+            },
+            {
+              "name": "Mary Anne O'Brien"
+            },
+            {
+              "name": "View Mary Anne O'Brien’s profile"
+            },
+            {
+              "name": "Chief Marketing Officer at Datadog"
+            },
+            {
+              "name": "Boston, MA"
+            },
+            {
+              "name": "Bob Smith Jr."
+            },
+            {
+              "name": "View Bob Smith Jr.’s profile"
+            },
+            {
+              "name": "• 1st"
+            },
+            {
+              "name": "1st degree connection"
+            },
+            {
+              "name": "Senior Account Executive at Figma"
+            },
+            {
+              "name": "Austin, Texas Metropolitan Area"
+            },
+            {
+              "name": "Jean-Luc Picard"
+            },
+            {
+              "name": "View Jean-Luc Picard’s profile"
+            },
+            {
+              "name": "London, England, United Kingdom"
+            },
+            {
+              "name": "Aisha Bello"
+            },
+            {
+              "name": "View Aisha Bello’s profile"
+            },
+            {
+              "name": "VP Marketing at HubSpot"
+            },
+            {
+              "name": "Cambridge, MA"
+            },
+            {
+              "name": "Tomasz Nowakowski"
+            },
+            {
+              "name": "View Tomasz Nowakowski’s profile"
+            },
+            {
+              "name": "Director, Sales Development at HubSpot"
+            },
+            {
+              "name": "Dublin, Ireland"
+            }
+          ],
+          "people": [
+            {
+              "first": "Head",
+              "last": "of Enterprise Sales, EMEA",
+              "title": "Figma",
+              "company": "2nd degree connection",
+              "raw": "Head of Enterprise Sales, EMEA — Figma"
+            }
+          ],
+          "urls": [],
+          "notes": ""
+        }
+      }
+    ],
+    "sources": [],
+    "usage": {
+      "input_tokens": 1500,
+      "output_tokens": 180,
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "model": "claude-sonnet-5-5",
+    "stop_reason": "tool_use"
+  }
+}

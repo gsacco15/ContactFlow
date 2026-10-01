@@ -339,6 +339,13 @@ export async function rerunCompany(co: Company, contacts: Contact[], ctx: Ctx, h
   rescues.delete(co);
   await enrichCompany(co, fresh, contacts);
   hooks.onCompany?.(co);
+  const roleFilter = ctx.options?.roleFilter?.trim() || co.role_hint;
+  if (!contacts.length && roleFilter && co.domain && co.mx_ok !== false) {
+    const found = await findPeople(co, roleFilter, fresh);
+    if (found.ok && found.data) contacts.push(...found.data.people);
+    else if (!found.ok) co.error = `find_people: ${found.error}`;
+    hooks.onCompany?.(co);
+  }
   for (const c of contacts) {
     c.status = "pending";
     delete c.rescued;

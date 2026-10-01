@@ -1,0 +1,116 @@
+{
+  "recorded_against": "mock",
+  "recorded_at": "2026-10-01T23:43:19.452Z",
+  "request": {
+    "stage": "discover_pattern",
+    "input": {
+      "domain": "stripe.com"
+    },
+    "vars": {
+      "domain": "stripe.com"
+    },
+    "maxSearches": 3
+  },
+  "response": {
+    "content": [
+      {
+        "type": "server_tool_use",
+        "id": "srvtoolu_376",
+        "name": "web_search",
+        "input": {
+          "query": "\"@stripe.com\" email format"
+        }
+      },
+      {
+        "type": "web_search_tool_result",
+        "tool_use_id": "srvtoolu_376",
+        "content": [
+          {
+            "type": "web_search_result",
+            "url": "https://rocketreach.co/stripe-email-format",
+            "title": "https://rocketreach.co/stripe-email-format",
+            "encrypted_content": "mock",
+            "page_age": null
+          }
+        ]
+      },
+      {
+        "type": "server_tool_use",
+        "id": "srvtoolu_378",
+        "name": "web_search",
+        "input": {
+          "query": "stripe.com email"
+        }
+      },
+      {
+        "type": "web_search_tool_result",
+        "tool_use_id": "srvtoolu_378",
+        "content": [
+          {
+            "type": "web_search_result",
+            "url": "https://rocketreach.co/stripe-email-format",
+            "title": "https://rocketreach.co/stripe-email-format",
+            "encrypted_content": "mock",
+            "page_age": null
+          }
+        ]
+      },
+      {
+        "type": "tool_use",
+        "id": "toolu_mock_379",
+        "name": "report_patterns",
+        "input": {
+          "patterns": [
+            {
+              "template": "{first}.{last}",
+              "confidence": 0.72,
+              "source_url": "https://rocketreach.co/stripe-email-format",
+              "evidence": [
+                "jane.doe@stripe.com"
+              ]
+            },
+            {
+              "template": "{f}{last}",
+              "confidence": 0.14,
+              "source_url": "https://rocketreach.co/stripe-email-format"
+            }
+          ]
+        }
+      }
+    ],
+    "toolCalls": [
+      {
+        "id": "toolu_mock_379",
+        "name": "report_patterns",
+        "input": {
+          "patterns": [
+            {
+              "template": "{first}.{last}",
+              "confidence": 0.72,
+              "source_url": "https://rocketreach.co/stripe-email-format",
+              "evidence": [
+                "jane.doe@stripe.com"
+              ]
+            },
+            {
+              "template": "{f}{last}",
+              "confidence": 0.14,
+              "source_url": "https://rocketreach.co/stripe-email-format"
+            }
+          ]
+        }
+      }
+    ],
+    "sources": [
+      "https://rocketreach.co/stripe-email-format"
+    ],
+    "usage": {
+      "input_tokens": 7000,
+      "output_tokens": 240,
+      "web_search_requests": 2,
+      "web_fetch_requests": 0
+    },
+    "model": "claude-sonnet-5-5",
+    "stop_reason": "tool_use"
+  }
+}

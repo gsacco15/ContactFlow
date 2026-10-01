@@ -1,0 +1,78 @@
+{
+  "recorded_against": "mock",
+  "recorded_at": "2026-10-01T23:43:19.435Z",
+  "request": {
+    "stage": "classify_extract",
+    "input": "Acme (acme.com) — Jane Doe, VP Sales; Beta Corp — need CFO\n"
+  },
+  "response": {
+    "content": [
+      {
+        "type": "tool_use",
+        "id": "toolu_mock_367",
+        "name": "extract_contacts",
+        "input": {
+          "mode": "mixed",
+          "companies": [
+            {
+              "name": "Acme",
+              "website": "acme.com"
+            },
+            {
+              "name": "Beta Corp",
+              "role_hint": "CFO"
+            }
+          ],
+          "people": [
+            {
+              "first": "Jane",
+              "last": "Doe",
+              "title": "VP Sales",
+              "company": "Acme"
+            }
+          ],
+          "urls": [],
+          "notes": ""
+        }
+      }
+    ],
+    "toolCalls": [
+      {
+        "id": "toolu_mock_367",
+        "name": "extract_contacts",
+        "input": {
+          "mode": "mixed",
+          "companies": [
+            {
+              "name": "Acme",
+              "website": "acme.com"
+            },
+            {
+              "name": "Beta Corp",
+              "role_hint": "CFO"
+            }
+          ],
+          "people": [
+            {
+              "first": "Jane",
+              "last": "Doe",
+              "title": "VP Sales",
+              "company": "Acme"
+            }
+          ],
+          "urls": [],
+          "notes": ""
+        }
+      }
+    ],
+    "sources": [],
+    "usage": {
+      "input_tokens": 1500,
+      "output_tokens": 180,
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "model": "claude-sonnet-5-5",
+    "stop_reason": "tool_use"
+  }
+}

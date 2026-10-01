@@ -1,0 +1,54 @@
+{
+  "recorded_against": "mock",
+  "recorded_at": "2026-10-01T23:43:19.443Z",
+  "request": {
+    "stage": "classify_extract",
+    "input": "https://linear.app/about\nhttps://ramp.com/about\nhttps://www.notion.com/about\n"
+  },
+  "response": {
+    "content": [
+      {
+        "type": "tool_use",
+        "id": "toolu_mock_371",
+        "name": "extract_contacts",
+        "input": {
+          "mode": "urls",
+          "companies": [],
+          "people": [],
+          "urls": [
+            "https://linear.app/about",
+            "https://ramp.com/about",
+            "https://www.notion.com/about"
+          ],
+          "notes": ""
+        }
+      }
+    ],
+    "toolCalls": [
+      {
+        "id": "toolu_mock_371",
+        "name": "extract_contacts",
+        "input": {
+          "mode": "urls",
+          "companies": [],
+          "people": [],
+          "urls": [
+            "https://linear.app/about",
+            "https://ramp.com/about",
+            "https://www.notion.com/about"
+          ],
+          "notes": ""
+        }
+      }
+    ],
+    "sources": [],
+    "usage": {
+      "input_tokens": 1500,
+      "output_tokens": 180,
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "model": "claude-sonnet-5-5",
+    "stop_reason": "tool_use"
+  }
+}

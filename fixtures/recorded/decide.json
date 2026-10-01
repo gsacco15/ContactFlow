@@ -1,0 +1,63 @@
+{
+  "recorded_against": "mock",
+  "recorded_at": "2026-10-01T23:43:19.462Z",
+  "request": {
+    "stage": "decide",
+    "input": {
+      "question": "Is this domain the company's own?",
+      "options": [
+        "yes",
+        "no"
+      ],
+      "context": "{\"company\":\"Stripe\",\"domain\":\"stripe.com\"}"
+    }
+  },
+  "response": {
+    "content": [
+      {
+        "type": "tool_use",
+        "id": "toolu_mock_384",
+        "name": "report_decision",
+        "input": {
+          "probabilities": [
+            {
+              "option": "yes",
+              "p": 0.5
+            },
+            {
+              "option": "no",
+              "p": 0.5
+            }
+          ]
+        }
+      }
+    ],
+    "toolCalls": [
+      {
+        "id": "toolu_mock_384",
+        "name": "report_decision",
+        "input": {
+          "probabilities": [
+            {
+              "option": "yes",
+              "p": 0.5
+            },
+            {
+              "option": "no",
+              "p": 0.5
+            }
+          ]
+        }
+      }
+    ],
+    "sources": [],
+    "usage": {
+      "input_tokens": 1500,
+      "output_tokens": 180,
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "model": "claude-haiku-4-5",
+    "stop_reason": "tool_use"
+  }
+}

@@ -6,6 +6,7 @@
   "scripts": {
     "pretest": "node ../../scripts/sync-edge.mjs",
     "test": "vitest run",
-    "deploy": "node ../../scripts/sync-edge.mjs && supabase functions deploy pipeline"
+    "deploy": "node ../../scripts/sync-edge.mjs && supabase functions deploy pipeline",
+    "typecheck": "node ../../scripts/sync-edge.mjs && tsc -p tsconfig.json"
   }
 }

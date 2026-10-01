@@ -15,7 +15,8 @@
     "edge:sync": "node scripts/sync-edge.mjs",
     "edge:deploy": "node scripts/sync-edge.mjs && cd packages/edge && supabase functions deploy pipeline",
     "smoke": "tsx --env-file-if-exists=.env scripts/smoke.ts",
-    "record": "tsx --env-file-if-exists=.env scripts/record.ts"
+    "record": "tsx --env-file-if-exists=.env scripts/record.ts",
+    "mock": "node scripts/mock-anthropic.mjs"
   },
   "devDependencies": {
     "@cf/core": "workspace:*",

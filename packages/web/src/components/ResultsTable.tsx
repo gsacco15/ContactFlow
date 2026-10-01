@@ -10,7 +10,9 @@ const STATUS_LABEL = { pending: "pending", ok: "ok", no_domain: "no domain", no_
 export function ResultsTable({ p }: { p: Pipeline }) {
   const { state, dispatch } = p;
   const { filters } = state;
-  if (!state.order.length) return null;
+  const withRows = new Set(state.order.map((id) => state.contacts[id]?.company_id));
+  const empty = Object.values(state.companies).filter((c) => !withRows.has(c.id) && (c.fetched_at || c.error || c.domain || c.mx_ok === false));
+  if (!state.order.length && !empty.length && !state.running) return null;
 
   let rows = state.order.map((id) => state.contacts[id]).filter(Boolean);
   const total = rows.length;
@@ -34,7 +36,14 @@ export function ResultsTable({ p }: { p: Pipeline }) {
         <span className="font-medium text-stone-900">
           {done}/{total} done · {ok} ok
         </span>
-        {state.running && <div className="h-1.5 w-32 overflow-hidden rounded bg-stone-200"><div className="h-full bg-stone-800 transition-all" style={{ width: `${(done / total) * 100}%` }} /></div>}
+        {state.running && (
+          <span className="flex items-center gap-2" role="status">
+            <span className="h-1.5 w-32 overflow-hidden rounded bg-stone-200">
+              <span className="block h-full bg-stone-800 transition-all" style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
+            </span>
+            <span className="animate-pulse">running…</span>
+          </span>
+        )}
         {toggle("onlyOk")}
         {toggle("hidePatternless")}
         {toggle("groupByCompany")}
@@ -71,6 +80,26 @@ export function ResultsTable({ p }: { p: Pipeline }) {
           </tbody>
         </table>
       </div>
+      {empty.length > 0 && (
+        <div className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm">
+          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-stone-500">Companies with no contacts</div>
+          <ul className="space-y-0.5">
+            {empty.map((c) => (
+              <li key={c.id} className="flex flex-wrap items-center gap-x-2 text-stone-700">
+                <span className="font-medium">{c.name}</span>
+                {c.domain && <span className="text-stone-500">{c.domain}</span>}
+                <span className="text-stone-500">
+                  {c.error ?? (!c.domain ? "domain not found" : c.mx_ok === false ? "no MX records" : "no matching people found")}
+                </span>
+                {c.rescue_note && <span className="text-xs text-stone-400">({c.rescue_note})</span>}
+                <Button variant="ghost" className="!px-1.5 !py-0.5 text-xs" disabled={state.running || !p.configured} onClick={() => p.retry(c.id)}>
+                  Retry
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <p className="text-xs text-stone-500">
         Emails are pattern-based guesses, not verified mailboxes. MX checks only confirm the domain accepts mail. You are responsible for CAN-SPAM (US) and GDPR/PECR (EU, UK) compliance:
         include an unsubscribe link, use an honest sender, and keep a suppression list.
