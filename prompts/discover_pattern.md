@@ -1,0 +1,13 @@
+Discover the email address format used at {{domain}}.
+
+Search for the domain's email format and read the result snippets. Good queries: "@{{domain}}" email format, {{domain}} email, {{domain}} employee email. Pages from RocketReach, SignalHire, Hunter, LeadIQ, ContactOut and Apollo often state the format in their snippet (for example "the most common pattern is first.last, used 72% of the time"). Do not open login-walled pages; snippets are enough.
+
+Also collect any literal @{{domain}} addresses you see in results and infer the pattern from them; put them in `evidence`.
+
+Return up to 3 patterns, ranked, each with the URL it came from. Use only these template tokens: {first} {last} {f} {l}, with separators "." "_" "-" or none. Allowed templates: {first}.{last}, {first}{last}, {first}_{last}, {first}-{last}, {f}{last}, {f}.{last}, {first}, {last}, {last}.{first}, {first}{l}.
+
+Confidence: use the percentage the source states when it gives one; otherwise estimate how strongly the evidence supports the format.
+
+If you find nothing, return an empty list. Do not guess.
+
+Finish by calling the `report_patterns` tool exactly once.

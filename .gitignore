@@ -11,3 +11,4 @@ packages/edge/supabase/functions/pipeline/_core/
 packages/edge/supabase/.temp/
 packages/edge/supabase/.branches/
 test-results/
+packages/edge/supabase/functions/pipeline/deno.lock

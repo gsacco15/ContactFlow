@@ -1,0 +1,9 @@
+# Minimal Supabase config: one edge function plus two tables (see migrations/).
+project_id = "contact-finder"
+
+[functions.pipeline]
+# The function enforces its own guard (rate limits, optional x-cf-token), so the
+# browser can call it without a Supabase JWT.
+verify_jwt = false
+# Prompts are read from disk at runtime; `pnpm edge:sync` copies /prompts here first.
+static_files = ["./functions/pipeline/prompts/*.md"]

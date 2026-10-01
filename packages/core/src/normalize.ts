@@ -6,7 +6,7 @@ const CREDENTIALS = new Set([
   "phd", "mba", "md", "cpa", "esq", "jd", "cfa", "pmp", "msc", "ma", "ba", "bsc", "pe", "rn",
   "dds", "cfp", "mph", "edd", "dphil", "frcs", "facs", "llm", "ceng", "pmp", "csm", "shrm",
 ]);
-const PARTICLES = new Set(["van", "von", "der", "den", "de", "del", "della", "da", "di", "du", "la", "le", "st", "dos", "das", "ter", "ten", "bin", "al"]);
+const PARTICLES = new Set(["van", "von", "der", "den", "de", "del", "della", "da", "di", "du", "la", "le", "st", "dos", "das", "ter", "ten", "bin", "al", "el"]);
 
 // Letters NFD does not decompose.
 const SPECIAL: Record<string, string> = { ø: "o", æ: "ae", œ: "oe", ß: "ss", ł: "l", đ: "d", ð: "d", þ: "th", ı: "i" };

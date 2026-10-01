@@ -18,6 +18,7 @@
     "record": "tsx --env-file-if-exists=.env scripts/record.ts"
   },
   "devDependencies": {
+    "@cf/core": "workspace:*",
     "@types/node": "^26.6.4",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",

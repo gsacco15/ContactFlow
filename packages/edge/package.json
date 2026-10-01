@@ -1,0 +1,11 @@
+{
+  "name": "@cf/edge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "pretest": "node ../../scripts/sync-edge.mjs",
+    "test": "vitest run",
+    "deploy": "node ../../scripts/sync-edge.mjs && supabase functions deploy pipeline"
+  }
+}
