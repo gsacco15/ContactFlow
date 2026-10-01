@@ -1,0 +1,14 @@
+export * from "./types.ts";
+export * from "./schemas.ts";
+export * from "./config.ts";
+export { normalizeName, slug, asciiFold, cleanDisplayName, nicknameVariant, NICKNAMES, type NormalizedName } from "./normalize.ts";
+export { generateCandidates, patternLabel } from "./candidates.ts";
+export * from "./validate.ts";
+export * from "./stages/index.ts";
+export { runPipeline, runRescue, rerunCompany, enrichCompany, applyCompany, shouldRescue, parseFinish, type RunHooks, type RescueFix } from "./runner.ts";
+export { type DecisionProvider, ClaudeDecisions } from "./decisions/index.ts";
+export { type Verifier, MxVerifier } from "./verify/index.ts";
+export { toCsv, toTsv, toRow, CSV_COLUMNS, type CsvRow } from "./export/csv.ts";
+export { type CrmAdapter, type CrmRecord, toCrmRecords } from "./crm/index.ts";
+export { memoryCache } from "./cache.ts";
+export { pMap } from "./pmap.ts";

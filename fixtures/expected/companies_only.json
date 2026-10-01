@@ -1,0 +1,19 @@
+{
+ "mode": "companies",
+ "people": 0,
+ "companies": 8,
+ "domains": {
+  "stripe": "stripe.com",
+  "notion": [
+   "notion.so",
+   "notion.com",
+   "makenotion.com"
+  ],
+  "figma": "figma.com",
+  "datadog": "datadoghq.com",
+  "airtable": "airtable.com",
+  "canva": "canva.com",
+  "linear": "linear.app",
+  "ramp": "ramp.com"
+ }
+}

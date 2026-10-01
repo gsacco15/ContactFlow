@@ -1,0 +1,26 @@
+{
+  "name": "contact-finder",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "dev": "pnpm --filter @cf/web dev",
+    "build": "pnpm --filter @cf/web build",
+    "edge:sync": "node scripts/sync-edge.mjs",
+    "edge:deploy": "node scripts/sync-edge.mjs && cd packages/edge && supabase functions deploy pipeline",
+    "smoke": "tsx --env-file-if-exists=.env scripts/smoke.ts",
+    "record": "tsx --env-file-if-exists=.env scripts/record.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.0.0"
+  }
+}

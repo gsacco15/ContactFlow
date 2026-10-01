@@ -1,0 +1,16 @@
+{
+ "mode": "people",
+ "people": 10,
+ "companies": 5,
+ "domains": {
+  "stripe": "stripe.com",
+  "notion": [
+   "notion.so",
+   "notion.com",
+   "makenotion.com"
+  ],
+  "datadog": "datadoghq.com",
+  "figma": "figma.com",
+  "hubspot": "hubspot.com"
+ }
+}
