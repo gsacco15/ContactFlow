@@ -63,6 +63,7 @@ export function usePipeline() {
         nicknames: state.nicknames,
         usePasteEvidence: state.usePasteEvidence !== false,
         skipIrrelevant: state.skipIrrelevant !== false,
+        siteMode: siteModeFromUrl(),
       },
       onUsage,
       signal,
@@ -223,3 +224,13 @@ export function usePipeline() {
 }
 
 export type Pipeline = ReturnType<typeof usePipeline>;
+
+/** Testing switch: ?site=on (use a proven website format, skip the search), ?site=shadow, ?site=off. */
+function siteModeFromUrl(): "off" | "shadow" | "on" | undefined {
+  try {
+    const v = new URLSearchParams(window.location.search).get("site");
+    return v === "on" || v === "shadow" || v === "off" ? v : undefined;
+  } catch {
+    return undefined;
+  }
+}

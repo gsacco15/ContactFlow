@@ -24,6 +24,8 @@ type DomainCache = { patterns: Pattern[]; mx_ok?: boolean; fetched_at: string };
 type CompanyCache = { domain: string; domain_confidence?: number; domain_source_url?: string };
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
+/** Domains already shadow-tested this session (one website read per domain). */
+const shadowed = new Set<string>();
 
 /**
  * Fixed pipeline: stage 1 (unless an edited extraction is passed in), then companies
@@ -164,17 +166,6 @@ export async function enrichCompany(co: Company, ctx: Ctx, people: Contact[] = [
   }
   // Every row already has its own pasted address (or no usable name) → no format needed.
   const needsPattern = !people.length || people.some((p) => p.first && !(usePaste && cleanEmail(p.email)?.endsWith(`@${co.domain}`)));
-  if (cached) {
-    co.patterns = cached.patterns;
-    co.mx_ok = cached.mx_ok;
-    co.fetched_at = cached.fetched_at;
-    return;
-  }
-  if (!needsPattern) {
-    co.mx_ok = ctx.verifier?.domainLive ? await ctx.verifier.domainLive(co.domain) : undefined;
-    return;
-  }
-  const maxSearches = Math.max(1, Math.min(2, ctx.budget.maxSearchesPerCompany - used));
   // The company's own website (free, no AI). "on": a proven format skips the paid search.
   // "shadow": read alongside the search and log whether they agree; results come from the search.
   const domain = co.domain;
@@ -187,6 +178,38 @@ export async function enrichCompany(co: Company, ctx: Ctx, people: Contact[] = [
       return undefined;
     }
   };
+  const logShadow = async (site: Awaited<ReturnType<typeof fromSite>>, top: Pattern | undefined) => {
+    if (!site) return;
+    const t = site.verdict.template ?? null;
+    await ctx
+      .shadow?.({
+        domain,
+        site_template: t,
+        site_matches: site.verdict.matches,
+        site_pages: site.read.pages.length,
+        search_template: top?.template ?? null,
+        search_confidence: top?.confidence ?? null,
+        agree: t && top ? t === top.template : null,
+      })
+      .catch(() => {});
+  };
+  if (cached) {
+    // Shadow test on a remembered domain too (once per domain per session): compare the site
+    // with the format found earlier. Runs in the background — the result never waits on it.
+    if (mode === "shadow" && needsPattern && cached.patterns.length && !shadowed.has(domain)) {
+      shadowed.add(domain);
+      void fromSite().then((site) => logShadow(site, cached.patterns[0]));
+    }
+    co.patterns = cached.patterns;
+    co.mx_ok = cached.mx_ok;
+    co.fetched_at = cached.fetched_at;
+    return;
+  }
+  if (!needsPattern) {
+    co.mx_ok = ctx.verifier?.domainLive ? await ctx.verifier.domainLive(co.domain) : undefined;
+    return;
+  }
+  const maxSearches = Math.max(1, Math.min(2, ctx.budget.maxSearchesPerCompany - used));
   let p: Awaited<ReturnType<typeof discoverPattern>> | undefined;
   let shadow: Awaited<ReturnType<typeof fromSite>>;
   if (mode === "on") {
@@ -195,19 +218,8 @@ export async function enrichCompany(co: Company, ctx: Ctx, people: Contact[] = [
   }
   if (!p) [p, shadow] = await Promise.all([discoverPattern(domain, ctx, { maxSearches }), mode === "shadow" ? fromSite() : undefined]);
   if (shadow) {
-    const top = p.ok ? p.data?.patterns[0] : undefined;
-    const site = shadow.verdict.template ?? null;
-    await ctx
-      .shadow?.({
-        domain,
-        site_template: site,
-        site_matches: shadow.verdict.matches,
-        site_pages: shadow.read.pages.length,
-        search_template: top?.template ?? null,
-        search_confidence: top?.confidence ?? null,
-        agree: site && top ? site === top.template : null,
-      })
-      .catch(() => {});
+    shadowed.add(domain);
+    await logShadow(shadow, p.ok ? p.data?.patterns[0] : undefined);
   }
   if (p.ok && p.data) co.patterns = p.data.patterns;
   else co.error = `discover_pattern: ${p.error}`;

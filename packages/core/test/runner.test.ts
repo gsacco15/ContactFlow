@@ -300,6 +300,23 @@ describe("runPipeline", () => {
     });
   });
 
+  it("shadow on a remembered domain: no new search, the site is compared with the saved format once", async () => {
+    const cache = memoryCache();
+    await cache.set("domain:globex.com", { patterns: [{ template: "{f}{last}", confidence: 0.9, stated: false }], fetched_at: "2026-01-01" }, 30);
+    const extract = toolResponse("extract_contacts", { mode: "people", companies: [{ name: "Globex", website: "globex.com" }], people: [{ first: "Ann", last: "Lee", title: "Partner", company: "Globex" }], urls: [], notes: "" });
+    const site = async () => ({ pages: ["https://globex.com/"], emails: [{ email: "alee@globex.com", context: "Ann Lee", page: "https://globex.com/" }] });
+    const rows: any[] = [];
+    for (let i = 0; i < 2; i++) {
+      const { ctx, calls } = mockCtx({ classify_extract: extract }, { cache, site, shadow: async (r) => void rows.push(r) });
+      ctx.options = { siteMode: "shadow" };
+      const res = await runPipeline("x", ctx);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(calls.some((c) => c.stage === "discover_pattern")).toBe(false);
+      expect(res.contacts[0].primary_email).toBe("alee@globex.com");
+    }
+    expect(rows).toEqual([{ domain: "globex.com", site_template: "{f}{last}", site_matches: 1, site_pages: 1, search_template: "{f}{last}", search_confidence: 0.9, agree: true }]);
+  });
+
   it("a 'no format found' search is remembered for 7 days, a found one for 30", async () => {
     let now = 0;
     const cache = memoryCache(() => now);
