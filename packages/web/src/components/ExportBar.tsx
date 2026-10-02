@@ -3,6 +3,7 @@ import { toCsv, toTable, toTsv } from "@cf/core";
 import type { Pipeline } from "../usePipeline.ts";
 import { searchNames, tableRows } from "../state.ts";
 import { PushMenu } from "./PushMenu.tsx";
+import { ACCENT } from "./Logo.tsx";
 import { Button } from "./ui.tsx";
 
 const fmtTokens = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
@@ -48,7 +49,10 @@ export function ExportBar({ p }: { p: Pipeline }) {
           title="Tap to switch between this paste and the whole session"
           data-testid="cost-mobile"
         >
-          <span className="block text-[10px] text-stone-400">{showSession ? "session" : "this paste"}</span>≈ ${(showSession ? state.usage.cost : state.pasteUsage?.cost ?? 0).toFixed(2)}
+          <span className="block text-[10px]" style={showSession ? { color: ACCENT } : { color: "#a8a29e" }}>
+            {showSession ? "session" : "this paste"}
+          </span>
+          <span style={showSession ? { color: ACCENT, fontWeight: 600 } : undefined}>≈ ${(showSession ? state.usage.cost : state.pasteUsage?.cost ?? 0).toFixed(2)}</span>
         </button>
         <span className="ml-auto hidden font-mono text-xs text-stone-600 sm:inline" title="Estimated from list prices. “This paste” resets when you paste something new; “session” resets on Clear." data-testid="cost">
           <span title={`This paste: ${state.pasteUsage?.searches ?? 0} searches, ${fmtTokens(state.pasteUsage?.tokens ?? 0)} tokens`}>
