@@ -1,3 +1,4 @@
+import { PRICE_PER_VERIFY, VERIFY_LIMITS } from "@cf/core";
 import { SAMPLES } from "../samples.ts";
 import type { Pipeline } from "../usePipeline.ts";
 import { Button } from "./ui.tsx";
@@ -54,10 +55,18 @@ export function Input({ p }: { p: Pipeline }) {
           Use emails &amp; formats found in my paste
         </label>
         {p.verifyMode !== "off" && (
-          <label className="flex items-center gap-1.5 text-sm text-stone-600" title="Checks one address per firm with a mailbox test (about $0.004 each). A valid result proves the format for everyone at that firm; firms proven before cost nothing.">
-            <input type="checkbox" checked={!!state.verify} onChange={(e) => dispatch({ type: "verify", on: e.target.checked })} />
-            Verify emails
-          </label>
+          <div className="w-full">
+            <label className="flex items-center gap-1.5 text-sm text-stone-600" title="Checks one address per firm with a mailbox test. A valid result proves the format for everyone at that firm; firms proven before cost nothing.">
+              <input type="checkbox" checked={!!state.verify} onChange={(e) => dispatch({ type: "verify", on: e.target.checked })} />
+              Verify emails
+              <span className="rounded-full bg-amber-50 px-1.5 py-px text-[11px] font-medium text-amber-700 ring-1 ring-amber-200">extra cost</span>
+            </label>
+            {state.verify && (
+              <p className="mt-1 ml-5 text-xs leading-relaxed text-amber-700">
+                Adds about ${(PRICE_PER_VERIFY).toFixed(3)} per new firm (up to ${(PRICE_PER_VERIFY * VERIFY_LIMITS.perCompany).toFixed(3)} if the first address bounces). One check per firm proves its format for everyone there; firms already proven are free.
+              </p>
+            )}
+          </div>
         )}
       </div>
       <div className="flex items-center gap-2 border-t border-stone-100 pt-3">
