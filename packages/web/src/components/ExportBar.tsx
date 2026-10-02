@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { toCsv, toTsv } from "@cf/core";
+import { toCsv, toTsv, visibleCandidates } from "@cf/core";
 import type { Pipeline } from "../usePipeline.ts";
 import { Button } from "./ui.tsx";
 
@@ -8,10 +8,16 @@ const fmtTokens = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : Strin
 export function ExportBar({ p }: { p: Pipeline }) {
   const { state } = p;
   const [copied, setCopied] = useState(false);
-  const contacts = state.order.map((id) => state.contacts[id]).filter((c) => c && c.status !== "pending");
+  const { filters } = state;
+  // Export exactly what the table shows: same filters, guesses only when switched on.
+  const contacts = state.order
+    .map((id) => state.contacts[id])
+    .filter((c) => c && c.status !== "pending")
+    .filter((c) => !filters.onlyOk || c.status === "ok")
+    .filter((c) => !filters.hidePatternless || visibleCandidates(c, { includeGuesses: !!filters.includeGuesses }).length);
 
   const download = () => {
-    const blob = new Blob([toCsv(contacts, state.companies)], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob([toCsv(contacts, state.companies, { includeGuesses: !!state.filters.includeGuesses })], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `contacts-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -19,7 +25,7 @@ export function ExportBar({ p }: { p: Pipeline }) {
     URL.revokeObjectURL(a.href);
   };
   const copy = async () => {
-    await navigator.clipboard.writeText(toTsv(contacts, state.companies));
+    await navigator.clipboard.writeText(toTsv(contacts, state.companies, { includeGuesses: !!state.filters.includeGuesses }));
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
@@ -33,6 +39,7 @@ export function ExportBar({ p }: { p: Pipeline }) {
         <Button variant="primary" onClick={download} disabled={!contacts.length}>
           Download CSV
         </Button>
+        <span className="text-xs text-stone-500">{contacts.length} rows · {filters.includeGuesses ? "incl. backup guesses" : "sourced emails only"}</span>
         <span title="Coming soon" className="inline-flex">
           <Button disabled aria-disabled>
             Push to CRM

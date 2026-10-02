@@ -2,7 +2,7 @@ import { INPUT_MODES } from "../schemas.ts";
 import type { Company, Contact, Ctx, ExtractResult, InputMode, StageResult, StatedFormat } from "../types.ts";
 import { cleanDisplayName, slug } from "../normalize.ts";
 import { cleanUrl, isTemplate, normalizeDomain } from "../validate.ts";
-import { cleanEmail } from "../paste.ts";
+import { cleanEmail, isGenericEmail } from "../paste.ts";
 import { callLlm, done, fail, findCall } from "./util.ts";
 
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
@@ -62,18 +62,21 @@ export function buildExtract(input: any, fallbackCompany?: Company): ExtractResu
   for (const p of Array.isArray(input?.people) ? input.people : []) {
     const first = cleanDisplayName(str(p?.first)).replace(/,.*$/, "").trim();
     const last = cleanDisplayName(str(p?.last)).replace(/,.*$/, "").trim();
-    if (!first) continue;
+    if (/^linkedin$/i.test(first) && /^member$/i.test(last)) continue; // anonymous LinkedIn rows
+    const rawEmail = cleanEmail(p?.email);
+    const email = rawEmail && !isGenericEmail(rawEmail) ? rawEmail : undefined;
     const companyName = str(p?.company);
     const company = companyName ? addCompany(companyName) : fallbackCompany;
     const company_id = company?.id ?? "";
-    const id = contactId(first, last, company_id);
+    // A firm list with one address each: the address is a contact even with no name (shown as Unknown).
+    if (!first && !email) continue;
+    const id = first ? contactId(first, last, company_id) : slug(email!);
     if (people.has(id)) continue;
     const contact: Contact = { id, first, last, company_id, raw_source: str(p?.raw), candidates: [], status: "pending" };
     const title = cleanTitle(str(p?.title));
     if (title) contact.title = title;
     const middle = cleanDisplayName(str(p?.middle)).replace(/\.$/, "");
     if (middle && middle.length <= 20) contact.middle = middle;
-    const email = cleanEmail(p?.email);
     if (email) contact.email = email;
     const flag = str(p?.flag).slice(0, 160);
     if (flag) contact.flag = flag;

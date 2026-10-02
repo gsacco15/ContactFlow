@@ -1,4 +1,5 @@
-import { DEFAULT_PATTERNS, type Candidate, type Pattern, type Template } from "./types.ts";
+import { DEFAULT_PATTERNS, type Candidate, type EmailBasis, type Pattern, type Template } from "./types.ts";
+import { MIN_SOURCED_CONFIDENCE } from "./config.ts";
 import { TEMPLATES } from "./schemas.ts";
 import { nicknameVariant, type NormalizedName } from "./normalize.ts";
 
@@ -34,6 +35,8 @@ export function inferTemplates(name: NormalizedName, local: string): { template:
   const out: { template: Template; middle?: string }[] = [];
   const surnames = [name.last, name.lastAlt].filter((x): x is string => !!x);
   for (const t of TEMPLATES) {
+    // "J. Fairchild" (first name unknown beyond the initial) can't confirm a {first} format.
+    if (name.first.length === 1 && t.includes("{first}")) continue;
     for (const l of surnames.length ? surnames : [""]) {
       if (needsMiddle(t) && !name.middle) {
         const guess = /^[a-z]$/.test(local[1] ?? "") ? local[1] : "";
@@ -58,14 +61,17 @@ export function generateCandidates(
 ): Candidate[] {
   const seen = new Set<string>();
   const out: Candidate[] = [];
-  const push = (p: Pattern, f: string, l: string) => {
+  const basisOf = (p: Pattern, variant = false): EmailBasis =>
+    !variant && (p.from_paste || p.source_url) && p.confidence >= MIN_SOURCED_CONFIDENCE && patterns.includes(p) ? "sourced" : "guess";
+  const push = (p: Pattern, f: string, l: string, variant = false) => {
     if (out.length >= MAX) return;
+    if (f.length === 1 && p.template.includes("{first}")) return; // only an initial is known
     const local = fill(p.template, f, l, name.middle);
     if (!local) return;
     const email = `${local}@${domain}`;
     if (seen.has(email)) return;
     seen.add(email);
-    out.push({ email, pattern: p.template, rank: (out.length + 1) as 1 | 2 | 3, verify_status: "unverified" });
+    out.push({ email, pattern: p.template, rank: (out.length + 1) as 1 | 2 | 3, basis: basisOf(p, variant), verify_status: "unverified" });
   };
 
   const ranked = patterns.slice().sort((a, b) => b.confidence - a.confidence);
@@ -74,11 +80,11 @@ export function generateCandidates(
   const all = [...ranked, ...fallback];
 
   push(all[0], name.first, name.last);
-  if (name.lastAlt) push(all[0], name.first, name.lastAlt); // Álvarez-Ruiz → also "alvarez"
+  if (name.lastAlt) push(all[0], name.first, name.lastAlt, true); // Álvarez-Ruiz → also "alvarez"
   for (const p of ranked) push(p, name.first, name.last);
   // Nickname variant (opt-in) outranks statistical fill but never a found pattern.
   const nick = opts.nicknames ? nicknameVariant(name.first) : undefined;
-  if (nick) push(all[0], nick, name.last);
+  if (nick) push(all[0], nick, name.last, true);
   for (const p of fallback) push(p, name.first, name.last);
   return out;
 }

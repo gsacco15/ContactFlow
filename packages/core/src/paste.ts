@@ -1,7 +1,7 @@
 import type { Company, Contact, Pattern, Template } from "./types.ts";
-import { FREEMAIL_DOMAINS, PASTE_CONFIDENCE } from "./config.ts";
+import { FREEMAIL_DOMAINS, GENERIC_LOCAL_PARTS, PASTE_CONFIDENCE } from "./config.ts";
 import { inferTemplates } from "./candidates.ts";
-import { normalizeName } from "./normalize.ts";
+import { asciiFold, normalizeName } from "./normalize.ts";
 import { isAggregatorDomain, isTemplate, normalizeDomain } from "./validate.ts";
 
 const EMAIL = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
@@ -13,6 +13,13 @@ export function cleanEmail(e: unknown): string | undefined {
 }
 
 const isWorkDomain = (d: string) => !FREEMAIL_DOMAINS.includes(d) && !isAggregatorDomain(d);
+
+/** info@, contact@, intake@… — a shared inbox, never a person. */
+export function isGenericEmail(email: string | undefined): boolean {
+  const local = email?.split("@")[0]?.toLowerCase() ?? "";
+  return !local || GENERIC_LOCAL_PARTS.includes(local.replace(/[0-9]+$/, ""));
+}
+
 
 /**
  * A company's domain from work emails pasted next to its people or in stated examples.
@@ -61,6 +68,7 @@ export function pastePatterns(co: Company, people: Contact[]): Pattern[] {
   };
 
   for (const p of people) {
+    if (!p.first) continue; // email-only rows: the address counts as "seen", but can't prove a format
     if (p.email) fromExample(p.email, [p.first, p.middle, p.last].filter(Boolean).join(" "), `${p.email} (${p.first} ${p.last})`);
   }
   for (const s of co.stated_formats ?? []) {

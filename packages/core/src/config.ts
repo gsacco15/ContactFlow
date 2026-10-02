@@ -21,6 +21,16 @@ export const FREEMAIL_DOMAINS = [
   "icloud.com", "me.com", "aol.com", "proton.me", "protonmail.com", "gmx.com", "mail.com", "yandex.com",
 ];
 
+/** Below this, a found pattern counts as a guess, not a sourced format. */
+export const MIN_SOURCED_CONFIDENCE = 0.4;
+
+/** Shared inboxes — never treated as a person. */
+export const GENERIC_LOCAL_PARTS = [
+  "info", "contact", "hello", "admin", "office", "hr", "careers", "jobs", "support", "sales", "team", "mail",
+  "inquiries", "inquiry", "intake", "reception", "billing", "marketing", "press", "media", "legal", "help",
+  "noreply", "no-reply", "enquiries", "general", "service", "accounts", "law", "firm",
+];
+
 /** Domain confidence below this is flagged red in the UI. */
 export const LOW_DOMAIN_CONFIDENCE = 0.5;
 

@@ -8,6 +8,7 @@ import { generateCandidates } from "./candidates.ts";
 import { normalizeName, slug } from "./normalize.ts";
 import { cleanUrl, isAggregatorDomain, isBlockedUrl, normalizeDomain, validatePatterns } from "./validate.ts";
 import { pMap } from "./pmap.ts";
+import { LOW_DOMAIN_CONFIDENCE } from "./config.ts";
 import { cleanEmail, domainFromPaste, mergePatterns, pastePatterns } from "./paste.ts";
 import { needsMiddle } from "./candidates.ts";
 
@@ -54,11 +55,23 @@ export async function runPipeline(input: string | ExtractResult, ctx: Ctx, hooks
   await pMap([...companies.values()], ctx.budget.concurrency, async (co) => {
     if (ctx.signal?.aborted) return;
     const own = people.filter((p) => p.company_id === co.id);
-    await enrichCompany(co, ctx, own);
+    const active = own.filter((p) => !p.flag);
+    const roleFilter = ctx.options?.roleFilter?.trim() || co.role_hint;
+
+    // Nothing to apply a lookup to → spend nothing on this company.
+    if (!active.length && !roleFilter) {
+      co.skipped = own.length
+        ? "only ⚠-flagged people — include one to look this company up"
+        : "no people in your paste — add Target roles to look some up";
+      hooks.onCompany?.(co);
+      for (const c of own) emit(markSkipped(c));
+      return;
+    }
+    delete co.skipped;
+    await enrichCompany(co, ctx, active);
     hooks.onCompany?.(co);
 
-    const roleFilter = ctx.options?.roleFilter?.trim() || co.role_hint;
-    if (!own.length && roleFilter && co.domain && co.mx_ok !== false) {
+    if (!active.length && roleFilter && co.domain && co.mx_ok !== false) {
       const found = await findPeople(co, roleFilter, ctx);
       if (found.ok && found.data) own.push(...found.data.people.slice(0, Math.max(0, ctx.budget.maxContacts - contacts.length)));
       else if (!found.ok) co.error = `find_people: ${found.error}`;
@@ -140,10 +153,16 @@ export async function enrichCompany(co: Company, ctx: Ctx, people: Contact[] = [
     co.fetched_at = new Date().toISOString();
     return;
   }
+  // Every row already has its own pasted address (or no usable name) → no format needed.
+  const needsPattern = !people.length || people.some((p) => p.first && !(usePaste && cleanEmail(p.email)?.endsWith(`@${co.domain}`)));
   if (cached) {
     co.patterns = cached.patterns;
     co.mx_ok = cached.mx_ok;
     co.fetched_at = cached.fetched_at;
+    return;
+  }
+  if (!needsPattern) {
+    co.mx_ok = ctx.verifier?.domainLive ? await ctx.verifier.domainLive(co.domain) : undefined;
     return;
   }
   const maxSearches = Math.max(1, Math.min(2, ctx.budget.maxSearchesPerCompany - used));
@@ -176,7 +195,23 @@ export async function applyCompany(c: Contact, co: Company | undefined, ctx: Ctx
     c.error = `${co.domain} has no MX records`;
     return;
   }
+  const trusted = !!normalizeDomain(co.website) || co.domain_from_paste || co.rescued;
+  if (!trusted && co.domain_confidence !== undefined && co.domain_confidence < LOW_DOMAIN_CONFIDENCE) {
+    c.status = "no_domain";
+    c.error = `Domain ${co.domain} is uncertain (${Math.round(co.domain_confidence * 100)}%) — check it or Retry.`;
+    return;
+  }
+  const own = ctx.options?.usePasteEvidence !== false ? cleanEmail(c.email) : undefined;
+  const ownHere = own?.endsWith(`@${co.domain}`) ? own : undefined;
   const name = normalizeName([c.first, c.middle, c.last].filter(Boolean).join(" "));
+  if (!name.first && ownHere) {
+    // Email-only row from a firm list: the address itself is the answer.
+    c.candidates = [{ email: ownHere, pattern: "pasted", rank: 1, basis: "seen", verify_status: "unverified" }];
+    c.primary_email = ownHere;
+    c.status = "ok";
+    if (co.rescued) c.rescued = true;
+    return;
+  }
   if (!name.first) {
     c.status = "error";
     c.error = "could not parse a name";
@@ -190,10 +225,9 @@ export async function applyCompany(c: Contact, co: Company | undefined, ctx: Ctx
   }
   c.candidates = generateCandidates(name, co.domain, co.patterns, { nicknames: ctx.options?.nicknames });
   // The person's own pasted work address goes first.
-  const own = ctx.options?.usePasteEvidence !== false ? cleanEmail(c.email) : undefined;
-  if (own?.endsWith(`@${co.domain}`)) {
-    const rest = c.candidates.filter((x) => x.email !== own);
-    c.candidates = [{ email: own, pattern: "pasted", rank: 1, verify_status: "unverified" as const }, ...rest]
+  if (ownHere) {
+    const rest = c.candidates.filter((x) => x.email !== ownHere);
+    c.candidates = [{ email: ownHere, pattern: "pasted", rank: 1, basis: "seen" as const, verify_status: "unverified" as const }, ...rest]
       .slice(0, 3)
       .map((x, i) => ({ ...x, rank: (i + 1) as 1 | 2 | 3 }));
   }
@@ -205,8 +239,8 @@ export async function applyCompany(c: Contact, co: Company | undefined, ctx: Ctx
     const st = await ctx.verifier.verify(c.candidates.map((x) => x.email));
     for (const x of c.candidates) x.verify_status = st[x.email] ?? "unverified";
   }
-  c.primary_email = (c.candidates.find((x) => x.verify_status === "valid") ?? c.candidates[0])?.email;
-  if (co.patterns.length) c.status = "ok";
+  c.primary_email = (c.candidates.find((x) => x.verify_status === "valid") ?? c.candidates.find((x) => x.basis !== "guess") ?? c.candidates[0])?.email;
+  if (c.candidates.some((x) => x.basis !== "guess")) c.status = "ok";
   else if (co.error) {
     c.status = "error";
     c.error = co.error;
@@ -218,7 +252,14 @@ const INCOMPLETE_LAST = "Last name is incomplete (e.g. “Maria O.”) — click
 // One rescue per company per run: the fix is company-level (domain, patterns).
 const rescues = new WeakMap<Company, Promise<StageResult<RescueFix>>>();
 
+const SKIPPED_FLAG = "⚠ may not work here — click Include to look them up.";
+
+function markSkipped(c: Contact): Contact {
+  return Object.assign(c, { status: "skipped" as const, candidates: [], primary_email: undefined, error: c.flag ? SKIPPED_FLAG : "company not looked up" });
+}
+
 async function finishContact(c: Contact, co: Company, ctx: Ctx, hooks: RunHooks) {
+  if (c.flag) return void markSkipped(c);
   await applyCompany(c, co, ctx);
   if (!(await shouldRescue(c, co, ctx))) return;
   let pending = rescues.get(co);
@@ -240,7 +281,9 @@ async function finishContact(c: Contact, co: Company, ctx: Ctx, hooks: RunHooks)
 
 /** Gate: v1 is status-only; a calibrated provider (v2) also catches rows that are ok but wrong. */
 export async function shouldRescue(c: Contact, co: Company, ctx: Ctx): Promise<boolean> {
-  if (ctx.options?.rescue === false || c.error === INCOMPLETE_LAST) return false;
+  if (ctx.options?.rescue === false || c.error === INCOMPLETE_LAST || c.status === "skipped") return false;
+  // The company already has a sourced format (this row just can't use it, e.g. no middle initial) — rescue can't help.
+  if (co.patterns.some((p) => p.from_paste || p.source_url)) return false;
   if (c.status !== "ok") return c.status !== "pending" && !!co.name;
   if (!ctx.decisions.calibrated) return false;
   const p = await ctx.decisions.score(
@@ -382,7 +425,16 @@ export async function rerunCompany(co: Company, contacts: Contact[], ctx: Ctx, h
   delete co.rescue_note;
   delete co.rescued;
   rescues.delete(co);
-  await enrichCompany(co, fresh, contacts);
+  const active = contacts.filter((c) => !c.flag);
+  const roleFilter0 = ctx.options?.roleFilter?.trim() || co.role_hint;
+  if (!active.length && !roleFilter0 && contacts.length) {
+    co.skipped = "only ⚠-flagged people — include one to look this company up";
+    hooks.onCompany?.(co);
+    for (const c of contacts) hooks.onRow?.(markSkipped(c));
+    return;
+  }
+  delete co.skipped;
+  await enrichCompany(co, fresh, active);
   hooks.onCompany?.(co);
   const roleFilter = ctx.options?.roleFilter?.trim() || co.role_hint;
   if (!contacts.length && roleFilter && co.domain && co.mx_ok !== false) {

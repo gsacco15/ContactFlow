@@ -13,6 +13,7 @@ export type Pattern = {
   evidence?: string[]; // literal emails seen in snippets or the paste
   from_paste?: boolean; // read from the user's own paste, not a search
   quote?: string; // the pasted sentence or example it came from
+  stated?: boolean; // the source itself states the format/percentage (vs. the model estimating it)
 };
 
 export type StatedFormat = { quote: string; template?: Template; example_email?: string; example_name?: string };
@@ -40,15 +41,25 @@ export type Company = {
   rescue_note?: string; // gave-up reason or what the rescue agent repaired
   rescued?: boolean; // the rescue agent repaired this company
   pattern_conflict?: string; // paste and search disagree on the top pattern
+  skipped?: string; // why the company was not looked up (no people, only flagged people)
 };
 
 export type VerifyStatus = "valid" | "risky" | "invalid" | "catch_all" | "unverified";
-export type ContactStatus = "pending" | "ok" | "no_domain" | "no_pattern" | "error";
+export type ContactStatus = "pending" | "ok" | "no_domain" | "no_pattern" | "error" | "skipped";
+
+/**
+ * How much stands behind an email:
+ *  seen    — the exact address appeared in the paste or a fetched page
+ *  sourced — built from a format a source states or the paste proves
+ *  guess   — a common format with nothing behind it (hidden unless the user asks)
+ */
+export type EmailBasis = "seen" | "sourced" | "guess";
 
 export type Candidate = {
   email: string;
   pattern: string;
   rank: 1 | 2 | 3;
+  basis: EmailBasis;
   verify_status?: VerifyStatus;
 };
 

@@ -67,6 +67,7 @@ const patternSchema: JsonSchema = {
     template: { type: "string", enum: [...TEMPLATES], description: "Email local-part template" },
     confidence: num01("How sure you are this is the format in use"),
     source_url: str("URL of the page/snippet the format was read from"),
+    stated: { type: "boolean", description: "true if that page itself states this format or percentage; false if you inferred it" },
     evidence: { type: "array", items: { type: "string" }, description: "Literal email addresses at this domain seen in results" },
   },
   required: ["template", "confidence"],

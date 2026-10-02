@@ -6,7 +6,7 @@ Also collect any literal @{{domain}} addresses you see in results and infer the 
 
 Return up to 3 patterns, ranked, each with the URL it came from. Use only these template tokens: {first} {last} {f} {m} {l}, with separators "." "_" "-" or none. Allowed templates: {first}.{last}, {first}{last}, {first}_{last}, {first}-{last}, {f}{last}, {f}.{last}, {first}, {last}, {last}.{first}, {first}{l}, {f}{l} (initials), {f}{m}{l} (initials with middle initial).
 
-Confidence: use the percentage the source states when it gives one; otherwise estimate how strongly the evidence supports the format.
+Confidence: use the percentage the source states when it gives one and set `stated` to true; otherwise estimate how strongly the evidence supports the format and set `stated` to false.
 
 If you find nothing, return an empty list. Do not guess.
 

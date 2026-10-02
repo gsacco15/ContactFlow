@@ -1,6 +1,6 @@
 import type { Company, Contact, ExtractResult } from "@cf/core";
 
-export type Filters = { onlyOk: boolean; hidePatternless: boolean; groupByCompany: boolean };
+export type Filters = { onlyOk: boolean; hidePatternless: boolean; groupByCompany: boolean; includeGuesses: boolean };
 export type Usage = { tokens: number; searches: number; cost: number; calls: number };
 
 export type State = {
@@ -56,7 +56,7 @@ export function initialState(session: string): State {
     parsing: false,
     running: false,
     usage: emptyUsage(),
-    filters: { onlyOk: false, hidePatternless: false, groupByCompany: false },
+    filters: { onlyOk: false, hidePatternless: false, groupByCompany: false, includeGuesses: false },
   };
 }
 

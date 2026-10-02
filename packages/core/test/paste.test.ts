@@ -73,8 +73,11 @@ describe("runner with paste evidence", () => {
     expect(by.Alex.candidates[0]).toMatchObject({ email: "ajb@ulaw.com", pattern: "pasted" });
     expect(by.Naomi.primary_email).toBe("nbf@ulaw.com");
     expect(by.Matt.note).toMatch(/middle initial/);
-    expect(by.Matt.status).toBe("ok");
-    expect(by.Fred.flag).toMatch(/New York/);
+    expect(by.Matt.status).toBe("no_pattern"); // only backup guesses for him, and no pointless rescue
+    expect(by.Matt.candidates.every((c) => c.basis === "guess")).toBe(true);
+    expect(by.Fred).toMatchObject({ status: "skipped", candidates: [] }); // ⚠-flagged: not looked up
+    expect(by.Alex.candidates[0].basis).toBe("seen");
+    expect(by.Naomi.candidates[0].basis).toBe("sourced");
   });
 
   it("toggle off: the paste is ignored and the pipeline searches", async () => {

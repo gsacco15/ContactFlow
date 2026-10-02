@@ -77,7 +77,7 @@ describe("runPipeline", () => {
       discover_pattern: firstLast(),
     });
     ctx.budget.maxSearchesPerCompany = 4;
-    await runPipeline(buildExtract({ people: [{ first: "A", last: "B", company: "Stripe" }] }), ctx);
+    await runPipeline(buildExtract({ people: [{ first: "Ann", last: "Bell", company: "Stripe" }] }), ctx);
     const total = calls.reduce((n, c) => n + (c.maxSearches ?? 0), 0);
     expect(total).toBeLessThanOrEqual(4);
   });
@@ -162,9 +162,9 @@ describe("runPipeline", () => {
       discover_pattern: noPatterns,
       rescue_agent: finish({ patterns: [{ template: "{first}.{last}", confidence: 0.9 }] }),
     });
-    const res = await runPipeline(buildExtract({ people: [{ first: "A", last: "B", company: "Acme" }] }), ctx);
+    const res = await runPipeline(buildExtract({ people: [{ first: "Ann", last: "Bell", company: "Acme" }] }), ctx);
     expect(res.contacts[0].status).toBe("no_pattern");
-    expect(res.contacts[0].candidates[0].email).toBe("a.b@acme.com"); // statistical default still offered
+    expect(res.contacts[0].candidates[0]).toMatchObject({ email: "ann.bell@acme.com", basis: "guess" }); // offered, but only as a backup guess
   });
 
   it("surfaces stage errors as error rows and does not cache them", async () => {
@@ -239,7 +239,7 @@ describe("runPipeline", () => {
       discover_pattern: [noPatterns, firstLast()],
     });
     ctx.options = { rescue: false };
-    const res = await runPipeline(buildExtract({ people: [{ first: "A", last: "B", company: "X" }] }), ctx);
+    const res = await runPipeline(buildExtract({ people: [{ first: "Ann", last: "Bell", company: "X" }] }), ctx);
     expect(res.contacts[0].status).toBe("no_pattern");
     await rerunCompany(res.companies[0], res.contacts, ctx);
     expect(res.contacts[0].status).toBe("ok");

@@ -62,6 +62,7 @@ export function validatePatterns(raw: unknown, domain?: string): Pattern[] {
     const pattern: Pattern = { template: p.template, confidence: clamp01(p.confidence) };
     const src = cleanUrl(p.source_url);
     if (src) pattern.source_url = src;
+    if (typeof p.stated === "boolean") pattern.stated = p.stated;
     if (Array.isArray(p.evidence)) {
       const ev: string[] = p.evidence
         .filter((e: unknown): e is string => typeof e === "string")

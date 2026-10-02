@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { patternLabel, type Candidate, type Company, type Contact } from "@cf/core";
+import { patternLabel, visibleCandidates, type Candidate, type Company, type Contact } from "@cf/core";
 import { LOW_DOMAIN_CONFIDENCE } from "../config.ts";
 import type { Pipeline } from "../usePipeline.ts";
 import { Button, LinkIcon, Pill } from "./ui.tsx";
 
-const STATUS_TONE = { pending: "stone", ok: "green", no_domain: "red", no_pattern: "amber", error: "red" } as const;
-const STATUS_LABEL = { pending: "pending", ok: "ok", no_domain: "no domain", no_pattern: "no pattern", error: "error" } as const;
+const STATUS_TONE = { pending: "stone", ok: "green", no_domain: "red", no_pattern: "amber", error: "red", skipped: "stone" } as const;
+const STATUS_LABEL = { pending: "pending", ok: "ok", no_domain: "no domain", no_pattern: "no sourced email", error: "error", skipped: "skipped" } as const;
 
 export function ResultsTable({ p }: { p: Pipeline }) {
   const { state, dispatch } = p;
@@ -19,13 +19,13 @@ export function ResultsTable({ p }: { p: Pipeline }) {
   const done = rows.filter((r) => r.status !== "pending").length;
   const ok = rows.filter((r) => r.status === "ok").length;
   if (filters.onlyOk) rows = rows.filter((r) => r.status === "ok");
-  if (filters.hidePatternless) rows = rows.filter((r) => state.companies[r.company_id]?.patterns.length);
+  if (filters.hidePatternless) rows = rows.filter((r) => visibleCandidates(r, { includeGuesses: !!filters.includeGuesses }).length);
   if (filters.groupByCompany) rows = [...rows].sort((a, b) => (state.companies[a.company_id]?.name ?? "~").localeCompare(state.companies[b.company_id]?.name ?? "~"));
 
   const toggle = (k: keyof typeof filters) => (
     <label className="flex items-center gap-1.5">
       <input type="checkbox" checked={filters[k]} onChange={(e) => dispatch({ type: "filters", filters: { [k]: e.target.checked } })} />
-      {{ onlyOk: "Only ok", hidePatternless: "Hide rows without a found pattern", groupByCompany: "Group by company" }[k]}
+      {{ onlyOk: "Only ok", hidePatternless: "Hide rows with no email", groupByCompany: "Group by company", includeGuesses: "Include backup guesses" }[k]}
     </label>
   );
 
@@ -47,6 +47,9 @@ export function ResultsTable({ p }: { p: Pipeline }) {
         {toggle("onlyOk")}
         {toggle("hidePatternless")}
         {toggle("groupByCompany")}
+        <span className="border-l border-stone-300 pl-4" title="Common formats with no source behind them. Off = they are hidden here and left out of Copy/CSV.">
+          {toggle("includeGuesses")}
+        </span>
       </div>
       <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white shadow-sm">
         <table className="w-full text-left text-sm">
@@ -89,7 +92,7 @@ export function ResultsTable({ p }: { p: Pipeline }) {
                 <span className="font-medium">{c.name}</span>
                 {c.domain && <span className="text-stone-500">{c.domain}</span>}
                 <span className="text-stone-500">
-                  {c.error ?? (!c.domain ? "domain not found" : c.mx_ok === false ? "no MX records" : "no matching people found")}
+                  {c.skipped ?? c.error ?? (!c.domain ? "domain not found" : c.mx_ok === false ? "no MX records" : "no matching people found")}
                 </span>
                 {c.rescue_note && <span className="text-xs text-stone-400">({c.rescue_note})</span>}
                 <Button variant="ghost" className="!px-1.5 !py-0.5 text-xs" disabled={state.running || !p.configured} onClick={() => p.retry(c.id)}>
@@ -111,13 +114,14 @@ export function ResultsTable({ p }: { p: Pipeline }) {
 function Row({ c, co, p }: { c: Contact; co?: Company; p: Pipeline }) {
   const top = c.candidates.find((x) => x.pattern !== "pasted");
   const pattern = top ? co?.patterns.find((x) => x.template === top.pattern) : undefined;
-  const failed = c.status !== "ok" && c.status !== "pending";
+  const failed = c.status !== "ok" && c.status !== "pending" && c.status !== "skipped";
+  const shown = visibleCandidates(c, { includeGuesses: !!p.state.filters.includeGuesses });
   return (
     <tr className="border-t border-stone-100 align-top">
       <td className="px-3 py-2">
         <div className="flex items-start gap-1">
           {c.flag && <span title={c.flag} className="cursor-help text-amber-600">⚠</span>}
-          <Editable value={[c.first, c.middle, c.last].filter(Boolean).join(" ")} className="font-medium" label="Name" onSave={(v) => {
+          <Editable value={[c.first, c.middle, c.last].filter(Boolean).join(" ")} placeholder="Unknown" className="font-medium" label="Name" onSave={(v) => {
             const parts = v.trim().split(/\s+/);
             const [first, ...rest] = parts;
             p.editContact(c.id, rest.length > 1 ? { first: first ?? "", middle: rest.slice(0, -1).join(" "), last: rest.at(-1)! } : { first: first ?? "", middle: undefined, last: rest.join(" ") });
@@ -145,7 +149,11 @@ function Row({ c, co, p }: { c: Contact; co?: Company; p: Pipeline }) {
             <span className="font-mono text-xs">{patternLabel(top.pattern)}</span>
             {pattern ? (
               <>
-                <Pill tone={pattern.confidence >= 0.6 ? "green" : pattern.confidence >= 0.3 ? "amber" : "red"} title="Pattern confidence">
+                <Pill
+                  tone={pattern.confidence >= 0.6 ? "green" : pattern.confidence >= 0.3 ? "amber" : "red"}
+                  title={pattern.from_paste ? "Confidence from your paste" : pattern.stated ? "Percentage stated by the source" : "Estimated from search snippets — no percentage was stated"}
+                >
+                  {pattern.stated === false || (!pattern.stated && !pattern.from_paste) ? "≈" : ""}
                   {Math.round(pattern.confidence * 100)}%
                 </Pill>
                 {pattern.from_paste ? (
@@ -165,7 +173,7 @@ function Row({ c, co, p }: { c: Contact; co?: Company; p: Pipeline }) {
       </td>
       {[0, 1, 2].map((i) => (
         <td key={i} className="px-3 py-2">
-          <Email cand={c.candidates[i]} />
+          <Email cand={shown[i]} />
         </td>
       ))}
       <td className="px-3 py-2">
@@ -174,6 +182,11 @@ function Row({ c, co, p }: { c: Contact; co?: Company; p: Pipeline }) {
             {c.status === "pending" && p.state.running ? "running…" : STATUS_LABEL[c.status]}
           </Pill>
           {c.error && <span className="max-w-48 text-xs text-stone-500">{c.error}</span>}
+          {c.status === "skipped" && c.flag && (
+            <Button variant="ghost" className="!px-1.5 !py-0.5 text-xs" disabled={p.state.running || !p.configured} onClick={() => p.include(c.id)} title={c.flag}>
+              Include
+            </Button>
+          )}
           {failed && co && (
             <Button variant="ghost" className="!px-1.5 !py-0.5 text-xs" disabled={p.state.running || !p.configured} onClick={() => p.retry(co.id)}>
               Retry
@@ -189,17 +202,19 @@ function Email({ cand }: { cand?: Candidate }) {
   const [copied, setCopied] = useState(false);
   if (!cand) return <span className="text-stone-300">—</span>;
   const valid = cand.verify_status === "valid";
+  const guess = cand.basis === "guess";
   return (
     <button
       className="group flex items-center gap-1 rounded px-1 -mx-1 text-left font-mono text-xs hover:bg-stone-100"
-      title={`${cand.verify_status ?? "unverified"} · click to copy`}
+      title={`${guess ? "backup guess — common format, no source" : cand.basis === "seen" ? "seen in your paste" : "built from a sourced format"} · ${cand.verify_status ?? "unverified"} · click to copy`}
       onClick={async () => {
         await navigator.clipboard?.writeText(cand.email).catch(() => {});
         setCopied(true);
         setTimeout(() => setCopied(false), 1200);
       }}
     >
-      <span className={cand.verify_status === "invalid" ? "text-red-600 line-through" : ""}>{cand.email}</span>
+      <span className={cand.verify_status === "invalid" ? "text-red-600 line-through" : guess ? "italic text-stone-400" : ""}>{cand.email}</span>
+      {guess && <span className="text-[10px] text-stone-400">backup</span>}
       {valid && <span className="text-emerald-600" aria-label="verified">✓</span>}
       {copied && <span className="text-[10px] text-stone-500">copied</span>}
     </button>

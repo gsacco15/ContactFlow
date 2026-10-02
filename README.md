@@ -125,6 +125,13 @@ LinkedIn or anything behind a login. That keeps it in the same category as Hunte
   edge function's `web_fetch` tool has LinkedIn and the paid data vendors in `blocked_domains`.
 - **Provenance on every guess.** Domain and pattern carry their source URL into the table and the CSV.
   Rescue-agent patterns without a source URL are discarded.
+- **Evidence level on every email:** *seen* (in your paste), *sourced* (a format a source states or your
+  paste proves, ≥ 40 %), or *guess* (a common format, nothing behind it). Guesses are hidden and left out of
+  Copy/CSV unless you switch on **Include backup guesses**; the CSV has `email_N_basis` and
+  `pattern_confidence_basis` (stated by source / estimated / paste) columns.
+- **Junk gates:** no emails for ⚠-flagged people (until you click Include), "LinkedIn Member" rows,
+  incomplete names ("Maria O."), shared inboxes (info@…), dead or uncertain (< 50 %) domains. Companies with
+  no usable people are never searched.
 - **Guesses are labelled as guesses.** MX only proves the domain takes mail, so every candidate exports
   as `verify_status=unverified` (or `invalid` for a dead domain). The UI never shows a guess as confirmed.
 - **Opt-out column** in every export. **You** are responsible for CAN-SPAM (US) and GDPR / PECR (EU, UK)
@@ -159,5 +166,10 @@ LinkedIn or anything behind a login. That keeps it in the same category as Hunte
 | M5 MX, rescue, polish | ✅ | dead-domain fixture → `no_domain`; 8-call rescue budget; Retry; filters; cost counter uses the same usage the function logs | counter vs `cf_usage` |
 | M6 company-first | ✅ code | role filter / role hints → find_people; URL inputs | ≥ 1 match per company with a public team page |
 
-**v2 backlog:** `JevDecisions` + calibrated rescue gate, ICP fit column, HubSpot adapter, remote MCP server
-exposing the stage tools (core is already host-agnostic), Agent SDK researcher fan-out.
+**v2 backlog:**
+- **Role / fit filter** ("partners and attorneys, not paralegals or retirees"): a target-roles box at the
+  preview step that unticks non-matching people before any search; then seniority × function tags
+  per title; then an ICP fit score (0–100) with best leads first. Titles and ⚠ flags are already captured.
+- Names for email-only rows (`emery.harlan@` → Emery Harlan) — they currently show as Unknown.
+- `JevDecisions` + calibrated rescue gate, HubSpot adapter, remote MCP server exposing the stage tools
+  (core is already host-agnostic), Agent SDK researcher fan-out.

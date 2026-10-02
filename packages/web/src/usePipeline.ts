@@ -95,10 +95,10 @@ export function usePipeline() {
     run({ mode: "people", companies, people: pending, urls: [], notes: "" }, { keepRows: true });
   }
 
-  async function retry(companyId: string) {
+  async function retry(companyId: string, override?: Contact[]) {
     const co = state.companies[companyId];
     if (!co) return;
-    const contacts = state.order.map((id) => state.contacts[id]).filter((c) => c?.company_id === companyId).map(clone);
+    const contacts = override ?? state.order.map((id) => state.contacts[id]).filter((c) => c?.company_id === companyId).map(clone);
     dispatch({ type: "run_start" });
     try {
       await rerunCompany(clone(co), contacts, makeCtx(), hooks);
@@ -118,6 +118,22 @@ export function usePipeline() {
     dispatch({ type: "row", contact: c });
   }
 
+  /** Clear a ⚠ flag ("include anyway") and look the company up again with that person in. */
+  async function include(id: string) {
+    const c = state.contacts[id];
+    if (!c) return;
+    const contacts = state.order
+      .map((x) => state.contacts[x])
+      .filter((x) => x?.company_id === c.company_id)
+      .map((x) => {
+        const y = clone(x);
+        if (y.id === id) delete y.flag;
+        return y;
+      });
+    dispatch({ type: "row", contact: contacts.find((x) => x.id === id)! });
+    await retry(c.company_id, contacts);
+  }
+
   function stop() {
     abort.current?.abort();
   }
@@ -130,7 +146,7 @@ export function usePipeline() {
     dispatch({ type: "clear", session: sessionId() });
   }
 
-  return { state, dispatch, parse, run, resume, retry, stop, clear, editContact, configured: !!client };
+  return { state, dispatch, parse, run, resume, retry, include, stop, clear, editContact, configured: !!client };
 }
 
 export type Pipeline = ReturnType<typeof usePipeline>;
