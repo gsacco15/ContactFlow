@@ -21,12 +21,6 @@ export default function App() {
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-stone-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
-          <span className="grid size-7 place-items-center rounded-lg bg-stone-900 text-white" aria-hidden>
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" className="size-4">
-              <path d="M3 5.5h14v9H3z" />
-              <path d="M3 5.5l7 5 7-5" />
-            </svg>
-          </span>
           <h1 className="text-base font-semibold tracking-tight">
             <button onClick={() => go("app")}>ContactFlow</button>
           </h1>
