@@ -37,6 +37,24 @@ export const GENERIC_LOCAL_PARTS = [
   "recruiting", "talent", "bookings", "booking", "orders", "returns", "donotreply", "do-not-reply",
   "notifications", "alerts", "news", "frontdesk", "appointments", "accounting", "finance", "payroll",
   "operations", "ops", "it", "tech", "dev", "hire", "hiring", "work", "studio", "agency", "hq", "main",
+  // departments, services and functions
+  "admissions", "alumni", "clientservices", "clients", "client", "concierge", "compliance", "contracts",
+  "dispatch", "donations", "donate", "editor", "editorial", "estimating", "export", "fax", "giving", "grants",
+  "helpdesk", "housing", "inbox", "infos", "inquire", "enquire", "insurance", "intern", "interns", "internships",
+  "invoice", "invoices", "lab", "library", "licensing", "listings", "mailbox", "maintenance", "management",
+  "members", "membership", "merch", "mkt", "noc", "nospam", "notify", "online", "outreach", "owner", "parts",
+  "patients", "permissions", "pr", "procurement", "purchasing", "quote", "quotes", "records", "recruitment",
+  "referrals", "registrar", "rentals", "reply", "reservations", "resumes", "cv", "root", "safety", "scheduling",
+  "school", "secretary", "shop", "social", "sponsorship", "sponsors", "staff", "store", "students",
+  "submissions", "subscribe", "subscriptions", "suppliers", "sysadmin", "tickets", "ticket", "training",
+  "transport", "travel", "unsubscribe", "updates", "vendor", "vendors", "volunteer", "volunteers", "warehouse",
+  "web", "welcome", "wholesale", "workshop", "administrator", "attorneys", "lawyers", "solicitors", "newbusiness",
+  "leads", "demo", "trial", "bizdev", "success", "customersuccess", "onboarding", "community", "hey", "hi",
+  "ask", "questions", "query", "queries", "requests", "request", "shipping", "delivery", "claims",
+  "benefits", "compensation", "learning", "academy", "certification", "partnersupport", "techsupport",
+  "itsupport", "servicedesk", "facilities", "front.desk", "front-desk", "office.manager", "officemanager",
+  "receptionist", "clerk", "docket", "docketing", "conflicts", "records.dept", "newclient", "newclients",
+  "consult", "consultation", "consultations", "appointment", "pressoffice", "communications", "comms",
 ];
 
 /**
@@ -53,7 +71,7 @@ export const SITE_CONFIDENCE = { single: 0.85, multiple: 0.95 };
 export const NO_FORMAT_CACHE_DAYS = 7;
 
 /** Strip known page clutter (universal rules + recognised-source packs) before the AI reads a paste. */
-export const CLEAN_PASTE = true;
+export const CLEAN_PASTE = false;
 
 /** Domain confidence below this is flagged red in the UI. */
 export const LOW_DOMAIN_CONFIDENCE = 0.5;

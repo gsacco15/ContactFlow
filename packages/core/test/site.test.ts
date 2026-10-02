@@ -37,6 +37,10 @@ describe("siteFormat", () => {
 
   it("single-word formats only count for people in the paste, not page text", () => {
     expect(siteFormat(read(["chicago@acme.com", "Chicago Office Hours"]), "acme.com", []).matches).toBe(0);
-    expect(siteFormat(read(["sandy@acme.com", "Email"]), "acme.com", [person("Sandy", "Morris")]).pattern?.template).toBe("{first}");
+    // One person on a short format is not enough (could be the founder's personal address)…
+    expect(siteFormat(read(["sandy@acme.com", "Email"]), "acme.com", [person("Sandy", "Morris")]).pattern).toBeUndefined();
+    // …two agreeing people are.
+    expect(siteFormat(read(["sandy@acme.com", "Email"], ["jon@acme.com", "Email"]), "acme.com", [person("Sandy", "Morris"), person("Jon", "Pratt")]).pattern?.template).toBe("{first}");
+    expect(siteFormat(read(["sm@acme.com", "Sandy Morris"]), "acme.com", []).pattern).toBeUndefined(); // initials alone: not proven
   });
 });

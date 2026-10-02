@@ -19,6 +19,8 @@ export type SiteVerdict = {
   conflict?: Template;
 };
 
+const SHORT_FORMATS = new Set<Template>(["{first}", "{last}", "{f}{l}", "{f}{m}{l}", "{first}{l}"]);
+
 // Runs of capitalised words near an address ("Contact Sandy Morris Partner"); each 2–3 word
 // window is tried as a name, so neighbouring words like "Contact" or "Partner" don't block a match.
 const NAME_RE = /\b([A-Z][a-zA-Z'’-]+\.?(?:\s+[A-Z][a-zA-Z'’.-]+){1,5})\b/g;
@@ -65,7 +67,10 @@ export function siteFormat(read: SiteRead, domain: string, people: Contact[]): S
   if (!top) return { matches: 0 };
   const [template, v] = top;
   const n = v.emails.length;
-  const proven = (n >= 2 && (!second || n > second[1].emails.length)) || (n === 1 && !second);
+  // Short formats (first@, last@, initials) collide easily — one founder's sam@ says little about
+  // everyone else — so they always need 2+ agreeing people. Longer formats: 2+, or 1 uncontested.
+  const short = SHORT_FORMATS.has(template);
+  const proven = (n >= 2 && (!second || n > second[1].emails.length)) || (n === 1 && !second && !short);
   const verdict: SiteVerdict = { template, matches: n, conflict: second?.[0] };
   if (proven) {
     verdict.pattern = {
