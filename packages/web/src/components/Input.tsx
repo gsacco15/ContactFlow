@@ -61,10 +61,12 @@ export function Input({ p }: { p: Pipeline }) {
               Verify emails
               <span className="rounded-full bg-amber-50 px-1.5 py-px text-[11px] font-medium text-amber-700 ring-1 ring-amber-200">extra cost</span>
             </label>
-            {state.verify && (
+            {state.verify ? (
               <p className="mt-1 ml-5 text-xs leading-relaxed text-amber-700">
                 Adds about ${(PRICE_PER_VERIFY).toFixed(3)} per new firm (up to ${(PRICE_PER_VERIFY * VERIFY_LIMITS.perCompany).toFixed(3)} if the first address bounces). One check per firm proves its format for everyone there; firms already proven are free.
               </p>
+            ) : (
+              <p className="mt-1 ml-5 text-xs text-stone-400">Checks each firm's mailbox format · about ${(PRICE_PER_VERIFY).toFixed(3)} per new firm</p>
             )}
           </div>
         )}
