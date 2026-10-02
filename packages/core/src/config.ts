@@ -21,6 +21,9 @@ export const FREEMAIL_DOMAINS = [
   "icloud.com", "me.com", "aol.com", "proton.me", "protonmail.com", "gmx.com", "mail.com", "yandex.com",
 ];
 
+/** Relevance judge: p ≥ yes → ✓, p < no → ✗ (skipped), in between → ? (kept). */
+export const FIT_THRESHOLDS = { yes: 0.6, no: 0.3 };
+
 /** Below this, a found pattern counts as a guess, not a sourced format. */
 export const MIN_SOURCED_CONFIDENCE = 0.4;
 
@@ -40,6 +43,7 @@ export const LOW_DOMAIN_CONFIDENCE = 0.5;
  */
 export const PRICES: { prefix: string; input: number; output: number }[] = [
   { prefix: "claude-haiku", input: 1, output: 5 },
+  { prefix: "jev", input: 0.042, output: 0 },
   { prefix: "claude-sonnet", input: 2, output: 10 },
   { prefix: "claude-opus", input: 4, output: 20 },
 ];

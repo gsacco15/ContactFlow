@@ -124,3 +124,16 @@ describe("helpers", () => {
     expect(mxFromDoh({ Status: 0 })).toBe(false);
   });
 });
+
+import { parseJevBatch } from "../supabase/functions/pipeline/lib.ts";
+
+describe("parseJevBatch", () => {
+  const ok = { state: "Name: A\nTitle: Partner", questions: { q: { type: "noul", instructions: "relevant?" } } };
+  it("accepts typed questions", () => expect(parseJevBatch({ requests: [ok] })).toHaveLength(1));
+  it("rejects bad shapes and oversize batches", () => {
+    expect(() => parseJevBatch({})).toThrow(/requests/);
+    expect(() => parseJevBatch({ requests: [{ ...ok, state: "" }] })).toThrow(/state/);
+    expect(() => parseJevBatch({ requests: [{ ...ok, questions: { q: { type: "essay", instructions: "x" } } }] })).toThrow(/noul/);
+    expect(() => parseJevBatch({ requests: Array(101).fill(ok) })).toThrow(/100/);
+  });
+});

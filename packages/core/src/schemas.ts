@@ -25,7 +25,8 @@ export type StageName =
   | "discover_pattern"
   | "find_people"
   | "rescue_agent"
-  | "decide";
+  | "decide"
+  | "judge";
 
 /** Which configured model a stage runs on (resolved to an env var by the edge function). */
 export type ModelRole = "extract" | "domain" | "classify";
@@ -52,6 +53,7 @@ export const STAGES: Record<StageName, StageSpec> = {
   find_people: { prompt: "find_people", model: "extract", tools: ["extract_contacts"], finalTool: "extract_contacts", maxSearches: 3, maxFetches: 3 },
   rescue_agent: { prompt: "rescue_agent", model: "extract", tools: ["find_domain", "find_email_pattern", "find_people", "finish"], maxSearches: 2, maxFetches: 2, agentic: true },
   decide: { prompt: "decide", model: "classify", tools: ["report_decision"], finalTool: "report_decision", maxSearches: 0, maxFetches: 0 },
+  judge: { prompt: "judge", model: "classify", tools: ["report_judgements"], finalTool: "report_judgements", maxSearches: 0, maxFetches: 0 },
 };
 
 type JsonSchema = Record<string, unknown>;
@@ -178,6 +180,26 @@ export const TOOLS: Record<string, ToolDef> = {
         },
       },
       required: ["probabilities"],
+      additionalProperties: false,
+    },
+  },
+  report_judgements: {
+    name: "report_judgements",
+    description: "Report, for every item id, the probability that the statement is true of it, with a short reason.",
+    input_schema: {
+      type: "object",
+      properties: {
+        items: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { id: { type: "integer" }, p: num01("Probability the statement is true"), reason: str("Max 12 words") },
+            required: ["id", "p"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["items"],
       additionalProperties: false,
     },
   },

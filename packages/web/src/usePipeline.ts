@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef } from "react";
 import {
-  ClaudeDecisions, MxVerifier, applyCompany, classifyExtract, estimateCost, rerunCompany, runPipeline,
-  type Contact, type Ctx, type ExtractResult, type RunHooks,
+  ClaudeDecisions, JevDecisions, MxVerifier, applyCompany, classifyExtract, estimateCost, judgeFit, rerunCompany, runPipeline,
+  type Contact, type Ctx, type DecisionProvider, type ExtractResult, type RunHooks,
 } from "@cf/core";
 import { ACCESS_TOKEN, BUDGET, EDGE_URL, RATE_LIMIT_RETRY_MS } from "./config.ts";
 import { edgeClient, layeredCache } from "./lib/edgeClient.ts";
@@ -35,6 +35,11 @@ export function usePipeline() {
     [state.session],
   );
 
+  // Use Jev for decisions when the edge function has a TypeSafe key; otherwise Claude (Haiku).
+  useEffect(() => {
+    client?.health().then((h: any) => dispatch({ type: "judge", name: h?.jev ? "jev" : "claude" }), () => {});
+  }, [client]);
+
   function makeCtx(signal?: AbortSignal): Ctx {
     if (!client) throw new Error("VITE_EDGE_URL is not set");
     const llm: Ctx["llm"] = (req) => client.llm(req, signal);
@@ -48,10 +53,15 @@ export function usePipeline() {
     return {
       llm,
       cache: layeredCache(localCache, client.cache),
-      decisions: new ClaudeDecisions({ llm, onUsage }),
+      decisions: decisionsFor(llm, onUsage),
       verifier: new MxVerifier(client.mx),
       budget: BUDGET,
-      options: { roleFilter: state.roleFilter, nicknames: state.nicknames, usePasteEvidence: state.usePasteEvidence !== false },
+      options: {
+        roleFilter: state.roleFilter,
+        nicknames: state.nicknames,
+        usePasteEvidence: state.usePasteEvidence !== false,
+        skipIrrelevant: state.skipIrrelevant !== false,
+      },
       onUsage,
       signal,
     };
@@ -63,11 +73,44 @@ export function usePipeline() {
     onRow: (contact) => dispatch({ type: "row", contact: clone(contact) }),
   };
 
+  function decisionsFor(llm: Ctx["llm"], onUsage: Ctx["onUsage"]): DecisionProvider {
+    const claude = new ClaudeDecisions({ llm, onUsage });
+    if (state.judge !== "jev" || !client) return claude;
+    const jev = new JevDecisions(client.jev, onUsage);
+    // If Jev is unavailable mid-run, the same question goes to Claude instead.
+    return {
+      name: "jev",
+      calibrated: true,
+      score: (c, q) => jev.score(c, q).catch(() => claude.score(c, q)),
+      scoreMany: (items, q) => jev.scoreMany(items, q).catch(() => claude.scoreMany(items, q)),
+      classify: (l, c) => jev.classify(l, c).catch(() => claude.classify(l, c)),
+      choose: (o, c) => jev.choose(o, c).catch(() => claude.choose(o, c)),
+    };
+  }
+
+  /** Judge everyone in the parsed list against "Who do you want?" (skips people already judged for it). */
+  async function judge(ex: ExtractResult, ctx: Ctx) {
+    if (!state.roleFilter.trim() || !ex.people.length) return;
+    dispatch({ type: "judging", on: true });
+    const names = Object.fromEntries(ex.companies.map((c) => [c.id, c.name]));
+    await judgeFit(ex.people, state.roleFilter, ctx.decisions, (c) => names[c.company_id]).catch(() => {});
+    dispatch({ type: "judging", on: false });
+  }
+
+  async function recheck() {
+    if (!state.extracted) return;
+    const ex = clone(state.extracted);
+    await judge(ex, makeCtx());
+    dispatch({ type: "edit_extract", extracted: ex });
+  }
+
   async function parse() {
     dispatch({ type: "parse_start" });
     try {
-      const r = await classifyExtract(state.input, makeCtx());
+      const ctx = makeCtx();
+      const r = await classifyExtract(state.input, ctx);
       if (!r.ok || !r.data) throw new Error(r.error ?? "extraction failed");
+      await judge(r.data, ctx);
       dispatch({ type: "parsed", extracted: r.data });
     } catch (e) {
       dispatch({ type: "error", error: (e as Error).message });
@@ -146,7 +189,7 @@ export function usePipeline() {
     dispatch({ type: "clear", session: sessionId() });
   }
 
-  return { state, dispatch, parse, run, resume, retry, include, stop, clear, editContact, configured: !!client };
+  return { state, dispatch, parse, recheck, run, resume, retry, include, stop, clear, editContact, configured: !!client };
 }
 
 export type Pipeline = ReturnType<typeof usePipeline>;

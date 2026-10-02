@@ -9,7 +9,7 @@ import { normalizeName, slug } from "./normalize.ts";
 import { cleanUrl, isAggregatorDomain, isBlockedUrl, normalizeDomain, validatePatterns } from "./validate.ts";
 import { pMap } from "./pmap.ts";
 import { LOW_DOMAIN_CONFIDENCE } from "./config.ts";
-import { matchesRoles } from "./roles.ts";
+import { judgeFit, relevance } from "./fit.ts";
 import { cleanEmail, domainFromPaste, mergePatterns, pastePatterns } from "./paste.ts";
 import { needsMiddle } from "./candidates.ts";
 
@@ -42,6 +42,11 @@ export async function runPipeline(input: string | ExtractResult, ctx: Ctx, hooks
   addUrlCompanies(ex.urls, companies);
 
   const people = ex.people.slice(0, ctx.budget.maxContacts);
+  const want = ctx.options?.roleFilter?.trim();
+  if (want && people.length) {
+    // One batch: who is worth looking up? Failures fall back to keyword matching.
+    await judgeFit(people, want, ctx.decisions, (c) => companies.get(c.company_id)?.name).catch(() => {});
+  }
   const contacts: Contact[] = [];
   const emit = (c: Contact) => {
     contacts.push(c);
@@ -256,16 +261,22 @@ const INCOMPLETE_LAST = "Last name is incomplete (e.g. “Maria O.”) — click
 const rescues = new WeakMap<Company, Promise<StageResult<RescueFix>>>();
 
 const SKIPPED_FLAG = "⚠ may not work here — click Include to look them up.";
-const SKIPPED_ROLE = "Not in your target roles — click Include to look them up.";
+const SKIPPED_ROLE = "Not relevant to “Who do you want?” — click Include to look them up.";
 
-/** Looked up only if not ⚠-flagged and not filtered out by the target roles — unless the user clicked Include. */
+/** Looked up only if not ⚠-flagged and not judged irrelevant — unless the user clicked Include. */
 function isActive(c: Contact, ctx: Ctx): boolean {
   if (c.keep) return true;
-  return !c.flag && matchesRoles(c.title, ctx.options?.roleFilter) !== false;
+  if (c.flag) return false;
+  if (ctx.options?.skipIrrelevant === false) return !c.drop;
+  return relevance(c, ctx.options?.roleFilter) !== false;
 }
 
 function markSkipped(c: Contact, ctx?: Ctx): Contact {
-  const error = c.flag ? SKIPPED_FLAG : ctx && matchesRoles(c.title, ctx.options?.roleFilter) === false ? SKIPPED_ROLE : "company not looked up";
+  const error = c.flag
+    ? SKIPPED_FLAG
+    : ctx && relevance(c, ctx.options?.roleFilter) === false
+      ? c.fit?.reason ? `Not relevant: ${c.fit.reason} — click Include to look them up.` : SKIPPED_ROLE
+      : "company not looked up";
   return Object.assign(c, { status: "skipped" as const, candidates: [], primary_email: undefined, error });
 }
 
@@ -296,7 +307,7 @@ export async function shouldRescue(c: Contact, co: Company, ctx: Ctx): Promise<b
   // The company already has a sourced format (this row just can't use it, e.g. no middle initial) — rescue can't help.
   if (co.patterns.some((p) => p.from_paste || p.source_url)) return false;
   if (c.status !== "ok") return c.status !== "pending" && !!co.name;
-  if (!ctx.decisions.calibrated) return false;
+  if (!ctx.decisions.calibrated || c.candidates[0]?.basis === "seen") return false;
   const p = await ctx.decisions.score(
     JSON.stringify({ company: { name: co.name, domain: co.domain, patterns: co.patterns }, contact: { first: c.first, last: c.last, title: c.title } }),
     "Is this domain and pattern correct given the evidence?",

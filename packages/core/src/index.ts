@@ -7,7 +7,8 @@ export { pastePatterns, domainFromPaste, mergePatterns, cleanEmail, isGenericEma
 export * from "./validate.ts";
 export * from "./stages/index.ts";
 export { runPipeline, runRescue, rerunCompany, enrichCompany, applyCompany, shouldRescue, parseFinish, type RunHooks, type RescueFix } from "./runner.ts";
-export { type DecisionProvider, ClaudeDecisions } from "./decisions/index.ts";
+export { type DecisionProvider, type ScoredItem, ClaudeDecisions, JevDecisions, type JevTransport, type JevRequest, type JevResponse } from "./decisions/index.ts";
+export { judgeFit, relevance, personState, fitQuestion, looksLikeKeywords } from "./fit.ts";
 export { type Verifier, MxVerifier } from "./verify/index.ts";
 export { toCsv, toTsv, toRow, visibleCandidates, CSV_COLUMNS, type CsvRow, type ExportOptions } from "./export/csv.ts";
 export { type CrmAdapter, type CrmRecord, toCrmRecords } from "./crm/index.ts";

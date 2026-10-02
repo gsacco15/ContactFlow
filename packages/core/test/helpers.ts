@@ -41,7 +41,7 @@ export function mockCtx(script: Partial<Record<StageName | "rescue", Handler | H
   const ctx: Ctx = {
     llm,
     cache: memoryCache(),
-    decisions: { name: "none", calibrated: false, classify: async () => ({}), choose: async () => ({ index: 0, probs: [] }), score: async () => 1 },
+    decisions: { name: "none", calibrated: false, classify: async () => ({}), choose: async () => ({ index: 0, probs: [] }), score: async () => 1, scoreMany: async (items: string[]) => items.map(() => ({ p: 1 })) },
     budget: { ...DEFAULT_BUDGET },
     ...over,
   };

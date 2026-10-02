@@ -5,8 +5,8 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { STAGES, type StageName } from "./_core/schemas.ts";
 import { BUNDLED_PROMPTS } from "./_core/prompts.ts";
 import {
-  CACHE_KEY, DOMAIN, HttpError, RateLimiter, addUsage, buildParams, corsHeaders, mxFromDoh, mxFromRecords,
-  parseBody, readContent, zeroUsage, type Env, type LlmBody,
+  CACHE_KEY, DOMAIN, HttpError, JEV_URL, RateLimiter, addUsage, buildParams, corsHeaders, mxFromDoh, mxFromRecords,
+  parseBody, parseJevBatch, readContent, zeroUsage, type Env, type LlmBody,
 } from "./lib.ts";
 
 const env: Env = (k) => Deno.env.get(k);
@@ -147,6 +147,37 @@ async function cacheOp(body: any) {
   throw new HttpError(400, "op must be get or set");
 }
 
+// ── /jev (TypeSafe Jev decisions; key stays here) ─────────────────────────
+
+async function runJev(body: any) {
+  const key = env("TYPESAFE_API_KEY");
+  if (!key) throw new HttpError(501, "jev not configured");
+  const model = env("CF_JEV_MODEL") || "jev-latest";
+  const reqs = parseJevBatch(body);
+  const one = async (r: { state: string; questions: Record<string, unknown> }, attempt = 0): Promise<any> => {
+    const res = await fetch(env("CF_JEV_URL") || JEV_URL, {
+      method: "POST",
+      headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+      body: JSON.stringify({ model, state: r.state, questions: r.questions }),
+    });
+    if ((res.status === 429 || res.status >= 500) && attempt < 2) {
+      await new Promise((ok) => setTimeout(ok, 400 * (attempt + 1)));
+      return one(r, attempt + 1);
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new HttpError(502, `jev ${res.status}: ${data?.error?.message ?? data?.error ?? "error"}`);
+    return { answers: data.answers ?? {}, usage: data.usage, model: data.model };
+  };
+  // Small pool so a big batch doesn't trip TypeSafe's rate limit.
+  const out: any[] = new Array(reqs.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(10, reqs.length) }, async () => {
+    while (next < reqs.length) { const i = next++; out[i] = await one(reqs[i]); }
+  }));
+  const usage = out.reduce((a, r) => ({ input_tokens: a.input_tokens + (r.usage?.input_tokens ?? 0), output_tokens: a.output_tokens + (r.usage?.output_tokens ?? 0) }), { input_tokens: 0, output_tokens: 0 });
+  return { responses: out, usage, model: out[0]?.model ?? model };
+}
+
 // ── router ──────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -159,7 +190,7 @@ Deno.serve(async (req) => {
   try {
     if (req.method === "GET" && path.endsWith("/health")) {
       const prompts = await Promise.all(Object.values(STAGES).map((s) => loadPrompt(s.prompt).then(() => s.prompt, () => `${s.prompt} (missing)`)));
-      return json({ ok: true, key: !!env("ANTHROPIC_API_KEY"), db: !!db, prompts });
+      return json({ ok: true, key: !!env("ANTHROPIC_API_KEY"), jev: !!env("TYPESAFE_API_KEY"), db: !!db, prompts });
     }
     if (req.method !== "POST") throw new HttpError(405, "POST only");
 
@@ -180,6 +211,12 @@ Deno.serve(async (req) => {
       return json({ ok: await hasMx(domain) });
     }
     if (path.endsWith("/cache")) return json(await cacheOp(body));
+    if (path.endsWith("/jev")) {
+      if (!(await underDailyLimit())) return json({ error: "daily_limit" }, 429);
+      const out = await runJev(body);
+      if (db) await db.from("cf_usage").insert({ session, ip_hash: await sha(ip), stage: "jev", model: out.model, input_tokens: out.usage.input_tokens, output_tokens: out.usage.output_tokens });
+      return json(out);
+    }
     if (path.endsWith("/llm")) {
       const parsed = parseBody(body);
       if (!(await underDailyLimit())) return json({ error: "daily_limit" }, 429);

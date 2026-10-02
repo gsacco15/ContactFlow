@@ -110,6 +110,8 @@ Function secrets (`supabase secrets set …`). The browser never sees any of the
 | `CF_CACHE_TTL_DAYS` | `30` | Server cache TTL cap for `domain → patterns` |
 | `CF_ALLOWED_ORIGINS` | `*` | Comma-separated CORS origins. Set it to your app's URL in production. |
 | `CF_ACCESS_TOKEN` | unset | If set, requests need header `x-cf-token`. A light guard for a personal deployment. |
+| `TYPESAFE_API_KEY` | unset | Jev (TypeSafe) for the "Who do you want?" relevance judge and other decisions. Without it, Claude (Haiku) judges. |
+| `CF_JEV_MODEL` | `jev-latest` | Jev model alias |
 
 Web (`packages/web/.env`): `VITE_EDGE_URL`, `VITE_ACCESS_TOKEN` (must match `CF_ACCESS_TOKEN`).
 Scripts: `CF_EDGE_URL`, `CF_ACCESS_TOKEN_CLIENT`. Client-side budgets (max contacts 100, concurrency 5,

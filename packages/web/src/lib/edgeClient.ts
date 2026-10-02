@@ -1,5 +1,5 @@
 // HTTP client for the `pipeline` edge function. No React; also used by scripts/smoke.ts.
-import type { Cache, LlmRequest, LlmResponse } from "@cf/core";
+import type { Cache, JevRequest, JevResponse, LlmRequest, LlmResponse } from "@cf/core";
 
 export type EdgeOptions = {
   url: string;
@@ -44,6 +44,8 @@ export function edgeClient(o: EdgeOptions) {
   return {
     llm: (req: LlmRequest, signal?: AbortSignal) => post<LlmResponse>("llm", req, signal),
     mx: async (domain: string) => (await post<{ ok: boolean }>("mx", { domain })).ok,
+    /** TypeSafe Jev batch, proxied by the edge function (which holds the key). */
+    jev: async (requests: JevRequest[]): Promise<JevResponse[]> => (await post<{ responses: JevResponse[] }>("jev", { requests })).responses,
     cache: {
       get: async (key: string) => (await post<{ value: unknown }>("cache", { op: "get", key })).value ?? undefined,
       set: async (key: string, value: unknown, ttlDays: number) => void (await post("cache", { op: "set", key, value, ttlDays })),

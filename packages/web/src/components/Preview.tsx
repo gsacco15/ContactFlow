@@ -1,4 +1,5 @@
-import { matchesRoles, slug, type Company, type Contact, type ExtractResult } from "@cf/core";
+import { relevance, slug, type Company, type Contact, type ExtractResult } from "@cf/core";
+import { FitBadge } from "./FitBadge.tsx";
 import { BUDGET, LARGE_PASTE_CONTACTS } from "../config.ts";
 import type { Pipeline } from "../usePipeline.ts";
 import { Banner, Button } from "./ui.tsx";
@@ -13,8 +14,11 @@ export function Preview({ p }: { p: Pipeline }) {
   const companiesWithout = ex.companies.filter((c) => !peopleAt(c.id) && !c.role_hint);
   const roles = p.state.roleFilter.trim();
   const flagged = ex.people.filter((x) => x.flag && !x.keep).length;
-  const fit = (x: Contact) => (x.keep ? true : matchesRoles(x.title, roles));
+  const fit = (x: Contact) => relevance(x, roles);
   const filteredOut = roles ? ex.people.filter((x) => fit(x) === false).length : 0;
+  const unsure = roles ? ex.people.filter((x) => fit(x) !== false && x.fit?.for === roles && x.fit.tier === "maybe" && !x.keep).length : 0;
+  const stale = roles && ex.people.some((x) => x.title && !x.keep && !x.drop && x.fit?.for !== roles);
+  const judgeName = p.state.judge === "jev" ? "Jev" : "Claude";
   const pastedEmails = ex.people.filter((x) => x.email).length;
   const statements = ex.companies.reduce((n, c) => n + (c.stated_formats?.length ?? 0), 0);
 
@@ -44,10 +48,22 @@ export function Preview({ p }: { p: Pipeline }) {
       </div>
 
       {ex.notes && <p className="text-sm text-stone-600">Note: {ex.notes}</p>}
-      {filteredOut > 0 && (
-        <Banner tone="info">
-          Target roles: {ex.people.length - filteredOut} of {ex.people.length} people match. The {filteredOut} marked ✗ will be skipped — nothing is spent on them. Tick “keep” to include one anyway.
-        </Banner>
+      {roles && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900" role="status">
+          {p.state.judging ? (
+            <span className="animate-pulse">{judgeName} is checking who fits “{roles}”…</span>
+          ) : stale ? (
+            <span>“Who do you want?” changed — click Re-check to judge everyone against it.</span>
+          ) : (
+            <span>
+              {judgeName}: {ex.people.length - filteredOut - unsure} relevant · {unsure} unsure · {filteredOut} not relevant.{" "}
+              {p.state.skipIrrelevant !== false ? "✗ people are skipped — nothing is spent on them." : "Everyone will be looked up (skipping is off)."} Click a badge to keep or drop someone.
+            </span>
+          )}
+          <button className="ml-auto rounded border border-sky-300 bg-white px-2 py-0.5 text-xs font-medium hover:bg-sky-100 disabled:opacity-50" onClick={p.recheck} disabled={p.state.judging || !p.configured}>
+            Re-check
+          </button>
+        </div>
       )}
       {flagged > 0 && (
         <Banner tone="warn">
@@ -89,7 +105,7 @@ export function Preview({ p }: { p: Pipeline }) {
                 <th className="px-2 py-1.5">Last</th>
                 <th className="px-2 py-1.5">Title</th>
                 <th className="px-2 py-1.5">Company</th>
-                {roles && <th className="px-2 py-1.5 text-center">Fits roles</th>}
+                {roles && <th className="px-2 py-1.5 text-center">Relevant?</th>}
                 <th className="w-8" />
               </tr>
             </thead>
@@ -125,15 +141,7 @@ export function Preview({ p }: { p: Pipeline }) {
                   </td>
                   {roles && (
                     <td className="px-2 text-center text-sm">
-                      {fit(x) === false ? (
-                        <label className="inline-flex items-center gap-1 text-stone-500" title="Doesn’t match your target roles">
-                          ✗ <input type="checkbox" checked={!!x.keep} onChange={(e) => editPerson(i, { keep: e.target.checked || undefined })} /> keep
-                        </label>
-                      ) : fit(x) === true ? (
-                        <span className="text-emerald-600">✓</span>
-                      ) : (
-                        <span className="text-stone-400" title="No title to check — kept">?</span>
-                      )}
+                      <FitBadge c={x} want={roles} onChange={(patch) => editPerson(i, patch)} />
                     </td>
                   )}
                   <td className="text-center">

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { patternLabel, visibleCandidates, type Candidate, type Company, type Contact } from "@cf/core";
+import { patternLabel, relevance, visibleCandidates, type Candidate, type Company, type Contact } from "@cf/core";
+import { FitBadge } from "./FitBadge.tsx";
 import { LOW_DOMAIN_CONFIDENCE } from "../config.ts";
 import type { Pipeline } from "../usePipeline.ts";
 import { Button, LinkIcon, Pill } from "./ui.tsx";
@@ -19,13 +20,14 @@ export function ResultsTable({ p }: { p: Pipeline }) {
   const done = rows.filter((r) => r.status !== "pending").length;
   const ok = rows.filter((r) => r.status === "ok").length;
   if (filters.onlyOk) rows = rows.filter((r) => r.status === "ok");
+  if (filters.hideIrrelevant !== false && state.roleFilter.trim()) rows = rows.filter((r) => relevance(r, state.roleFilter) !== false);
   if (filters.hidePatternless) rows = rows.filter((r) => visibleCandidates(r, { includeGuesses: !!filters.includeGuesses }).length);
   if (filters.groupByCompany) rows = [...rows].sort((a, b) => (state.companies[a.company_id]?.name ?? "~").localeCompare(state.companies[b.company_id]?.name ?? "~"));
 
   const toggle = (k: keyof typeof filters) => (
     <label className="flex items-center gap-1.5">
       <input type="checkbox" checked={filters[k]} onChange={(e) => dispatch({ type: "filters", filters: { [k]: e.target.checked } })} />
-      {{ onlyOk: "Only ok", hidePatternless: "Hide rows with no email", groupByCompany: "Group by company", includeGuesses: "Include backup guesses" }[k]}
+      {{ onlyOk: "Only ok", hidePatternless: "Hide rows with no email", groupByCompany: "Group by company", includeGuesses: "Include backup guesses", hideIrrelevant: "Hide not relevant" }[k]}
     </label>
   );
 
@@ -47,6 +49,7 @@ export function ResultsTable({ p }: { p: Pipeline }) {
         {toggle("onlyOk")}
         {toggle("hidePatternless")}
         {toggle("groupByCompany")}
+        {state.roleFilter.trim() && toggle("hideIrrelevant")}
         <span className="border-l border-stone-300 pl-4" title="Common formats with no source behind them. Off = they are hidden here and left out of Copy/CSV.">
           {toggle("includeGuesses")}
         </span>
@@ -121,6 +124,7 @@ function Row({ c, co, p }: { c: Contact; co?: Company; p: Pipeline }) {
       <td className="px-3 py-2">
         <div className="flex items-start gap-1">
           {c.flag && <span title={c.flag} className="cursor-help text-amber-600">⚠</span>}
+          <FitBadge c={c} want={p.state.roleFilter} />
           <Editable value={[c.first, c.middle, c.last].filter(Boolean).join(" ")} placeholder="Unknown" className="font-medium" label="Name" onSave={(v) => {
             const parts = v.trim().split(/\s+/);
             const [first, ...rest] = parts;

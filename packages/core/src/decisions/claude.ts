@@ -1,5 +1,5 @@
 import type { Ctx } from "../types.ts";
-import type { DecisionProvider } from "./index.ts";
+import type { DecisionProvider, ScoredItem } from "./index.ts";
 import { callLlm, findCall } from "../stages/util.ts";
 
 type Llm = Pick<Ctx, "llm" | "onUsage" | "signal">;
@@ -34,5 +34,21 @@ export class ClaudeDecisions implements DecisionProvider {
   async score(context: string, question: string) {
     const [yes] = await this.probs(["yes", "no"], context, question);
     return yes;
+  }
+
+  /** One `judge` call for the whole list (Haiku-class model, with a short reason per item). */
+  async scoreMany(items: string[], question: string): Promise<ScoredItem[]> {
+    if (!items.length) return [];
+    const { res } = await callLlm(this.ctx as Ctx, {
+      stage: "judge",
+      input: { question, items: items.map((text, id) => ({ id, text })) },
+      vars: { question },
+    });
+    const raw = res && findCall(res, "report_judgements")?.input?.items;
+    return items.map((_, id) => {
+      const hit = Array.isArray(raw) ? raw.find((r: any) => r?.id === id) : undefined;
+      const p = typeof hit?.p === "number" ? Math.min(1, Math.max(0, hit.p)) : 0.5;
+      return typeof hit?.reason === "string" && hit.reason ? { p, reason: hit.reason.slice(0, 140) } : { p };
+    });
   }
 }

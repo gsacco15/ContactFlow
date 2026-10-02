@@ -30,7 +30,8 @@ describe("matchesRoles", () => {
   });
 });
 
-describe("role filter in the runner", () => {
+describe("role filter in the runner (keyword fallback when no judge is available)", () => {
+  const noJudge = (ctx: any) => (ctx.decisions = { ...ctx.decisions, scoreMany: () => Promise.reject(new Error("down")) });
   const firm = (people: any[]) => buildExtract({ people: people.map((p) => ({ company: "Werman Salas", ...p })) });
   const script = {
     resolve_domain: toolResponse("report_domain", { domain: "flsalaw.com", confidence: 0.9, source_url: "https://x", alternatives: [] }),
@@ -39,6 +40,7 @@ describe("role filter in the runner", () => {
 
   it("skips non-matching people before any lookup; keeps people with no title", async () => {
     const { ctx } = mockCtx(script);
+    noJudge(ctx);
     ctx.options = { roleFilter: "Partner, -Paralegal" };
     const res = await runPipeline(
       firm([
@@ -53,11 +55,12 @@ describe("role filter in the runner", () => {
       ["Lynsey", "skipped"],
       ["Ann", "ok"],
     ]);
-    expect(res.contacts[1].error).toMatch(/target roles/);
+    expect(res.contacts[1].error).toMatch(/Not relevant/);
   });
 
   it("a company where nobody matches is not searched and does not trigger a team-page lookup", async () => {
     const { ctx, calls } = mockCtx({});
+    noJudge(ctx);
     ctx.options = { roleFilter: "Partner" };
     const res = await runPipeline(firm([{ first: "Lynsey", last: "Major", title: "Paralegal" }]), ctx);
     expect(calls).toEqual([]);
@@ -66,6 +69,7 @@ describe("role filter in the runner", () => {
 
   it("keep (Include) overrides the filter and the ⚠ flag", async () => {
     const { ctx } = mockCtx(script);
+    noJudge(ctx);
     ctx.options = { roleFilter: "Partner" };
     const res = await runPipeline(firm([{ first: "Lynsey", last: "Major", title: "Paralegal" }]), ctx).then(async (r) => {
       r.extract.people[0].keep = true;

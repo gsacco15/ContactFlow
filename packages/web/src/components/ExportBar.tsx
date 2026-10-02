@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { toCsv, toTsv, visibleCandidates } from "@cf/core";
+import { relevance, toCsv, toTsv, visibleCandidates } from "@cf/core";
 import type { Pipeline } from "../usePipeline.ts";
 import { Button } from "./ui.tsx";
 
@@ -14,6 +14,7 @@ export function ExportBar({ p }: { p: Pipeline }) {
     .map((id) => state.contacts[id])
     .filter((c) => c && c.status !== "pending")
     .filter((c) => !filters.onlyOk || c.status === "ok")
+    .filter((c) => filters.hideIrrelevant === false || !state.roleFilter.trim() || relevance(c, state.roleFilter) !== false)
     .filter((c) => !filters.hidePatternless || visibleCandidates(c, { includeGuesses: !!filters.includeGuesses }).length);
 
   const download = () => {

@@ -73,6 +73,8 @@ export type Contact = {
   email?: string; // literal address next to this person in the paste
   flag?: string; // e.g. headline names a different employer — check before running
   keep?: boolean; // user clicked Include: look up despite a flag or the role filter
+  drop?: boolean; // user marked them not relevant, whatever the judge said
+  fit?: Fit; // relevance to "Who do you want?", from the decision model
   linkedin_url?: string;
   raw_source: string; // the pasted chunk this came from, for debugging
   candidates: Candidate[]; // max 3
@@ -82,6 +84,8 @@ export type Contact = {
   note?: string; // non-fatal, e.g. "pattern needs a middle initial"
   rescued?: boolean;
 };
+
+export type Fit = { p: number; tier: "yes" | "maybe" | "no"; reason?: string; by: string; for: string };
 
 export type ExtractResult = {
   mode: InputMode;
@@ -161,6 +165,8 @@ export type RunOptions = {
   rescue?: boolean;
   /** Use emails and stated formats found in the paste as pattern evidence. Default true. */
   usePasteEvidence?: boolean;
+  /** Skip people the relevance judge marks "no" before any search. Default true. */
+  skipIrrelevant?: boolean;
   /** Ignore cached company lookups (used by Retry). */
   bypassCache?: boolean;
 };

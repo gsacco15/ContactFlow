@@ -64,6 +64,14 @@ const search = (query, urls) => [
   },
 ];
 
+// Fake relevance: senior / sales / growth titles fit, engineering and marketing do not.
+function fitOf(text) {
+  const t = (/Title: (.*)/.exec(text)?.[1] ?? "").toLowerCase();
+  if (/engineer|marketing|paralegal|assistant|student/.test(t)) return 0.1;
+  if (/vp|head|chief|ceo|cfo|director|founder|partner/.test(t)) return 0.9;
+  return 0.45;
+}
+
 function respond(body) {
   const tools = (body.tools ?? []).map((t) => t.name);
   const msgs = body.messages ?? [];
@@ -75,6 +83,9 @@ function respond(body) {
     usage: { input_tokens: 1500 + searches * 3000, output_tokens: 180, server_tool_use: { web_search_requests: searches } },
   });
 
+  if (tools.includes("report_judgements")) {
+    return tool("report_judgements", { items: (input.items ?? []).map((it) => ({ id: it.id, p: fitOf(it.text), reason: "mock judgement from title" })) });
+  }
   if (tools.includes("finish")) return tool("finish", { gave_up: true, reason: "mock: nothing more to find" });
   if (tools.includes("report_decision")) return tool("report_decision", { probabilities: (input.options ?? []).map((o) => ({ option: o, p: 1 / input.options.length })) });
   if (tools.includes("report_domain")) {
@@ -100,6 +111,13 @@ createServer((req, res) => {
   let data = "";
   req.on("data", (c) => (data += c));
   req.on("end", () => {
+    if (req.method === "POST" && req.url.startsWith("/v1/systemone")) {
+      // TypeSafe Jev stand-in: one noul per question, from the title in the state.
+      const body = JSON.parse(data);
+      const answers = Object.fromEntries(Object.keys(body.questions ?? {}).map((k) => [k, { type: "noul", noul: fitOf(body.state) }]));
+      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ model: "jev-mock", answers, usage: { input_tokens: 60, output_tokens: 1 } }));
+      return;
+    }
     if (req.method !== "POST" || !req.url.startsWith("/v1/messages")) {
       res.writeHead(404).end();
       return;

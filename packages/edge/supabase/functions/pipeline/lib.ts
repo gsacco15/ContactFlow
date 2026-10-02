@@ -162,6 +162,26 @@ export function corsHeaders(origin: string | null, env: Env): Record<string, str
   };
 }
 
+// TypeSafe Jev (System One). https://docs.typesafe.ai — POST /v1/systemone
+export const JEV_URL = "https://api.typesafe.ai/v1/systemone";
+export const JEV_MAX_BATCH = 100;
+
+/** Validate a batch for /jev: [{ state, questions }] with only typed noul/choice/score questions. */
+export function parseJevBatch(raw: any): { state: string; questions: Record<string, unknown> }[] {
+  const reqs = raw?.requests;
+  if (!Array.isArray(reqs) || !reqs.length) throw new HttpError(400, "requests[] required");
+  if (reqs.length > JEV_MAX_BATCH) throw new HttpError(413, `at most ${JEV_MAX_BATCH} requests per batch`);
+  return reqs.map((r: any) => {
+    if (typeof r?.state !== "string" || !r.state.trim() || r.state.length > 8000) throw new HttpError(400, "each request needs a state (max 8000 chars)");
+    const qs = r?.questions;
+    if (!qs || typeof qs !== "object" || !Object.keys(qs).length || Object.keys(qs).length > 20) throw new HttpError(400, "1–20 questions per request");
+    for (const q of Object.values(qs) as any[]) {
+      if (!["noul", "choice", "score"].includes(q?.type) || typeof q?.instructions !== "string") throw new HttpError(400, "questions must be noul/choice/score with instructions");
+    }
+    return { state: r.state, questions: qs };
+  });
+}
+
 export const CACHE_KEY = /^(company|domain):[a-z0-9.-]{1,200}$/;
 export const DOMAIN = /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/;
 

@@ -1,6 +1,6 @@
 import type { Company, Contact, ExtractResult } from "@cf/core";
 
-export type Filters = { onlyOk: boolean; hidePatternless: boolean; groupByCompany: boolean; includeGuesses: boolean };
+export type Filters = { onlyOk: boolean; hidePatternless: boolean; groupByCompany: boolean; includeGuesses: boolean; hideIrrelevant: boolean };
 export type Usage = { tokens: number; searches: number; cost: number; calls: number };
 
 export type State = {
@@ -9,6 +9,9 @@ export type State = {
   roleFilter: string;
   nicknames: boolean;
   usePasteEvidence: boolean; // use emails / stated formats found in the paste
+  skipIrrelevant: boolean; // skip people judged not relevant before any search
+  judge?: string; // decision provider in use: "jev" or "claude"
+  judging: boolean;
   extracted?: ExtractResult; // after Parse; edits write back here before Run
   showPreview: boolean; // true after Parse until the next Run
   companies: Record<string, Company>;
@@ -27,6 +30,9 @@ export type Action =
   | { type: "role"; roleFilter: string }
   | { type: "nicknames"; on: boolean }
   | { type: "paste_evidence"; on: boolean }
+  | { type: "skip_irrelevant"; on: boolean }
+  | { type: "judge"; name: string }
+  | { type: "judging"; on: boolean }
   | { type: "parse_start" }
   | { type: "parsed"; extracted: ExtractResult }
   | { type: "edit_extract"; extracted?: ExtractResult }
@@ -50,13 +56,15 @@ export function initialState(session: string): State {
     roleFilter: "",
     nicknames: false,
     usePasteEvidence: true,
+    skipIrrelevant: true,
+    judging: false,
     companies: {},
     contacts: {},
     order: [],
     parsing: false,
     running: false,
     usage: emptyUsage(),
-    filters: { onlyOk: false, hidePatternless: false, groupByCompany: false, includeGuesses: false },
+    filters: { onlyOk: false, hidePatternless: false, groupByCompany: false, includeGuesses: false, hideIrrelevant: true },
   };
 }
 
@@ -72,6 +80,12 @@ export function reducer(s: State, a: Action): State {
       return { ...s, nicknames: a.on };
     case "paste_evidence":
       return { ...s, usePasteEvidence: a.on };
+    case "skip_irrelevant":
+      return { ...s, skipIrrelevant: a.on };
+    case "judge":
+      return { ...s, judge: a.name };
+    case "judging":
+      return { ...s, judging: a.on };
     case "parse_start":
       return { ...s, parsing: true, error: undefined };
     case "parsed":
@@ -125,5 +139,5 @@ export function reducer(s: State, a: Action): State {
 
 /** What survives a refresh: everything except in-flight flags. */
 export function persistable(s: State): State {
-  return { ...s, parsing: false, running: false, rateLimitedUntil: undefined };
+  return { ...s, parsing: false, running: false, judging: false, rateLimitedUntil: undefined };
 }
