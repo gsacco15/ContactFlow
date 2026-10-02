@@ -1,0 +1,9 @@
+first,last,company,title,real_email,outcome,source
+Priya,Natarajan,Harbor Pine,Managing Partner,priya.natarajan@harborpine.com,delivered,sample
+Oren,Castellano,Harbor Pine,Senior Attorney,oren.castellano@harborpine.com,replied,sample
+Dana,Whitlock,Harbor Pine,Paralegal,dwhitlock@harborpine.com,bounced,sample
+Leo,Brandt,Northgate Legal LLP,Partner,lbrandt@northgatelegal.com,delivered,sample
+Maya,Okafor,Northgate Legal LLP,Associate,mokafor@northgatelegal.com,confirmed,sample
+Ivy,Chen,Bluefield Advisors,Principal,ivy@bluefield.co,delivered,sample
+Sam,Rivera,Kettle & Finch,Office Manager,srivera@kettlefinch.com,delivered,sample
+Ruth,Adler,Kettle & Finch,Partner,ruth.adler@kettlefinch.com,soft bounce,sample

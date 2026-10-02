@@ -19,3 +19,4 @@ export { cleanPaste, type CleanResult } from "./clean.ts";
 export { siteFormat, type SiteEmail, type SiteRead, type SiteVerdict } from "./site.ts";
 export type { SiteShadowRow } from "./types.ts";
 export * from "./api.ts";
+export * from "./bench.ts";

@@ -15,7 +15,12 @@ What we're building, in order. Updated as each item lands. `[x]` done · `[~]` i
 
 ## Next
 
-3. [ ] **Benchmark (set up, no data yet)** — CSV of known answers (name, company, real email, delivered/bounced/replied) → `pnpm bench` scores domain accuracy, top-1 / top-3, wrong-but-confident, cost per usable contact, time.
+3. [x] **Benchmark (set up, no data yet)** — see `bench/README.md`
+   - [x] Answer-key CSV (accepts sending-tool column names and outcome words)
+   - [x] `pnpm bench` (`--mock` free practice · `--limit` · `--budget` · `--site on` · `--give-domain`)
+   - [x] Report card: 1st right, top 3, wrong-but-confident, domain, no answer, bounces, score honesty by band and by source, cost per usable contact; compares with last run
+   - [ ] **You:** a list of 100–200 people with known real emails → `bench/data/`
+   - [ ] First real run, then fix the worst number
 4. [ ] **Evidence engine (set up, switched off)** — `cf_domain_evidence` table, `recordEvidence()`, scorer, `EVIDENCE_MODE = "off"`.
 5. [ ] **Verification button (switched off)** — Verify per row / all; checks 1–2 people per firm and re-ranks the rest; writes into the evidence engine. Stand-in provider until we pick one (MillionVerifier or ZeroBounce). Pro accounts later.
 6. [ ] **API → MCP → ChatGPT app** — `/v1/enrich` with API keys, MCP tools (`enrich_contacts`, `find_domain`, `get_format`, later `verify`), results widget inside ChatGPT.
@@ -33,6 +38,7 @@ What we're building, in order. Updated as each item lands. `[x]` done · `[~]` i
 - [x] Phone-width results (one stacked card per person)
 - [x] Website reader opens bio pages (edge v15)
 - [x] JSON contract v1
+- [x] Benchmark (ready; waiting on a real list)
 - [x] Landing page (flat brand mark, paste box with examples, themed panels) — `/#home`
 - [x] Share preview + iPhone home-screen icon
 - [x] Paste cleanup on (LinkedIn only)
