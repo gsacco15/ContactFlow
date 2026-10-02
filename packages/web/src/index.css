@@ -3,6 +3,7 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-logo: "Geist", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-data: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
@@ -34,4 +35,12 @@ input[type="checkbox"] {
 .lp-float-slow { animation: lp-float 22s ease-in-out infinite reverse; }
 @media (prefers-reduced-motion: reduce) {
   .lp-float, .lp-float-slow { animation: none; }
+}
+@keyframes lp-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.lp-bob { animation: lp-bob 4.5s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .lp-bob { animation: none; }
 }

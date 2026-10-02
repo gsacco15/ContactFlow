@@ -36,7 +36,14 @@ export default function App() {
     if (page === "app") save(VISITED, true);
   }, [page]);
 
-  if (page === "home") return <Landing onStart={() => go("app")} onHow={() => go("how")} onPrivacy={() => go("privacy")} onTerms={() => go("terms")} />;
+  const start = (text?: string, roles?: string) => {
+    if (text) {
+      p.dispatch({ type: "input", input: text });
+      p.dispatch({ type: "role", roleFilter: roles ?? "" });
+    }
+    go("app");
+  };
+  if (page === "home") return <Landing onStart={start} onHow={() => go("how")} onPrivacy={() => go("privacy")} onTerms={() => go("terms")} />;
 
   return (
     <div className="flex min-h-screen flex-col">
