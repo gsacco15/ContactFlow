@@ -10,6 +10,7 @@ const fmtTokens = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : Strin
 export function ExportBar({ p }: { p: Pipeline }) {
   const { state } = p;
   const [copied, setCopied] = useState(false);
+  const [showSession, setShowSession] = useState(false);
   const { filters } = state;
   // Export exactly what the table shows: ticked searches, same filters, guesses only when switched on.
   const contacts = tableRows(state).filter((c) => c.status !== "pending");
@@ -40,7 +41,15 @@ export function ExportBar({ p }: { p: Pipeline }) {
         </Button>
         <span className="hidden text-xs text-stone-500 sm:inline">{contacts.length} rows{state.searches.length > 1 ? ` from ${state.searches.filter((x) => !x.hidden).length} of ${state.searches.length} searches` : ""} · {filters.includeGuesses ? "incl. backup guesses" : "sourced emails only"}</span>
         <PushMenu table={() => toTable(contacts, state.companies, opts)} disabled={!contacts.length} />
-        <span className="ml-auto font-mono text-xs text-stone-600 sm:hidden" title="Cost of this paste (session total on larger screens)">≈ ${(state.pasteUsage?.cost ?? 0).toFixed(2)}</span>
+        <button
+          type="button"
+          onClick={() => setShowSession(!showSession)}
+          className="ml-auto rounded-md px-1.5 py-1 text-right font-mono text-xs leading-tight text-stone-600 active:bg-stone-100 sm:hidden"
+          title="Tap to switch between this paste and the whole session"
+          data-testid="cost-mobile"
+        >
+          <span className="block text-[10px] text-stone-400">{showSession ? "session" : "this paste"}</span>≈ ${(showSession ? state.usage.cost : state.pasteUsage?.cost ?? 0).toFixed(2)}
+        </button>
         <span className="ml-auto hidden font-mono text-xs text-stone-600 sm:inline" title="Estimated from list prices. “This paste” resets when you paste something new; “session” resets on Clear." data-testid="cost">
           <span title={`This paste: ${state.pasteUsage?.searches ?? 0} searches, ${fmtTokens(state.pasteUsage?.tokens ?? 0)} tokens`}>
             this paste ≈ <b className="text-stone-900">${(state.pasteUsage?.cost ?? 0).toFixed(2)}</b>
