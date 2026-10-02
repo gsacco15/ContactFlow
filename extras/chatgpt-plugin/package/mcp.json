@@ -1,0 +1,10 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "contactflow": {
+      "type": "streamable-http",
+      "url": "https://contact-flow-web.vercel.app/api/mcp"
+    }
+  }
+}
+

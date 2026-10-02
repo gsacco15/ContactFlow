@@ -7,12 +7,12 @@ import { ExportBar } from "./components/ExportBar.tsx";
 import { Banner } from "./components/ui.tsx";
 import { HowItWorks } from "./components/HowItWorks.tsx";
 import { Logo } from "./components/Logo.tsx";
-import { Privacy, SUPPORT_EMAIL, Terms } from "./components/Legal.tsx";
+import { Privacy, SUPPORT_EMAIL, Support, Terms } from "./components/Legal.tsx";
 import { Landing } from "./components/Landing.tsx";
 import { load, save } from "./lib/storage.ts";
 
-type Page = "home" | "app" | "how" | "privacy" | "terms";
-const PAGES: Page[] = ["home", "app", "how", "privacy", "terms"];
+type Page = "home" | "app" | "how" | "privacy" | "terms" | "support";
+const PAGES: Page[] = ["home", "app", "how", "privacy", "terms", "support"];
 const VISITED = "cf:visited";
 
 /** First visit → landing page; anyone who has opened the app before goes straight to it. */
@@ -66,7 +66,7 @@ export default function App() {
       </header>
       {page !== "app" ? (
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8">
-          {page === "how" ? <HowItWorks onBack={() => go("app")} /> : page === "privacy" ? <Privacy /> : <Terms />}
+          {page === "how" ? <HowItWorks onBack={() => go("app")} /> : page === "privacy" ? <Privacy /> : page === "support" ? <Support /> : <Terms />}
         </main>
       ) : (
       <main className="mx-auto w-full max-w-7xl flex-1 space-y-5 px-4 py-5">
@@ -92,7 +92,7 @@ export default function App() {
           <button className="hover:text-stone-700" onClick={() => go("home")}>Home</button>
           <button className="hover:text-stone-700" onClick={() => go("privacy")}>Privacy</button>
           <button className="hover:text-stone-700" onClick={() => go("terms")}>Terms</button>
-          <a className="hover:text-stone-700" href={`mailto:${SUPPORT_EMAIL}`}>Support</a>
+          <button className="hover:text-stone-700" onClick={() => go("support")}>Support</button>
           <a className="hidden hover:text-stone-700 sm:inline" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
           <span className="ml-auto">© 2026 ContactFlow</span>
         </div>

@@ -18,6 +18,8 @@ the company's email format and its source, and whether a mailbox check confirmed
 | File | For |
 |---|---|
 | `package/plugin.json` | Listing: name, descriptions, category, URLs, 3 starter prompts, brand colours, logo |
+| `package/.codex-plugin/plugin.json` | The same listing in the native format, pointing at the skills and the MCP server |
+| `package/mcp.json`, `package/.mcp.json` | The connection to our server (`/api/mcp`), in both formats ChatGPT reads |
 | `package/skills/contactflow/SKILL.md` | The skill: when to use ContactFlow, how to call it, how to present results |
 | `package/assets/logo.png`, `icon.png` | 512×512 transparent logo and composer icon |
 | `BRAND.md` | Colours, fonts, where the vector logo lives |
@@ -37,10 +39,9 @@ Business/Enterprise workspace admin.
 
 ## 2. As a plugin (workspace, or before submitting)
 
-1. Create the app as above and copy its id (starts `asdk_app_`).
-2. `python3 extras/chatgpt-plugin/build_package.py --app-id asdk_app_…` → adds `.app.json`
-   (`{"apps": {"contactflow": {"id": …, "required": true}}}`). Never add an `mcp.json`: it marks
-   the plugin Desktop only.
+This package matches what ChatGPT's Plugin Creator produced and accepted (v0.1.3): listing,
+skill, logo, and the MCP server in `mcp.json` / `.mcp.json`. `python3 extras/chatgpt-plugin/build_package.py`
+zips it. To point at a workspace app instead, add `--app-id asdk_app_…` (writes `.app.json`).
 3. Upload: ChatGPT → Admin → Plugins → Add → Upload plugin (workspace admins), or use Plugin
    Creator (`@plugin-creator`) with the skill text and the app.
 

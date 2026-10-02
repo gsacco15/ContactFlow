@@ -25,11 +25,21 @@ describe("ChatGPT plugin package", () => {
     }
   });
 
-  it("skill names only tools the server really has; no MCP server declared (would be Desktop only)", () => {
+  it("skill names only tools the server really has", () => {
     const skill = readFileSync(`${dir}skills/contactflow/SKILL.md`, "utf8");
     expect(skill).toMatch(/^---\nname: contactflow\ndescription: .+\n---/);
     const named = [...skill.matchAll(/`([a-z_]+)`/g)].map((m) => m[1]).filter((n) => /^(find|get|build|check|verify|show)_/.test(n));
     expect(new Set(named)).toEqual(new Set(TOOLS.map((t) => t.name)));
-    expect(existsSync(`${dir}mcp.json`) || existsSync(`${dir}.mcp.json`)).toBe(false);
+  });
+
+  it("connects to our MCP server, in both formats ChatGPT wrote (Plugin Creator 0.1.3), with matching listings", () => {
+    for (const f of ["mcp.json", ".mcp.json"]) {
+      const m = JSON.parse(readFileSync(`${dir}${f}`, "utf8"));
+      expect(m.mcpServers.contactflow).toMatchObject({ type: "streamable-http", url: "https://contact-flow-web.vercel.app/api/mcp" });
+    }
+    const codex = JSON.parse(readFileSync(`${dir}.codex-plugin/plugin.json`, "utf8"));
+    expect(codex.interface).toEqual(ui);
+    expect([codex.name, codex.version]).toEqual([manifest.name, manifest.version]);
+    expect(existsSync(`${dir}${codex.mcpServers.replace(/^\.\//, "")}`)).toBe(true);
   });
 });
