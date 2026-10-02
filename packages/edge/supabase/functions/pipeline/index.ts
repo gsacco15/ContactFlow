@@ -255,27 +255,32 @@ async function readSite(domain: string, maxPages: number, bioPages: number) {
 
 // ── /verify (mailbox checks through CF_VERIFIER; the key never leaves this function) ──
 
-async function runVerify(emails: string[]): Promise<{ provider: string; real: boolean; results: Record<string, VerifyStatusWire> }> {
+async function runVerify(emails: string[]): Promise<{ provider: string; real: boolean; results: Record<string, VerifyStatusWire>; details: string[] }> {
   const provider = (env("CF_VERIFIER") ?? "").toLowerCase();
   if (!provider) throw new HttpError(501, "verification not set up (CF_VERIFIER)");
-  if (provider === "mock") return { provider, real: false, results: Object.fromEntries(emails.map((e) => [e, mockVerify(e)])) };
+  if (provider === "mock") return { provider, real: false, results: Object.fromEntries(emails.map((e) => [e, mockVerify(e)])), details: [] };
   const adapter = VERIFY_PROVIDERS[provider];
   const key = env("CF_VERIFIER_KEY");
   if (!adapter || !key) throw new HttpError(501, `verification provider "${provider}" not configured`);
   const results: Record<string, VerifyStatusWire> = {};
+  const details: string[] = [];
   for (const email of emails) {
     const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), 15_000);
+    const t = setTimeout(() => ctl.abort(), 30_000);
     try {
       const r = await fetch(adapter.url(email, key), { signal: ctl.signal });
-      results[email] = r.ok ? adapter.read(await r.json()) : "unverified";
-    } catch {
+      const j = await r.json().catch(() => ({}));
+      results[email] = r.ok ? adapter.read(j) : "unverified";
+      details.push(r.ok ? adapter.detail(j) : `http ${r.status}`);
+    } catch (e) {
       results[email] = "unverified";
+      details.push(ctl.signal.aborted ? "timed out" : `fetch failed: ${String((e as Error)?.message ?? e).slice(0, 60)}`);
     } finally {
       clearTimeout(t);
     }
   }
-  return { provider, real: true, results };
+  if (details.some((d) => d.startsWith("error") || d.startsWith("http") || d.startsWith("fetch"))) console.error("verify provider:", provider, details.join(" | "));
+  return { provider, real: true, results, details };
 }
 
 // ── router ──────────────────────────────────────────────────────────────────
@@ -368,7 +373,7 @@ Deno.serve(async (req) => {
       const emails = parseVerifyBody(body);
       if (!(await underDailyLimit())) return json({ error: "daily_limit" }, 429);
       const out = await runVerify(emails);
-      if (db && out.real) await db.from("cf_usage").insert({ session, ip_hash: await sha(ip), stage: "verify", model: `verifier:${out.provider}`, input_tokens: 0, output_tokens: 0, verifications: emails.length });
+      if (db && out.real) await db.from("cf_usage").insert({ session, ip_hash: await sha(ip), stage: "verify", model: `verifier:${out.provider}`, input_tokens: 0, output_tokens: 0, verifications: emails.length, verify_detail: out.details.join(", ").slice(0, 300) });
       return json(out);
     }
     if (path.endsWith("/jev")) {

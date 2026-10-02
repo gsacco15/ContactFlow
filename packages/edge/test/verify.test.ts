@@ -14,6 +14,8 @@ describe("verification providers", () => {
 
   it("the key and address are URL-encoded", () => {
     expect(VERIFY_PROVIDERS.zerobounce.url("a+b@acme.com", "k&y")).toContain("api_key=k%26y&email=a%2Bb%40acme.com");
+    expect(VERIFY_PROVIDERS.millionverifier.detail({ result: "unknown", subresult: "timeout", error: "" })).toBe("unknown/timeout");
+    expect(VERIFY_PROVIDERS.millionverifier.detail({ result: "", error: "Insufficient credits" })).toBe("error: Insufficient credits");
   });
 
   it("the stand-in is predictable", () => {

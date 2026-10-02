@@ -422,8 +422,11 @@ export function evidenceRow(raw: any): EvidenceRow | undefined {
 export type VerifyStatusWire = "valid" | "risky" | "invalid" | "catch_all" | "unverified";
 export const VERIFY_MAX_BATCH = 10;
 
-/** Provider adapters: request URL + how to read the answer. Add a provider here. */
-export const VERIFY_PROVIDERS: Record<string, { url: (email: string, key: string) => string; read: (json: any) => VerifyStatusWire }> = {
+/**
+ * Provider adapters: request URL, how to read the answer, and a short description of what the
+ * provider said (logged for diagnosis — never the address). Add a provider here.
+ */
+export const VERIFY_PROVIDERS: Record<string, { url: (email: string, key: string) => string; read: (json: any) => VerifyStatusWire; detail: (json: any) => string }> = {
   // https://www.zerobounce.net/docs/email-validation-api-quickstart/
   zerobounce: {
     url: (email, key) => `https://api.zerobounce.net/v2/validate?api_key=${encodeURIComponent(key)}&email=${encodeURIComponent(email)}&ip_address=`,
@@ -431,14 +434,16 @@ export const VERIFY_PROVIDERS: Record<string, { url: (email: string, key: string
       const s = String(j?.status ?? "").toLowerCase();
       return s === "valid" ? "valid" : s === "invalid" ? "invalid" : s === "catch-all" ? "catch_all" : ["spamtrap", "abuse", "do_not_mail"].includes(s) ? "risky" : "unverified";
     },
+    detail: (j) => [j?.status, j?.sub_status].filter(Boolean).join("/") || (j?.error ? `error: ${String(j.error).slice(0, 80)}` : "no answer"),
   },
-  // https://developer.millionverifier.com/
+  // https://developer.millionverifier.com/ — timeout up to 60 s; slow servers answer "unknown" at 10.
   millionverifier: {
-    url: (email, key) => `https://api.millionverifier.com/api/v3/?api=${encodeURIComponent(key)}&email=${encodeURIComponent(email)}&timeout=10`,
+    url: (email, key) => `https://api.millionverifier.com/api/v3/?api=${encodeURIComponent(key)}&email=${encodeURIComponent(email)}&timeout=20`,
     read: (j) => {
       const r = String(j?.result ?? "").toLowerCase();
       return r === "ok" ? "valid" : r === "invalid" ? "invalid" : r === "catch_all" ? "catch_all" : r === "disposable" ? "risky" : "unverified";
     },
+    detail: (j) => (j?.error ? `error: ${String(j.error).slice(0, 80)}` : [j?.result, j?.subresult].filter(Boolean).join("/") || "no answer"),
   },
 };
 
