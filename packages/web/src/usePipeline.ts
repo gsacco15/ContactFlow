@@ -6,7 +6,7 @@ import {
 import { ACCESS_TOKEN, BUDGET, EDGE_URL, RATE_LIMIT_RETRY_MS } from "./config.ts";
 import { edgeClient, layeredCache } from "./lib/edgeClient.ts";
 import { clearLocalCache, load, localCache, remove, save, sessionId } from "./lib/storage.ts";
-import { initialState, persistable, reducer, type State } from "./state.ts";
+import { initialState, migrate, persistable, reducer, searchLabel, type State } from "./state.ts";
 
 const stateKey = (session: string) => `cf:state:${session}`;
 const clone = <T,>(v: T): T => structuredClone(v);
@@ -14,7 +14,7 @@ const clone = <T,>(v: T): T => structuredClone(v);
 export function usePipeline() {
   const [state, dispatch] = useReducer(reducer, undefined, () => {
     const session = sessionId();
-    return { ...initialState(session), ...load<State>(stateKey(session)), running: false, parsing: false };
+    return migrate({ ...initialState(session), ...load<State>(stateKey(session)), running: false, parsing: false });
   });
   const abort = useRef<AbortController | null>(null);
 
@@ -68,7 +68,6 @@ export function usePipeline() {
   }
 
   const hooks: RunHooks = {
-    onExtract: (ex) => dispatch({ type: "run_start", extracted: ex, limit: BUDGET.maxContacts }),
     onCompany: (company) => dispatch({ type: "company", company: clone(company) }),
     onRow: (contact) => dispatch({ type: "row", contact: clone(contact) }),
   };
@@ -117,13 +116,35 @@ export function usePipeline() {
     }
   }
 
+  /** Run the preview (or the raw paste) as a new search; its results are added to the list. */
   async function run(source?: ExtractResult, opts: { keepRows?: boolean } = {}) {
     abort.current = new AbortController();
-    const extracted = source ?? state.extracted;
     try {
       const ctx = makeCtx(abort.current.signal);
-      if (!extracted || opts.keepRows) dispatch({ type: "run_start" });
-      await runPipeline(extracted ?? state.input, ctx, opts.keepRows ? { ...hooks, onExtract: undefined } : hooks);
+      if (opts.keepRows && source) {
+        dispatch({ type: "run_start" });
+        await runPipeline(source, ctx, hooks);
+      } else {
+        dispatch({ type: "run_start" });
+        let ex = source ?? state.extracted;
+        if (!ex) {
+          const r = await classifyExtract(state.input, ctx);
+          if (!r.ok || !r.data) throw new Error(r.error ?? "extraction failed");
+          ex = r.data;
+        }
+        // People already in the list with an email are kept as they are — no second lookup.
+        const skip = ex.people.filter((p) => state.contacts[p.id]?.status === "ok").map((p) => p.id);
+        // A company pasted without names whose people are already in the list: reuse them, don't search again.
+        const listed = Object.values(state.contacts).filter((c) => c.status === "ok");
+        const reuse = ex.companies.filter((c) => !ex!.people.some((p) => p.company_id === c.id)).flatMap((c) => listed.filter((x) => x.company_id === c.id).map((x) => x.id));
+        const search = { id: `s${Date.now().toString(36)}`, label: searchLabel(ex), want: state.roleFilter.trim(), at: new Date().toISOString(), cost: 0 };
+        dispatch({ type: "run_start", extracted: ex, limit: BUDGET.maxContacts, search, skip, reuse });
+        const people = ex.people.filter((p) => !skip.includes(p.id));
+        // Companies whose people are all already done need nothing new.
+        const done = new Set([...ex.people.filter((p) => skip.includes(p.id)), ...reuse.map((id) => state.contacts[id])].map((p) => p.company_id));
+        const companies = ex.companies.filter((c) => !done.has(c.id) || people.some((p) => p.company_id === c.id));
+        await runPipeline({ ...ex, people, companies }, ctx, hooks);
+      }
       dispatch({ type: "run_end", error: abort.current.signal.aborted ? "stopped" : undefined });
     } catch (e) {
       dispatch({ type: "run_end", error: (e as Error).message });

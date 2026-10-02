@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { relevance, toCsv, toTsv, visibleCandidates } from "@cf/core";
+import { toCsv, toTsv } from "@cf/core";
 import type { Pipeline } from "../usePipeline.ts";
+import { searchNames, tableRows } from "../state.ts";
 import { Button } from "./ui.tsx";
 
 const fmtTokens = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
@@ -9,16 +10,12 @@ export function ExportBar({ p }: { p: Pipeline }) {
   const { state } = p;
   const [copied, setCopied] = useState(false);
   const { filters } = state;
-  // Export exactly what the table shows: same filters, guesses only when switched on.
-  const contacts = state.order
-    .map((id) => state.contacts[id])
-    .filter((c) => c && c.status !== "pending")
-    .filter((c) => !filters.onlyOk || c.status === "ok")
-    .filter((c) => filters.hideIrrelevant === false || !state.roleFilter.trim() || relevance(c, state.roleFilter) !== false)
-    .filter((c) => !filters.hidePatternless || visibleCandidates(c, { includeGuesses: !!filters.includeGuesses }).length);
+  // Export exactly what the table shows: ticked searches, same filters, guesses only when switched on.
+  const contacts = tableRows(state).filter((c) => c.status !== "pending");
+  const opts = { includeGuesses: !!filters.includeGuesses, searchOf: (c: (typeof contacts)[number]) => searchNames(state, c) };
 
   const download = () => {
-    const blob = new Blob([toCsv(contacts, state.companies, { includeGuesses: !!state.filters.includeGuesses })], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob([toCsv(contacts, state.companies, opts)], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `contacts-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -26,7 +23,7 @@ export function ExportBar({ p }: { p: Pipeline }) {
     URL.revokeObjectURL(a.href);
   };
   const copy = async () => {
-    await navigator.clipboard.writeText(toTsv(contacts, state.companies, { includeGuesses: !!state.filters.includeGuesses }));
+    await navigator.clipboard.writeText(toTsv(contacts, state.companies, opts));
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
@@ -40,7 +37,7 @@ export function ExportBar({ p }: { p: Pipeline }) {
         <Button variant="primary" onClick={download} disabled={!contacts.length}>
           Download CSV
         </Button>
-        <span className="text-xs text-stone-500">{contacts.length} rows · {filters.includeGuesses ? "incl. backup guesses" : "sourced emails only"}</span>
+        <span className="text-xs text-stone-500">{contacts.length} rows{state.searches.length > 1 ? ` from ${state.searches.filter((x) => !x.hidden).length} of ${state.searches.length} searches` : ""} · {filters.includeGuesses ? "incl. backup guesses" : "sourced emails only"}</span>
         <span title="Coming soon" className="inline-flex">
           <Button disabled aria-disabled>
             Push to CRM

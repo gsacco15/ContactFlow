@@ -1,9 +1,56 @@
 import { useState } from "react";
-import { patternLabel, relevance, visibleCandidates, type Candidate, type Company, type Contact } from "@cf/core";
+import { patternLabel, visibleCandidates, type Candidate, type Company, type Contact } from "@cf/core";
 import { FitBadge } from "./FitBadge.tsx";
 import { LOW_DOMAIN_CONFIDENCE } from "../config.ts";
 import type { Pipeline } from "../usePipeline.ts";
 import { Button, LinkIcon, Pill } from "./ui.tsx";
+import { listedRows, searchTime, tableRows, visibleSearches, wantFor } from "../state.ts";
+
+/** One chip per search: tick to show/hide its rows (and leave them out of the export), × to remove it. */
+function Searches({ p }: { p: Pipeline }) {
+  const { state, dispatch } = p;
+  const hidden = state.searches.some((x) => x.hidden);
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {[...state.searches].reverse().map((x) => {
+        const ids = Object.entries(state.rowSearches).filter(([, v]) => v.includes(x.id)).map(([k]) => k);
+        const people = ids.filter((id) => state.contacts[id]);
+        const ok = people.filter((id) => state.contacts[id].status === "ok").length;
+        const running = state.activeSearch === x.id;
+        return (
+          <div
+            key={x.id}
+            className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-sm shadow-sm ${x.hidden ? "border-stone-200 bg-stone-50 text-stone-400" : "border-stone-300 bg-white"}`}
+          >
+            <input type="checkbox" aria-label={`Show ${x.label}`} checked={!x.hidden} onChange={(e) => dispatch({ type: "search_toggle", id: x.id, hidden: !e.target.checked || undefined })} />
+            <button type="button" className="text-left" title="Show only this search" onClick={() => dispatch({ type: "search_only", id: x.id })}>
+              <span className="font-medium">{x.label}</span>
+              {x.want && <span className="text-stone-500"> · {x.want}</span>}
+              <span className="block text-xs text-stone-400">
+                {running ? "running…" : `${people.length} people · ${ok} with email`} · ${x.cost.toFixed(2)} · {searchTime(x.at)}
+              </span>
+            </button>
+            <button
+              type="button"
+              aria-label={`Remove ${x.label}`}
+              title="Remove this search (people another search also found stay)"
+              disabled={running}
+              className="ml-1 text-stone-400 hover:text-red-600 disabled:opacity-30"
+              onClick={() => confirm(`Remove “${x.label}” from your list?`) && dispatch({ type: "search_remove", id: x.id })}
+            >
+              ×
+            </button>
+          </div>
+        );
+      })}
+      {hidden && (
+        <Button variant="ghost" className="!px-1.5 !py-0.5 text-xs" onClick={() => dispatch({ type: "search_only" })}>
+          Show all
+        </Button>
+      )}
+    </div>
+  );
+}
 
 const STATUS_TONE = { pending: "stone", ok: "green", no_domain: "red", no_pattern: "amber", error: "red", skipped: "stone" } as const;
 const STATUS_LABEL = { pending: "pending", ok: "ok", no_domain: "no domain", no_pattern: "no sourced email", error: "error", skipped: "skipped" } as const;
@@ -11,18 +58,19 @@ const STATUS_LABEL = { pending: "pending", ok: "ok", no_domain: "no domain", no_
 export function ResultsTable({ p }: { p: Pipeline }) {
   const { state, dispatch } = p;
   const { filters } = state;
-  const withRows = new Set(state.order.map((id) => state.contacts[id]?.company_id));
-  const empty = Object.values(state.companies).filter((c) => !withRows.has(c.id) && (c.fetched_at || c.error || c.domain || c.mx_ok === false));
-  if (!state.order.length && !empty.length && !state.running) return null;
+  const shown = visibleSearches(state);
+  const listed = listedRows(state);
+  const withRows = new Set(listed.map((c) => c.company_id));
+  const empty = Object.values(state.companies).filter(
+    (c) => (state.companySearches[c.id] ?? []).some((x) => shown.has(x)) && !withRows.has(c.id) && (c.fetched_at || c.error || c.domain || c.mx_ok === false || c.skipped),
+  );
+  if (!state.searches.length && !state.running) return null;
 
-  let rows = state.order.map((id) => state.contacts[id]).filter(Boolean);
-  const total = rows.length;
-  const done = rows.filter((r) => r.status !== "pending").length;
-  const ok = rows.filter((r) => r.status === "ok").length;
-  if (filters.onlyOk) rows = rows.filter((r) => r.status === "ok");
-  if (filters.hideIrrelevant !== false && state.roleFilter.trim()) rows = rows.filter((r) => relevance(r, state.roleFilter) !== false);
-  if (filters.hidePatternless) rows = rows.filter((r) => visibleCandidates(r, { includeGuesses: !!filters.includeGuesses }).length);
-  if (filters.groupByCompany) rows = [...rows].sort((a, b) => (state.companies[a.company_id]?.name ?? "~").localeCompare(state.companies[b.company_id]?.name ?? "~"));
+  const rows = tableRows(state);
+  const total = listed.length;
+  const done = listed.filter((r) => r.status !== "pending").length;
+  const ok = listed.filter((r) => r.status === "ok").length;
+  const anyWant = state.searches.some((x) => x.want);
 
   const toggle = (k: keyof typeof filters) => (
     <label className="flex items-center gap-1.5">
@@ -32,16 +80,26 @@ export function ResultsTable({ p }: { p: Pipeline }) {
   );
 
   let lastCompany: string | undefined;
-  const stale = state.showPreview && !state.running; // a new paste is waiting in the preview above
   return (
-    <section className={`space-y-2 ${stale ? "opacity-60" : ""}`} aria-label="Results">
-      <div className="flex items-baseline gap-2 border-t border-stone-200 pt-4">
-        <h2 className="text-base font-semibold">{stale ? "Last run" : state.running ? "Running…" : "Results"}</h2>
-        {stale && <span className="text-sm text-stone-500">— from your previous paste. Run the preview above to replace these.</span>}
+    <section className="space-y-3" aria-label="Results">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-stone-200 pt-4">
+        <h2 className="text-base font-semibold">Your list</h2>
+        <span className="text-sm text-stone-500">
+          {total} {total === 1 ? "person" : "people"} · {ok} with email{state.searches.length > 1 ? ` · ${shown.size} of ${state.searches.length} searches shown` : ""}
+        </span>
+        <Button
+          variant="ghost"
+          className="ml-auto !px-1.5 !py-0.5 text-xs"
+          disabled={state.running}
+          onClick={() => confirm("Remove every search and person from your list? Export first if you need them.") && p.clear()}
+        >
+          Clear list
+        </Button>
       </div>
+      <Searches p={p} />
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-stone-600">
         <span className="font-medium text-stone-900">
-          {done}/{total} done · {ok} ok
+          {state.running ? `${done}/${total} done` : `${rows.length} shown`}
         </span>
         {state.running && (
           <span className="flex items-center gap-2" role="status">
@@ -54,7 +112,7 @@ export function ResultsTable({ p }: { p: Pipeline }) {
         {toggle("onlyOk")}
         {toggle("hidePatternless")}
         {toggle("groupByCompany")}
-        {state.roleFilter.trim() && toggle("hideIrrelevant")}
+        {anyWant && toggle("hideIrrelevant")}
         <span className="border-l border-stone-300 pl-4" title="Common formats with no source behind them. Off = they are hidden here and left out of Copy/CSV.">
           {toggle("includeGuesses")}
         </span>
@@ -92,8 +150,8 @@ export function ResultsTable({ p }: { p: Pipeline }) {
         </table>
       </div>
       {empty.length > 0 && (
-        <div className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm">
-          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-stone-500">Companies with no contacts</div>
+        <details open={empty.length <= 5} className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm">
+          <summary className="mb-1 cursor-pointer text-xs font-semibold uppercase tracking-wide text-stone-500">Companies with no contacts ({empty.length})</summary>
           <ul className="space-y-0.5">
             {empty.map((c) => (
               <li key={c.id} className="flex flex-wrap items-center gap-x-2 text-stone-700">
@@ -109,7 +167,7 @@ export function ResultsTable({ p }: { p: Pipeline }) {
               </li>
             ))}
           </ul>
-        </div>
+        </details>
       )}
       <p className="text-xs text-stone-500">
         Emails are pattern-based guesses, not verified mailboxes. MX checks only confirm the domain accepts mail. You are responsible for CAN-SPAM (US) and GDPR/PECR (EU, UK) compliance:
@@ -129,7 +187,7 @@ function Row({ c, co, p }: { c: Contact; co?: Company; p: Pipeline }) {
       <td className="px-3 py-2">
         <div className="flex items-start gap-1">
           {c.flag && <span title={c.flag} className="cursor-help text-amber-600">⚠</span>}
-          <FitBadge c={c} want={p.state.roleFilter} />
+          <FitBadge c={c} want={wantFor(p.state, c)} />
           <Editable value={[c.first, c.middle, c.last].filter(Boolean).join(" ")} placeholder="Unknown" className="font-medium" label="Name" onSave={(v) => {
             const parts = v.trim().split(/\s+/);
             const [first, ...rest] = parts;

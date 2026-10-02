@@ -11,7 +11,11 @@ export const CSV_COLUMNS = [
 export type ExportOptions = {
   /** Include common-format guesses with no source behind them. Default false. */
   includeGuesses?: boolean;
+  /** Adds a trailing `search` column naming the search(es) each row came from. */
+  searchOf?: (c: Contact) => string;
 };
+
+const columns = (opts: ExportOptions): string[] => (opts.searchOf ? [...CSV_COLUMNS, "search"] : [...CSV_COLUMNS]);
 
 /** The candidates a row should show/export under the given options (guesses dropped unless asked for). */
 export function visibleCandidates(c: Contact, opts: ExportOptions = {}) {
@@ -62,10 +66,11 @@ const csvCell = (v: string) => {
 
 export function toCsv(contacts: Contact[], companies: Record<string, Company> | Company[], opts: ExportOptions = {}): string {
   const byId = Array.isArray(companies) ? Object.fromEntries(companies.map((c) => [c.id, c])) : companies;
-  const lines = [CSV_COLUMNS.join(",")];
+  const cols = columns(opts);
+  const lines = [cols.join(",")];
   for (const c of contacts) {
-    const row = toRow(c, byId[c.company_id], opts);
-    lines.push(CSV_COLUMNS.map((k) => csvCell(row[k])).join(","));
+    const row: Record<string, string> = { ...toRow(c, byId[c.company_id], opts), ...(opts.searchOf ? { search: opts.searchOf(c) } : {}) };
+    lines.push(cols.map((k) => csvCell(row[k])).join(","));
   }
   return lines.join("\r\n") + "\r\n";
 }
@@ -74,10 +79,11 @@ export function toCsv(contacts: Contact[], companies: Record<string, Company> | 
 export function toTsv(contacts: Contact[], companies: Record<string, Company> | Company[], opts: ExportOptions = {}): string {
   const byId = Array.isArray(companies) ? Object.fromEntries(companies.map((c) => [c.id, c])) : companies;
   const cell = (v: string) => safe(v).replace(/[\t\r\n]+/g, " ");
-  const lines = [CSV_COLUMNS.join("\t")];
+  const cols = columns(opts);
+  const lines = [cols.join("\t")];
   for (const c of contacts) {
-    const row = toRow(c, byId[c.company_id], opts);
-    lines.push(CSV_COLUMNS.map((k) => cell(row[k])).join("\t"));
+    const row: Record<string, string> = { ...toRow(c, byId[c.company_id], opts), ...(opts.searchOf ? { search: opts.searchOf(c) } : {}) };
+    lines.push(cols.map((k) => cell(row[k])).join("\t"));
   }
   return lines.join("\n") + "\n";
 }

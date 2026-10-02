@@ -24,6 +24,12 @@ const contact: Contact = {
 };
 
 describe("csv", () => {
+  it("adds a search column only when asked", () => {
+    const lines = toCsv([contact], [company], { searchOf: () => "Acme · sales" }).split("\r\n");
+    expect(lines[0]).toBe([...CSV_COLUMNS, "search"].join(","));
+    expect(lines[1].endsWith(",Acme · sales")).toBe(true);
+  });
+
   it("has the documented header", () => {
     expect(toCsv([], [company]).split("\r\n")[0]).toBe(CSV_COLUMNS.join(","));
     expect(CSV_COLUMNS).toContain("opt_out");

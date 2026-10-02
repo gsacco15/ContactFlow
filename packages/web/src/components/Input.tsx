@@ -52,7 +52,7 @@ export function Input({ p }: { p: Pipeline }) {
           </Button>
         ) : (
           <Button variant="primary" onClick={() => p.run()} disabled={!p.configured || busy || (!state.input.trim() && !state.extracted)}>
-            Run pipeline
+            {state.order.length ? "Run & add to list" : "Run pipeline"}
           </Button>
         )}
         {pending > 0 && !state.running && (
@@ -78,8 +78,8 @@ export function Input({ p }: { p: Pipeline }) {
             </option>
           ))}
         </select>
-        <Button variant="ghost" onClick={p.clear} disabled={busy && !state.running}>
-          Clear
+        <Button variant="ghost" onClick={() => dispatch({ type: "input", input: "" })} disabled={busy || !state.input} title="Empties the paste box. Your list below stays.">
+          Clear paste
         </Button>
       </div>
     </section>
