@@ -8,7 +8,8 @@ import { generateCandidates } from "./candidates.ts";
 import { normalizeName, slug } from "./normalize.ts";
 import { capThirdParty, cleanUrl, isAggregatorDomain, isBlockedUrl, normalizeDomain, validatePatterns } from "./validate.ts";
 import { pMap } from "./pmap.ts";
-import { LOW_DOMAIN_CONFIDENCE, NO_FORMAT_CACHE_DAYS, SITE_READ_MODE } from "./config.ts";
+import { EVIDENCE_MODE, LOW_DOMAIN_CONFIDENCE, NO_FORMAT_CACHE_DAYS, SITE_READ_MODE } from "./config.ts";
+import { evidenceFromMx, evidenceFromSearch, evidenceFromSite, patternFromEvidence, scoreEvidence } from "./evidence.ts";
 import { siteFormat } from "./site.ts";
 import { judgeFit, relevance } from "./fit.ts";
 import { cleanEmail, domainFromPaste, mergePatterns, pastePatterns } from "./paste.ts";
@@ -212,9 +213,18 @@ export async function enrichCompany(co: Company, ctx: Ctx, people: Contact[] = [
   const maxSearches = Math.max(1, Math.min(2, ctx.budget.maxSearchesPerCompany - used));
   let p: Awaited<ReturnType<typeof discoverPattern>> | undefined;
   let shadow: Awaited<ReturnType<typeof fromSite>>;
-  if (mode === "on") {
-    const site = await fromSite();
-    if (site?.verdict.pattern) p = { ok: true, data: { patterns: [site.verdict.pattern] }, confidence: site.verdict.pattern.confidence, sources: [site.verdict.pattern.source_url!], tokens_used: 0, searches_used: 0 };
+  let siteSeen: Awaited<ReturnType<typeof fromSite>>;
+  const found = (pattern: Pattern) => ({ ok: true, data: { patterns: [pattern] }, confidence: pattern.confidence, sources: pattern.source_url ? [pattern.source_url] : [], tokens_used: 0, searches_used: 0 });
+  // Evidence engine "on": earlier lookups already proved this domain's format → no search.
+  const evMode = ctx.evidence ? (ctx.options?.evidenceMode ?? EVIDENCE_MODE) : "off";
+  if (evMode === "on") {
+    const verdict = scoreEvidence(domain, await ctx.evidence!.forDomain(domain).catch(() => []));
+    const proven = verdict.catch_all ? undefined : patternFromEvidence(verdict);
+    if (proven) p = found(proven);
+  }
+  if (!p && mode === "on") {
+    siteSeen = await fromSite();
+    if (siteSeen?.verdict.pattern) p = found(siteSeen.verdict.pattern);
   }
   if (!p) [p, shadow] = await Promise.all([discoverPattern(domain, ctx, { maxSearches }), mode === "shadow" ? fromSite() : undefined]);
   if (shadow) {
@@ -225,6 +235,12 @@ export async function enrichCompany(co: Company, ctx: Ctx, people: Contact[] = [
   else co.error = `discover_pattern: ${p.error}`;
   co.mx_ok = ctx.verifier?.domainLive ? await ctx.verifier.domainLive(co.domain) : undefined;
   co.fetched_at = new Date().toISOString();
+  // Evidence engine "shadow"/"on": keep why we believe this domain's format (domain facts only).
+  if (evMode !== "off") {
+    const site = shadow ?? siteSeen;
+    const rows = [...(p.ok ? evidenceFromSearch(domain, co.patterns) : []), ...evidenceFromSite(domain, site?.verdict, site?.read.pages[0]), ...evidenceFromMx(domain, co.mx_ok)];
+    if (rows.length) await ctx.evidence!.record(rows).catch(() => {});
+  }
   // Only a search that finished cleanly is remembered (errors never are). "Searched, nothing
   // found" is kept for a shorter time so a newly published format is picked up soon.
   const keep = co.patterns.length ? ttl : Math.min(ttl, NO_FORMAT_CACHE_DAYS);

@@ -112,3 +112,34 @@ export function estimateCost(u: {
 
 /** Size limits for one JSON enrich request (API, MCP, ChatGPT app). */
 export const API_LIMITS = { people: 200, companies: 50, textChars: 50_000, field: 200 };
+
+/**
+ * Evidence engine. "off": nothing recorded or read. "shadow": record evidence from every lookup,
+ * change nothing. "on": strong evidence for a domain skips the paid format search.
+ */
+export const EVIDENCE_MODE: "off" | "shadow" | "on" = "off";
+/** How much one piece of evidence counts. Explicit weights, not calibrated probabilities — the
+ * benchmark is what tunes them. Contradicting kinds subtract. */
+export const EVIDENCE_WEIGHTS = {
+  site_email: 0.7, // per matched address, up to 3
+  site_stated: 0.8,
+  search_stated: 0.4, // × the source's percentage
+  search_estimated: 0.15, // × the estimate
+  paste_email: 0.7,
+  paste_stated: 0.8,
+  verifier_valid: 1.0,
+  verifier_invalid: 1.0,
+  delivered: 0.5, // weaker: a catch-all server accepts anything
+  replied: 1.0,
+  bounced: 0.9,
+  user_correction: 0.9,
+  verifier_catchall: 0,
+  mx_ok: 0,
+  mx_none: 0,
+} as const;
+/** Evidence counts half as much after this many days (firms change formats). */
+export const EVIDENCE_HALF_LIFE_DAYS = 180;
+/** Rows are deleted after this long. */
+export const EVIDENCE_TTL_DAYS = 365;
+/** "Strong enough to skip the search": best score at least `score`, and `margin`× the runner-up. */
+export const EVIDENCE_STRONG = { score: 1.5, margin: 2 };

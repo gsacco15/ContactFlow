@@ -1,11 +1,11 @@
 // Supabase Edge Function `pipeline` — the only server code in v1 and the only place the
-// Anthropic API key exists. Routes: POST /llm, POST /mx, POST /cache, GET /health.
+// Anthropic API key exists. Routes: POST /llm, /mx, /cache, /site, /shadow, /evidence, /jev; GET /health.
 import Anthropic from "npm:@anthropic-ai/sdk@0.131.0";
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { STAGES, type StageName } from "./_core/schemas.ts";
 import { BUNDLED_PROMPTS } from "./_core/prompts.ts";
 import {
-  CACHE_KEY, DOMAIN, FETCH_BLOCKED_DOMAINS, HttpError, JEV_URL, bioLinks, extractEmails, pickLinks, slugName, robotsAllows, sameSite, sitemapLinks, type SiteEmail, RateLimiter, addUsage, buildParams, corsHeaders, mxFromDoh, mxFromRecords,
+  CACHE_KEY, DOMAIN, FETCH_BLOCKED_DOMAINS, evidenceRow, type EvidenceRow, HttpError, JEV_URL, bioLinks, extractEmails, pickLinks, slugName, robotsAllows, sameSite, sitemapLinks, type SiteEmail, RateLimiter, addUsage, buildParams, corsHeaders, mxFromDoh, mxFromRecords,
   parseBody, parseJevBatch, readContent, zeroUsage, type Env, type LlmBody,
 } from "./lib.ts";
 
@@ -310,6 +310,34 @@ Deno.serve(async (req) => {
         if (error) console.error("cf_site_shadow insert", error.message);
       }
       return json({ ok: true });
+    }
+    if (path.endsWith("/evidence")) {
+      // Evidence engine: domain-level format facts (never names or addresses).
+      if (!db) return json(body?.op === "get" ? { rows: [] } : { ok: true, stored: 0 });
+      if (body?.op === "record") {
+        const raw: unknown[] = Array.isArray(body.rows) ? body.rows.slice(0, 50) : [];
+        const rows = raw.map(evidenceRow).filter((r): r is EvidenceRow => !!r);
+        if (!rows.length) return json({ ok: true, stored: 0 });
+        const days = Math.min(730, Math.max(30, Number(env("CF_EVIDENCE_TTL_DAYS") ?? 365)));
+        const expires_at = new Date(Date.now() + days * 86_400_000).toISOString();
+        const { error } = await db.from("cf_domain_evidence").insert(rows.map((r) => ({ ...r, expires_at })));
+        if (error) throw new HttpError(500, error.message);
+        return json({ ok: true, stored: rows.length });
+      }
+      if (body?.op === "get") {
+        const domain = String(body.domain ?? "").toLowerCase();
+        if (!DOMAIN.test(domain)) throw new HttpError(400, "bad domain");
+        const { data, error } = await db
+          .from("cf_domain_evidence")
+          .select("domain, kind, template, outcome, strength, count, source_url, source_name, observed_at")
+          .eq("domain", domain)
+          .gt("expires_at", new Date().toISOString())
+          .order("observed_at", { ascending: false })
+          .limit(200);
+        if (error) throw new HttpError(500, error.message);
+        return json({ rows: data ?? [] });
+      }
+      throw new HttpError(400, "op must be record or get");
     }
     if (path.endsWith("/jev")) {
       if (!(await underDailyLimit())) return json({ error: "daily_limit" }, 429);

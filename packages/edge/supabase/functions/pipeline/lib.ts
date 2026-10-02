@@ -1,5 +1,5 @@
 // Pure helpers for the pipeline function. No Deno or npm imports so Vitest can run them in Node.
-import { STAGES, TOOLS, type StageName, type StageSpec } from "./_core/schemas.ts";
+import { EVIDENCE_KINDS, STAGES, TEMPLATES, TOOLS, type StageName, type StageSpec } from "./_core/schemas.ts";
 
 export type Env = (key: string) => string | undefined;
 
@@ -370,4 +370,49 @@ export function extractEmails(html: string, domain: string, page: string): SiteE
     add(m[0], deob.slice(Math.max(0, m.index! - 160), m.index! + m[0].length + 80));
   }
   return [...found.values()];
+}
+
+// ── Evidence engine (domain-level facts about email formats) ──
+
+export type EvidenceRow = {
+  domain: string;
+  kind: string;
+  template: string | null;
+  outcome: "supports" | "contradicts" | "neutral";
+  strength: number | null;
+  count: number | null;
+  source_url: string | null;
+  source_name: string | null;
+  observed_at: string;
+};
+
+/**
+ * Validate one evidence row before storing it. Mirrors cleanEvidence in packages/core: anything
+ * malformed is dropped, private (paste) evidence is never stored, URLs lose query strings, and
+ * nothing containing "@" is kept.
+ */
+export function evidenceRow(raw: any): EvidenceRow | undefined {
+  if (!raw || typeof raw !== "object" || raw.scope === "private") return undefined;
+  const domain = String(raw.domain ?? "").toLowerCase();
+  if (!DOMAIN.test(domain)) return undefined;
+  if (!(EVIDENCE_KINDS as readonly string[]).includes(raw.kind)) return undefined;
+  const template = raw.template ?? null;
+  if (template !== null && !(TEMPLATES as readonly string[]).includes(template)) return undefined;
+  if (!["supports", "contradicts", "neutral"].includes(raw.outcome)) return undefined;
+  const at = new Date(String(raw.observed_at ?? ""));
+  const num = (v: unknown, lo: number, hi: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null);
+  const url = typeof raw.source_url === "string" && /^https?:\/\/[^\s@]+$/i.test(raw.source_url) ? raw.source_url.split(/[?#]/)[0].slice(0, 300) : null;
+  const name = typeof raw.source_name === "string" && !raw.source_name.includes("@") ? raw.source_name.slice(0, 60) : null;
+  const count = num(raw.count, 1, 100);
+  return {
+    domain,
+    kind: raw.kind,
+    template,
+    outcome: raw.outcome,
+    strength: num(raw.strength, 0, 1),
+    count: count === null ? null : Math.floor(count),
+    source_url: url,
+    source_name: name,
+    observed_at: Number.isNaN(at.getTime()) || at.getTime() > Date.now() + 86_400_000 ? new Date().toISOString() : at.toISOString(),
+  };
 }

@@ -19,6 +19,28 @@ export const TEMPLATES = [
 
 export const INPUT_MODES = ["people", "companies", "urls", "mixed"] as const;
 
+/**
+ * Kinds of evidence about a domain's email format (evidence engine). Shared with the edge function
+ * so both validate the same list. Domain-level facts only: never names or addresses.
+ */
+export const EVIDENCE_KINDS = [
+  "site_email", // real addresses on the company's own site matched a format (count = how many)
+  "site_stated", // the company's site states its format in words
+  "search_stated", // a third-party page states the format (strength = its percentage)
+  "search_estimated", // inferred from search snippets, no percentage stated
+  "paste_email", // the user's paste had real addresses (private: never shared across users)
+  "paste_stated", // the user's paste stated the format (private)
+  "verifier_valid", // a mailbox check said this address exists
+  "verifier_invalid", // a mailbox check said it doesn't
+  "verifier_catchall", // the domain accepts any address — checks prove nothing here
+  "mx_ok", // the domain receives mail
+  "mx_none", // it doesn't
+  "delivered", // an email sent to this format was delivered (sending logs)
+  "replied", // …and someone replied
+  "bounced", // …or it hard-bounced
+  "user_correction", // a user fixed the format by hand
+] as const;
+
 export type StageName =
   | "classify_extract"
   | "resolve_domain"

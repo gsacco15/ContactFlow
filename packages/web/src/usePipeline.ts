@@ -57,6 +57,7 @@ export function usePipeline() {
       verifier: new MxVerifier(client.mx),
       site: client.site,
       shadow: client.shadow,
+      evidence: client.evidence,
       budget: BUDGET,
       options: {
         roleFilter: state.roleFilter,
@@ -64,6 +65,7 @@ export function usePipeline() {
         usePasteEvidence: state.usePasteEvidence !== false,
         skipIrrelevant: state.skipIrrelevant !== false,
         siteMode: siteModeFromUrl(),
+        evidenceMode: modeFromUrl("evidence"),
       },
       onUsage,
       signal,
@@ -227,8 +229,13 @@ export type Pipeline = ReturnType<typeof usePipeline>;
 
 /** Testing switch: ?site=on (use a proven website format, skip the search), ?site=shadow, ?site=off. */
 function siteModeFromUrl(): "off" | "shadow" | "on" | undefined {
+  return modeFromUrl("site");
+}
+
+/** ?site=… / ?evidence=… — on, shadow or off for this browser only (testing). */
+function modeFromUrl(key: "site" | "evidence"): "off" | "shadow" | "on" | undefined {
   try {
-    const v = new URLSearchParams(window.location.search).get("site");
+    const v = new URLSearchParams(window.location.search).get(key);
     return v === "on" || v === "shadow" || v === "off" ? v : undefined;
   } catch {
     return undefined;

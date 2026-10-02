@@ -14,6 +14,7 @@ never fetch linkedin.com or login-walled pages.
 
 | # | Feature | Why | Size | Running cost |
 |---|---|---|---|---|
+| 0 | Evidence engine (built, off) + benchmark (built, waiting on a list) | Keeps *why* we believe each domain's format; every later feature writes into it; the benchmark proves what works | done | $0 |
 | 1 | Email verification (during search, per-company format proof, cached) | "Emails you can trust", literally; proven formats become a shared asset | M | ≈ $0.004–0.012 per new firm; $0 for cached firms |
 | 1b | ChatGPT app (lightweight MCP) | ContactFlow inside ChatGPT: it reads the paste, our tools find domain, format and emails | S–M | ≈ cents per company, cached; per-user limits |
 | 2 | HubSpot push | Results straight into the CRM, deduped | M | free (user's HubSpot) |
@@ -26,9 +27,55 @@ never fetch linkedin.com or login-walled pages.
 | — | Accounts / list on every device | Deferred: means storing names server-side (privacy decision first) | L | — |
 | — | Parallel researcher agents (Agent SDK) | Deferred: not needed at ≤ 100 contacts per run | — | — |
 
-Suggested order: 1 → 1b → 3 → 2 → 4 → 5 → 6, with 7 pulled forward if cost is what's blocking a
+Suggested order: 0 (done: switch evidence to shadow, run the benchmark) → 1 → 1b → 3 → 2 → 4 → 5 → 6, with 7 pulled forward if cost is what's blocking a
 public launch. 1b's prototype can start before 1 finishes (verify_email is added to it when 1 lands). 8 after 1 (an API that returns verified emails is the stronger product) and alongside 7
 (API callers need keys and billing).
+
+---
+
+## 0. Evidence engine + benchmark — built (October 2026)
+
+**What it is.** Every lookup already learns something about a firm's email format (a search
+stating it, real addresses on their site, whether the domain takes mail). The evidence engine
+keeps those facts — domain-level only, never names or addresses — and scores them into "best
+format for this domain, how sure, and why". Verification, sending logs and the benchmark are
+more rows of the same kind.
+
+**Where it is.**
+- Table `cf_domain_evidence` (migration `20261003000000_domain_evidence.sql`): domain, kind,
+  template, outcome (supports / contradicts / neutral), strength, count, source, observed_at,
+  expires_at (365 days, `CF_EVIDENCE_TTL_DAYS`). RLS on; edge function only.
+- Kinds (`EVIDENCE_KINDS` in `schemas.ts`): site_email, site_stated, search_stated,
+  search_estimated, paste_email*, paste_stated*, verifier_valid, verifier_invalid,
+  verifier_catchall, mx_ok, mx_none, delivered, replied, bounced, user_correction*.
+  (* private: stays in the user's browser, never stored server-side.)
+- Core `packages/core/src/evidence.ts`: builders (`evidenceFromSearch / Site / Mx /
+  Verification / Outcome / Correction`), `cleanEvidence` (what may be stored), `scoreEvidence`
+  (weights × strength × count × half-life decay; contradictions subtract; catch-all domains ignore
+  deliveries and "valid" checks), `patternFromEvidence` (strong verdict → Pattern with
+  `from_evidence`), `memoryEvidence` for tests.
+- Weights and thresholds in `config.ts`: `EVIDENCE_WEIGHTS`, `EVIDENCE_HALF_LIFE_DAYS` (180),
+  `EVIDENCE_STRONG` (score ≥ 1.5 and 2× the runner-up), `EVIDENCE_MODE`.
+- Edge `POST /evidence` `{op: "record", rows}` / `{op: "get", domain}`; the server re-checks
+  every row (`evidenceRow` in `lib.ts`) and drops private rows.
+- Runner (`enrichCompany`): `off` = nothing; `shadow` = record search / site / mx facts after each
+  fresh lookup, results unchanged; `on` = a strong verdict skips the paid format search.
+  `?evidence=shadow` in the URL tries it in one browser.
+
+**Turning it on.**
+1. Set `EVIDENCE_MODE = "shadow"` → evidence accumulates from normal use (no behaviour change).
+2. After a few weeks, check `cf_domain_evidence` and run the benchmark with and without it.
+3. If strong verdicts are right as often as the benchmark says they should be → `"on"`.
+4. Tune `EVIDENCE_WEIGHTS` from benchmark results (e.g. if RocketReach-stated formats are right
+   70% of the time, lower `search_stated`).
+
+**Benchmark.** `pnpm bench` (see `bench/README.md`) scores answers against known real emails:
+1st right, top 3, wrong-but-confident, score honesty by band and by source, cost per usable
+contact. Answer keys and results are git-ignored. Next: `--record-evidence` to write benchmark
+outcomes (delivered / bounced) into the evidence engine once the list is real.
+
+**JSON contract.** `packages/core/src/api.ts` + `docs/api-v1.md` — the one request/response
+shape for the API, MCP, ChatGPT app and benchmark (item 8 builds on it).
 
 ---
 
@@ -43,15 +90,18 @@ whose format is proven show "✓ format verified at this company" — on free pl
 Invalid candidates drop down (and out of exports unless backups are on). Filter: "Only verified".
 
 **The flow, per company (cheapest first).**
-1. **Cache hit — verified format for this domain?** Build emails, mark "format verified". **$0.**
-2. **Catch-all domain already known?** Skip checks; mark rows ◎ catch-all ("sourced, not
+1. **Evidence says the format is proven for this domain?** (`scoreEvidence` → strong, with a
+   `verifier_valid` among its kinds) Build emails, mark "format verified". **$0.**
+2. **Evidence says catch-all?** Skip checks; mark rows ◎ catch-all ("sourced, not
    verifiable"). **$0.**
 3. **Otherwise sample one person** (prefer an uncommon name): verify the top candidate.
-   - valid → this format is **proven for the domain**; cache it (`vformat:<domain>`, 90 days);
-     everyone else at the firm gets "format verified" without their own check.
+   - valid → this format is **proven for the domain**: record `verifier_valid` evidence
+     (`evidenceFromVerification`); everyone else at the firm gets "format verified" without their
+     own check, and the next run reads it from the evidence engine.
    - invalid → try the next sourced format; then the common guesses (≤ 3 checks total) — this is
      how firms with no published format get cracked.
-   - catch-all → cache `catchall:<domain>` (90 days) and stop.
+   - catch-all → record `verifier_catchall` evidence and stop (the scorer then ignores
+     deliveries and "valid" checks for that domain).
 4. **Per-person checks only for exceptions:** very common names (likely jsmith2@ collisions),
    ambiguous names (middle initials, hyphens), or a user clicking Verify on a row.
 5. **Never verify** an address that was in the paste (`basis: "seen"`).
@@ -60,13 +110,14 @@ Invalid candidates drop down (and out of exports unless backups are on). Filter:
 Repeat firm: **$0 verification** (and ≈ $0 search, from the format cache). Cost per contact falls
 as the shared cache grows — that cache of proven formats is the long-term moat.
 
-**Privacy.** Format and catch-all caches are per domain (no names). Individual results cache as
-`verify:<sha256(email)>` → status, 90 days — never the address itself.
+**Privacy.** Format and catch-all facts live in the evidence engine (per domain, no names).
+Individual results cache as `verify:<sha256(email)>` → status, 90 days — never the address itself.
 
 **Build.**
 - Edge function: `POST /verify` `{ emails: string[] }` → `{ [email]: VerifyStatus }`; vendor key
   (`CF_VERIFIER`, `CF_VERIFIER_KEY`) only here; caches above; usage logged to `cf_usage`
-  (stage `verify`). Plan gate: verification runs only for paid keys/sessions.
+  (stage `verify`). Plan gate: verification runs only for paid keys/sessions. Every result is also
+  recorded as evidence (`evidenceFromVerification` → `/evidence`), so proof outlives the cache.
 - Core: `RemoteVerifier implements Verifier` (`packages/core/src/verify/`), injected — no network
   code in core. Runner: the per-company sampling step above in `enrichCompany` / `applyCompany`;
   new `Company` fields `format_verified`, `catch_all`; budget `DEFAULT_BUDGET.maxVerifyPerCompany`
@@ -79,8 +130,8 @@ as the shared cache grows — that cache of proven formats is the long-term moat
 **Decide first.** Vendor: ZeroBounce, NeverBounce, MillionVerifier or Hunter — price per check,
 catch-all detection quality, rate limits. One adapter.
 
-**Done when.** Mock vendor drives end-to-end runs: a firm's first run makes ≤ 3 checks and caches
-the proven format; a second run (any user) makes zero checks; invalid top candidate falls through
+**Done when.** Mock vendor drives end-to-end runs: a firm's first run makes ≤ 3 checks and records
+the proven format as evidence; a second run (any user) makes zero checks; invalid top candidate falls through
 to the next format; catch-all short-circuits; a pasted address is never checked; free plan shows
 cached "format verified" but makes no checks; counter matches `cf_usage`.
 

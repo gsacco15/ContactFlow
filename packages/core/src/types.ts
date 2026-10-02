@@ -1,4 +1,4 @@
-import { TEMPLATES, INPUT_MODES, type StageName } from "./schemas.ts";
+import { TEMPLATES, INPUT_MODES, EVIDENCE_KINDS, type StageName } from "./schemas.ts";
 import type { DecisionProvider } from "./decisions/index.ts";
 import type { Verifier } from "./verify/index.ts";
 
@@ -15,6 +15,7 @@ export type Pattern = {
   quote?: string; // the pasted sentence or example it came from
   stated?: boolean; // the source itself states the format/percentage (vs. the model estimating it)
   from_site?: boolean; // proven from real addresses on the company's own website
+  from_evidence?: boolean; // proven by earlier lookups (evidence engine), no search this time
 };
 
 export type StatedFormat = { quote: string; template?: Template; example_email?: string; example_name?: string };
@@ -174,6 +175,8 @@ export type RunOptions = {
   bypassCache?: boolean;
   /** Override SITE_READ_MODE (config) for this run. */
   siteMode?: "off" | "shadow" | "on";
+  /** Override EVIDENCE_MODE (config) for this run. */
+  evidenceMode?: "off" | "shadow" | "on";
 };
 
 export type Ctx = {
@@ -189,7 +192,35 @@ export type Ctx = {
   site?: (domain: string) => Promise<import("./site.ts").SiteRead>;
   /** Record a site-vs-search comparison during the shadow trial (domain-level, no names). */
   shadow?: (row: SiteShadowRow) => Promise<void>;
+  /** Evidence engine store (edge /evidence). Used only when EVIDENCE_MODE / options.evidenceMode isn't "off". */
+  evidence?: EvidenceStore;
 };
+
+export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];
+
+/** One fact about a domain's email format. Never holds names or addresses. */
+export type Evidence = {
+  domain: string;
+  kind: EvidenceKind;
+  /** The format it's about; null for domain-wide facts (mx, catch-all). */
+  template: Template | null;
+  outcome: "supports" | "contradicts" | "neutral";
+  /** 0–1 multiplier, e.g. the percentage a source stated. Default 1. */
+  strength?: number;
+  /** How many observations this row stands for, e.g. matched addresses on a page. Default 1. */
+  count?: number;
+  source_url?: string;
+  source_name?: string;
+  observed_at: string; // ISO
+  /** global = reusable for everyone (domain facts); private = this user's paste only, never shared. */
+  scope: "global" | "private";
+};
+
+export interface EvidenceStore {
+  record(rows: Evidence[]): Promise<void>;
+  /** Global evidence for a domain, newest first. */
+  forDomain(domain: string): Promise<Evidence[]>;
+}
 
 export type SiteShadowRow = {
   domain: string;

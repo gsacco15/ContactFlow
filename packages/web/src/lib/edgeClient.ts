@@ -1,6 +1,6 @@
 // HTTP client for the `pipeline` edge function. No React; also used by scripts/smoke.ts.
 import { SITE_BIO_PAGES, SITE_MAX_PAGES } from "@cf/core";
-import type { Cache, JevRequest, JevResponse, LlmRequest, LlmResponse, SiteRead, SiteShadowRow } from "@cf/core";
+import type { Cache, Evidence, EvidenceStore, JevRequest, JevResponse, LlmRequest, LlmResponse, SiteRead, SiteShadowRow } from "@cf/core";
 
 export type EdgeOptions = {
   url: string;
@@ -49,6 +49,18 @@ export function edgeClient(o: EdgeOptions) {
     site: (domain: string) => post<SiteRead>("site", { domain, maxPages: SITE_MAX_PAGES, bioPages: SITE_BIO_PAGES }),
     /** Site-reading trial log (domain-level only). */
     shadow: async (row: SiteShadowRow) => void (await post("shadow", row)),
+    /** Evidence engine store: domain-level format facts only; paste evidence is never sent. */
+    evidence: {
+      record: async (rows: Evidence[]) => {
+        const global = rows.filter((r) => r.scope === "global");
+        if (global.length) await post("evidence", { op: "record", rows: global });
+      },
+      forDomain: async (domain: string) => {
+        const { rows } = await post<{ rows: Record<string, unknown>[] }>("evidence", { op: "get", domain });
+        // The server stores nulls; core wants missing fields.
+        return rows.map((r) => ({ ...Object.fromEntries(Object.entries(r).filter(([, v]) => v !== null)), template: r.template ?? null, scope: "global" }) as Evidence);
+      },
+    } satisfies EvidenceStore,
     /** TypeSafe Jev batch, proxied by the edge function (which holds the key). */
     jev: async (requests: JevRequest[]): Promise<JevResponse[]> => (await post<{ responses: JevResponse[] }>("jev", { requests })).responses,
     cache: {

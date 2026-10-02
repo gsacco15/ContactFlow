@@ -20,3 +20,4 @@ export { siteFormat, type SiteEmail, type SiteRead, type SiteVerdict } from "./s
 export type { SiteShadowRow } from "./types.ts";
 export * from "./api.ts";
 export * from "./bench.ts";
+export * from "./evidence.ts";
