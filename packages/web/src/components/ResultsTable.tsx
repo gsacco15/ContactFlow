@@ -284,7 +284,7 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
           <PatternInfo top={top} pattern={pattern} co={co} />
           {co?.verify_unclear && <Unclear />}
           {co?.verify_failed && <VerifierDown />}
-          <Why text={[co?.pattern_conflict && `sources disagree: ${co.pattern_conflict}`, c.note, co?.rescue_note, c.error].filter(Boolean).join(" · ")} />
+          <Why text={[co?.verify_note, co?.pattern_conflict && `sources disagree: ${co.pattern_conflict}`, c.note, co?.rescue_note, c.error].filter(Boolean).join(" · ")} />
           {(c.status === "skipped" || (failed && co)) && (
             <div className="flex gap-1">
               {c.status === "skipped" && (
@@ -320,6 +320,7 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
         {co?.pattern_conflict && <div className="mt-1 text-xs text-amber-700">⚠ sources disagree: {co.pattern_conflict}</div>}
         {co?.verify_unclear && <div className="mt-1"><Unclear /></div>}
         {co?.verify_failed && <div className="mt-1"><VerifierDown /></div>}
+        {co?.verify_note && <div className="mt-1 max-w-56 text-xs text-red-700">✗ {co.verify_note}</div>}
         {c.note && <div className="mt-1 max-w-56 text-xs text-stone-500">{c.note}</div>}
         {co?.rescue_note && <div className="mt-1 max-w-56 text-xs text-stone-500" title={co.rescue_note}>{c.rescued ? "rescued: " : ""}{co.rescue_note}</div>}
       </td>

@@ -153,7 +153,7 @@ export const EVIDENCE_STRONG = { score: 1.5, margin: 2 };
  */
 export const VERIFY_MODE: "off" | "button" | "auto" = "button";
 /** At most this many checks per company per run: sample one person, try their emails in order. */
-export const VERIFY_LIMITS = { perCompany: 3 };
+export const VERIFY_LIMITS = { perCompany: 3, secondPerson: 1 };
 /** Confidence shown for a format a mailbox check proved at this company. */
 export const VERIFIED_CONFIDENCE = 0.97;
 /** Cost of one check. MillionVerifier: 2,000 credits for $4.90 = $0.00245 (Oct 2026). */

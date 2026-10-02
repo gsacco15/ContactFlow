@@ -61,13 +61,23 @@ describe("verification", () => {
     expect(jo.candidates[0]).toMatchObject({ email: "jli@acme.com", basis: "sourced" }); // no longer a guess
   });
 
-  it("stops at 3 checks; failed formats drop to the bottom", async () => {
+  it("every format bounces: 3 checks, then one second-opinion check on someone else; failed formats drop", async () => {
     const box = mailbox({});
     const res = await runPipeline("x", setup({ discover_pattern: firstLast }, box, "auto").ctx);
-    expect(box.asked).toHaveLength(3);
+    expect(box.asked).toHaveLength(4);
+    expect(res.companies[0].verify_note).toMatch(/no address in these formats exists for .+ or .+/);
     expect(res.companies[0].format_verified).toBeUndefined();
     expect(res.companies[0].patterns[0].confidence).toBeLessThan(0.3);
     expect(res.contacts.find((c) => c.first === "Priya")!.candidates.every((x) => x.verify_status === "invalid")).toBe(true);
+  });
+
+  it("the checked person isn't there but a colleague is: the second check proves the format", async () => {
+    const box = mailbox({ "jo.li@acme.com": "valid" });
+    const res = await runPipeline("x", setup({ discover_pattern: firstLast }, box, "auto").ctx);
+    expect(box.asked).toHaveLength(4);
+    expect(res.companies[0].format_verified).toBe("{first}.{last}");
+    expect(res.companies[0].verify_note).toBeUndefined();
+    expect(res.contacts.find((c) => c.first === "Priya")!.primary_email).toBe("priya.natarajan@acme.com");
   });
 
   it("provider down: one attempt, the firm is flagged, emails unchanged", async () => {

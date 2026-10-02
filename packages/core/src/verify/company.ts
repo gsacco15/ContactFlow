@@ -5,6 +5,8 @@
  *   3. Otherwise check ONE person's emails in order (≤ VERIFY_LIMITS.perCompany):
  *      valid → the format is proven for the whole firm · invalid → try their next email ·
  *      catch-all → stop.
+ *   4. Every format bounced for that person → check a second person's top address before blaming
+ *      the format (the first person may have left, or the list named someone who isn't there).
  * Every real result is recorded as evidence, so the next run (any user) needs no check.
  */
 import { EVIDENCE_MODE, VERIFIED_CONFIDENCE, VERIFY_LIMITS, VERIFY_MODE } from "../config.ts";
@@ -24,9 +26,9 @@ const verifyOn = (ctx: Ctx, clicked: boolean) => {
  * jsmith2@). Rows with only backup guesses count too — cracking firms with no published format is
  * where checks help most.
  */
-function sample(contacts: Contact[]): Contact | undefined {
+function sample(contacts: Contact[], skip?: Contact): Contact | undefined {
   return contacts
-    .filter((c) => (c.status === "ok" || c.status === "no_pattern") && c.first && c.last && c.candidates.some((x) => x.basis !== "seen"))
+    .filter((c) => c !== skip && (c.status === "ok" || c.status === "no_pattern") && c.first && c.last && c.candidates.some((x) => x.basis !== "seen"))
     .sort((a, b) => `${b.first}${b.last}`.length - `${a.first}${a.last}`.length)[0];
 }
 
@@ -65,7 +67,12 @@ export async function verifyCompany(
   const tryList = who.candidates.filter((x) => x.basis !== "seen").slice(0, VERIFY_LIMITS.perCompany);
   const invalid: Template[] = [];
   let down = false;
-  for (const cand of tryList) {
+  // Second opinion: if every format bounced for this person, try someone else's top address.
+  const other = !opts.person ? sample(contacts, who) : undefined;
+  const second = other?.candidates.filter((x) => x.basis !== "seen").slice(0, VERIFY_LIMITS.secondPerson) ?? [];
+  const queue = [...tryList];
+  for (let i = 0; i < queue.length; i++) {
+    const cand = queue[i];
     if (ctx.signal?.aborted) break;
     let status: VerifyStatus;
     try {
@@ -88,7 +95,10 @@ export async function verifyCompany(
       out.catch_all = true;
       break;
     }
-    if (status === "invalid") invalid.push(template);
+    if (status === "invalid") {
+      if (!invalid.includes(template)) invalid.push(template);
+      if (i === tryList.length - 1 && invalid.length === tryList.length) queue.push(...second);
+    }
   }
   if (out.checks) co.verified_by = ctx.mailbox!.name;
   // Checked, but nothing valid / invalid / catch-all came back: say so instead of showing nothing.
@@ -97,6 +107,10 @@ export async function verifyCompany(
   else delete co.verify_unclear;
   if (down && !out.checks) co.verify_failed = true;
   else delete co.verify_failed;
+  const people = [who, ...(queue.length > tryList.length ? [other!] : [])].map((c) => `${c.first} ${c.last}`);
+  if (out.checks && Object.values(out.statuses).every((s) => s === "invalid")) {
+    co.verify_note = `Mailbox check: no address in ${invalid.length === 1 ? "this format" : "these formats"} exists for ${people.join(" or ")}. They may have left, or staff may use another domain.`;
+  } else delete co.verify_note;
   ctx.onUsage?.({ stage: "verify", model: `verifier:${ctx.mailbox!.name}`, input_tokens: 0, output_tokens: 0, web_search_requests: 0, web_fetch_requests: 0, verifications: out.checks });
 
   if (out.catch_all) return markCatchAll(co, contacts, out);

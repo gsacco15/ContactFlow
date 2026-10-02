@@ -49,6 +49,7 @@ export type Company = {
   catch_all?: boolean; // the mail server accepts any address: checks can't prove a format here
   verified_by?: string; // who checked: a provider name, "demo"/"mock" (fake answers) or "earlier check"
   verify_unclear?: boolean; // checks ran but the server gave no clear answer (it hides which addresses exist)
+  verify_note?: string; // what the mailbox checks found, when every checked address bounced
   verify_failed?: boolean; // the verification provider itself failed, so nothing was checked (not charged)
 };
 

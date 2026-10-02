@@ -63,7 +63,7 @@ export function Input({ p }: { p: Pipeline }) {
             </label>
             {state.verify ? (
               <p className="mt-1 ml-5 text-xs leading-relaxed text-amber-700">
-                Adds about ${(PRICE_PER_VERIFY).toFixed(4)} per new firm (up to ${(PRICE_PER_VERIFY * VERIFY_LIMITS.perCompany).toFixed(4)} if the first address bounces). One check per firm proves its format for everyone there; firms already proven are free.
+                Adds about ${(PRICE_PER_VERIFY).toFixed(4)} per new firm (up to ${(PRICE_PER_VERIFY * (VERIFY_LIMITS.perCompany + VERIFY_LIMITS.secondPerson)).toFixed(4)} if addresses bounce). One check per firm proves its format for everyone there; firms already proven are free.
               </p>
             ) : (
               <p className="mt-1 ml-5 text-xs text-stone-400">Checks each firm's mailbox format · about ${(PRICE_PER_VERIFY).toFixed(4)} per new firm</p>
