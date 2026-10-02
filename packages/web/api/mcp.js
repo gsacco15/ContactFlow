@@ -2569,13 +2569,28 @@ function render(d) {
   wrap.appendChild($("div", "foot", "Only \u2713 verified or \u2713 format proven were confirmed by a mailbox check. Others follow the company's sourced format."));
 }
 
+// MCP Apps bridge: say hello (ui/initialize), then the host sends the tool result.
+let shown = false;
+const show = (d) => { if (d && typeof d === "object" && (Array.isArray(d.people) || Array.isArray(d.companies))) { shown = true; render(d); } };
+const pending = new Map(); let nextId = 1;
+function request(method, params) {
+  const id = nextId++;
+  window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+  return new Promise((ok) => { pending.set(id, ok); setTimeout(() => { if (pending.delete(id)) ok(null); }, 4000); });
+}
 window.addEventListener("message", (event) => {
   if (event.source !== window.parent) return;
   const m = event.data; if (!m || m.jsonrpc !== "2.0") return;
-  if (m.method === "ui/notifications/tool-result") render(m.params && m.params.structuredContent);
+  if (m.id !== undefined && pending.has(m.id)) { const ok = pending.get(m.id); pending.delete(m.id); ok(m.result || null); return; }
+  if (m.method === "ui/notifications/tool-result") show(m.params && (m.params.structuredContent || (m.params.result && m.params.result.structuredContent)));
 }, { passive: true });
-// Hosts that expose the result directly (ChatGPT compatibility alias).
-if (window.openai && window.openai.toolOutput) render(window.openai.toolOutput);
+request("ui/initialize", { protocolVersion: "2025-06-18", appInfo: { name: "contactflow-results", version: "1" }, appCapabilities: {} })
+  .then(() => window.parent.postMessage({ jsonrpc: "2.0", method: "ui/notifications/initialized", params: {} }, "*"));
+// ChatGPT compatibility: results on window.openai.toolOutput, updated via the openai:set_globals event.
+const fromGlobals = () => window.openai && show(window.openai.toolOutput);
+window.addEventListener("openai:set_globals", fromGlobals);
+fromGlobals();
+let tries = 0; const poll = setInterval(() => { if (shown || ++tries > 40) return clearInterval(poll); fromGlobals(); }, 250);
 `;
 var WIDGET_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono&display=swap" rel="stylesheet">
@@ -2814,8 +2829,36 @@ async function handleHttp(req, env2, deps = edgeDeps(env2)) {
   } catch {
     return json({ jsonrpc: "2.0", id: null, error: { code: RPC.parse, message: "invalid JSON" } }, 400);
   }
+  const t0 = Date.now();
   const out = await handleBody(body, TOOLS2, deps, INSTRUCTIONS, RESOURCES);
+  await logCalls(env2, body, out, Date.now() - t0, req.headers.get("user-agent"));
   return out === void 0 ? new Response(null, { status: 202, headers: CORS }) : json(out);
+}
+async function logCalls(env2, body, out, ms, ua) {
+  const url = env2("CF_EDGE_URL") || env2("VITE_EDGE_URL");
+  if (!url || env2("CF_MCP_LOG") === "off") return;
+  const msgs = Array.isArray(body) ? body : [body];
+  const replies = Array.isArray(out) ? out : [out];
+  const entry = {
+    at: (/* @__PURE__ */ new Date()).toISOString(),
+    ms,
+    ua: (ua ?? "").slice(0, 80),
+    calls: msgs.map((m) => {
+      const r = replies.find((x) => x && x.id === m?.id && m?.id !== void 0);
+      return {
+        method: String(m?.method ?? "?").slice(0, 40),
+        tool: m?.method === "tools/call" ? String(m?.params?.name ?? "").slice(0, 40) : void 0,
+        uri: m?.method === "resources/read" ? String(m?.params?.uri ?? "").slice(0, 80) : void 0,
+        client: m?.method === "initialize" ? String(m?.params?.clientInfo?.name ?? "").slice(0, 40) : void 0,
+        error: r?.error?.message?.slice(0, 120) ?? (r?.result?.isError ? String(r.result.content?.[0]?.text ?? "").slice(0, 120) : void 0),
+        bytes: r ? JSON.stringify(r).length : 0
+      };
+    })
+  };
+  const key = `company:mcplog-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const client = edgeClient({ url, token: env2("CF_ACCESS_TOKEN_CLIENT") || env2("VITE_ACCESS_TOKEN") || void 0, session: "mcp-log", retryDelayMs: 0 });
+  await Promise.race([client.cache.set(key, entry, 1).catch(() => {
+  }), new Promise((ok2) => setTimeout(ok2, 1500))]);
 }
 
 // packages/mcp/src/vercel.ts

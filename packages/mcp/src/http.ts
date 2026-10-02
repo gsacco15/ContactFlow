@@ -76,6 +76,39 @@ export async function handleHttp(req: Request, env: Env, deps: Deps | undefined 
   } catch {
     return json({ jsonrpc: "2.0", id: null, error: { code: RPC.parse, message: "invalid JSON" } }, 400);
   }
+  const t0 = Date.now();
   const out = await handleBody(body, TOOLS, deps, INSTRUCTIONS, RESOURCES);
+  await logCalls(env, body, out, Date.now() - t0, req.headers.get("user-agent"));
   return out === undefined ? new Response(null, { status: 202, headers: CORS }) : json(out);
+}
+
+/**
+ * Diagnostics while we bring ContactFlow up in ChatGPT: which methods and tools the host calls, how
+ * long they take, and whether they failed — never arguments, names or results. Stored for a day via
+ * the edge cache (key company:mcplog-…). Off with CF_MCP_LOG=off.
+ */
+async function logCalls(env: Env, body: unknown, out: unknown, ms: number, ua: string | null) {
+  const url = env("CF_EDGE_URL") || env("VITE_EDGE_URL");
+  if (!url || env("CF_MCP_LOG") === "off") return;
+  const msgs = (Array.isArray(body) ? body : [body]) as any[];
+  const replies = (Array.isArray(out) ? out : [out]) as any[];
+  const entry = {
+    at: new Date().toISOString(),
+    ms,
+    ua: (ua ?? "").slice(0, 80),
+    calls: msgs.map((m) => {
+      const r = replies.find((x) => x && x.id === m?.id && m?.id !== undefined);
+      return {
+        method: String(m?.method ?? "?").slice(0, 40),
+        tool: m?.method === "tools/call" ? String(m?.params?.name ?? "").slice(0, 40) : undefined,
+        uri: m?.method === "resources/read" ? String(m?.params?.uri ?? "").slice(0, 80) : undefined,
+        client: m?.method === "initialize" ? String(m?.params?.clientInfo?.name ?? "").slice(0, 40) : undefined,
+        error: r?.error?.message?.slice(0, 120) ?? (r?.result?.isError ? String(r.result.content?.[0]?.text ?? "").slice(0, 120) : undefined),
+        bytes: r ? JSON.stringify(r).length : 0,
+      };
+    }),
+  };
+  const key = `company:mcplog-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const client = edgeClient({ url, token: env("CF_ACCESS_TOKEN_CLIENT") || env("VITE_ACCESS_TOKEN") || undefined, session: "mcp-log", retryDelayMs: 0 });
+  await Promise.race([client.cache.set(key, entry, 1).catch(() => {}), new Promise((ok) => setTimeout(ok, 1500))]);
 }

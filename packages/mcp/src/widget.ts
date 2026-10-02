@@ -115,13 +115,28 @@ function render(d) {
   wrap.appendChild($("div", "foot", "Only ✓ verified or ✓ format proven were confirmed by a mailbox check. Others follow the company's sourced format."));
 }
 
+// MCP Apps bridge: say hello (ui/initialize), then the host sends the tool result.
+let shown = false;
+const show = (d) => { if (d && typeof d === "object" && (Array.isArray(d.people) || Array.isArray(d.companies))) { shown = true; render(d); } };
+const pending = new Map(); let nextId = 1;
+function request(method, params) {
+  const id = nextId++;
+  window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+  return new Promise((ok) => { pending.set(id, ok); setTimeout(() => { if (pending.delete(id)) ok(null); }, 4000); });
+}
 window.addEventListener("message", (event) => {
   if (event.source !== window.parent) return;
   const m = event.data; if (!m || m.jsonrpc !== "2.0") return;
-  if (m.method === "ui/notifications/tool-result") render(m.params && m.params.structuredContent);
+  if (m.id !== undefined && pending.has(m.id)) { const ok = pending.get(m.id); pending.delete(m.id); ok(m.result || null); return; }
+  if (m.method === "ui/notifications/tool-result") show(m.params && (m.params.structuredContent || (m.params.result && m.params.result.structuredContent)));
 }, { passive: true });
-// Hosts that expose the result directly (ChatGPT compatibility alias).
-if (window.openai && window.openai.toolOutput) render(window.openai.toolOutput);
+request("ui/initialize", { protocolVersion: "2025-06-18", appInfo: { name: "contactflow-results", version: "1" }, appCapabilities: {} })
+  .then(() => window.parent.postMessage({ jsonrpc: "2.0", method: "ui/notifications/initialized", params: {} }, "*"));
+// ChatGPT compatibility: results on window.openai.toolOutput, updated via the openai:set_globals event.
+const fromGlobals = () => window.openai && show(window.openai.toolOutput);
+window.addEventListener("openai:set_globals", fromGlobals);
+fromGlobals();
+let tries = 0; const poll = setInterval(() => { if (shown || ++tries > 40) return clearInterval(poll); fromGlobals(); }, 250);
 `;
 
 export const WIDGET_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
