@@ -10,8 +10,12 @@ export type Pattern = {
   template: Template;
   confidence: number; // 0–1
   source_url?: string; // page the format was read from; absent = statistical default
-  evidence?: string[]; // literal emails seen in snippets
+  evidence?: string[]; // literal emails seen in snippets or the paste
+  from_paste?: boolean; // read from the user's own paste, not a search
+  quote?: string; // the pasted sentence or example it came from
 };
+
+export type StatedFormat = { quote: string; template?: Template; example_email?: string; example_name?: string };
 
 export const DEFAULT_PATTERNS: Pattern[] = [
   { template: "{first}.{last}", confidence: 0.45 },
@@ -24,6 +28,8 @@ export type Company = {
   name: string;
   website?: string; // as given in the input
   role_hint?: string; // e.g. "CFO" from "Beta Corp — need CFO"
+  stated_formats?: StatedFormat[]; // "the firm uses first initial + last name" lines in the paste
+  domain_from_paste?: boolean; // domain taken from a pasted work email
   domain?: string;
   domain_confidence?: number;
   domain_source_url?: string;
@@ -32,6 +38,8 @@ export type Company = {
   fetched_at?: string; // ISO date, for cache expiry
   error?: string;
   rescue_note?: string; // gave-up reason or what the rescue agent repaired
+  rescued?: boolean; // the rescue agent repaired this company
+  pattern_conflict?: string; // paste and search disagree on the top pattern
 };
 
 export type VerifyStatus = "valid" | "risky" | "invalid" | "catch_all" | "unverified";
@@ -47,15 +55,19 @@ export type Candidate = {
 export type Contact = {
   id: string;
   first: string;
+  middle?: string;
   last: string;
   title?: string;
   company_id: string;
+  email?: string; // literal address next to this person in the paste
+  flag?: string; // e.g. headline names a different employer — check before running
   linkedin_url?: string;
   raw_source: string; // the pasted chunk this came from, for debugging
   candidates: Candidate[]; // max 3
   primary_email?: string; // set when a candidate verifies, else candidates[0]
   status: ContactStatus;
   error?: string;
+  note?: string; // non-fatal, e.g. "pattern needs a middle initial"
   rescued?: boolean;
 };
 
@@ -135,6 +147,8 @@ export type RunOptions = {
   nicknames?: boolean;
   /** Run the rescue agent on failed rows. Default true. */
   rescue?: boolean;
+  /** Use emails and stated formats found in the paste as pattern evidence. Default true. */
+  usePasteEvidence?: boolean;
   /** Ignore cached company lookups (used by Retry). */
   bypassCache?: boolean;
 };

@@ -4,7 +4,7 @@ import { cleanDisplayName, nicknameVariant, normalizeName, slug } from "../src/i
 describe("normalizeName", () => {
   it.each([
     ["José Álvarez-Ruiz", { first: "jose", last: "alvarezruiz", lastAlt: "alvarez" }],
-    ["Mary Anne O'Brien", { first: "mary", last: "obrien" }],
+    ["Mary Anne O'Brien", { first: "mary", middle: "a", last: "obrien" }],
     ["Dr. Li Wei PhD", { first: "li", last: "wei" }],
     ["Bob Smith Jr.", { first: "bob", last: "smith" }],
     ["Jean-Luc Picard", { first: "jeanluc", last: "picard" }],

@@ -13,6 +13,8 @@ export const TEMPLATES = [
   "{last}",
   "{last}.{first}",
   "{first}{l}",
+  "{f}{l}",
+  "{f}{m}{l}",
 ] as const;
 
 export const INPUT_MODES = ["people", "companies", "urls", "mixed"] as const;
@@ -46,7 +48,7 @@ export type StageSpec = {
 export const STAGES: Record<StageName, StageSpec> = {
   classify_extract: { prompt: "classify_extract", model: "extract", tools: ["extract_contacts"], finalTool: "extract_contacts", maxSearches: 0, maxFetches: 0 },
   resolve_domain: { prompt: "resolve_domain", model: "domain", tools: ["report_domain"], finalTool: "report_domain", maxSearches: 2, maxFetches: 0 },
-  discover_pattern: { prompt: "discover_pattern", model: "extract", tools: ["report_patterns"], finalTool: "report_patterns", maxSearches: 3, maxFetches: 0 },
+  discover_pattern: { prompt: "discover_pattern", model: "extract", tools: ["report_patterns"], finalTool: "report_patterns", maxSearches: 2, maxFetches: 0 },
   find_people: { prompt: "find_people", model: "extract", tools: ["extract_contacts"], finalTool: "extract_contacts", maxSearches: 3, maxFetches: 3 },
   rescue_agent: { prompt: "rescue_agent", model: "extract", tools: ["find_domain", "find_email_pattern", "find_people", "finish"], maxSearches: 2, maxFetches: 2, agentic: true },
   decide: { prompt: "decide", model: "classify", tools: ["report_decision"], finalTool: "report_decision", maxSearches: 0, maxFetches: 0 },
@@ -87,6 +89,21 @@ export const TOOLS: Record<string, ToolDef> = {
               name: str("Company name as written"),
               website: str("Website or domain if present in the text"),
               role_hint: str("Roles the text says to look for at this company, e.g. 'CFO'"),
+              stated_formats: {
+                type: "array",
+                description: "Specific email formats the text states for this company. Skip vague statements.",
+                items: {
+                  type: "object",
+                  properties: {
+                    quote: str("The sentence from the text, max 160 characters"),
+                    template: { type: "string", enum: [...TEMPLATES], description: "The stated format as a template, if it is stated in words" },
+                    example_email: str("A literal example address given with the statement"),
+                    example_name: str("Whose address the example is, if the text says"),
+                  },
+                  required: ["quote"],
+                  additionalProperties: false,
+                },
+              },
             },
             required: ["name"],
             additionalProperties: false,
@@ -98,7 +115,10 @@ export const TOOLS: Record<string, ToolDef> = {
             type: "object",
             properties: {
               first: str("Given name"),
+              middle: str("Middle name or initial if shown"),
               last: str("Family name (may be empty if unknown)"),
+              email: str("This person's email address, only if it appears literally next to them in the text"),
+              flag: str("Short warning if this person may not work at the company, e.g. the headline names a different or only partly matching employer"),
               title: str("Job title exactly as written"),
               company: str("Company name; must match a name in companies[]"),
               linkedin_url: str("LinkedIn profile URL if present"),

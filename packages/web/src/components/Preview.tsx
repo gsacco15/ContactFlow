@@ -12,6 +12,9 @@ export function Preview({ p }: { p: Pipeline }) {
   const peopleAt = (id: string) => ex.people.filter((x) => x.company_id === id).length;
   const companiesWithout = ex.companies.filter((c) => !peopleAt(c.id) && !c.role_hint);
   const roles = p.state.roleFilter.trim();
+  const flagged = ex.people.filter((x) => x.flag).length;
+  const pastedEmails = ex.people.filter((x) => x.email).length;
+  const statements = ex.companies.reduce((n, c) => n + (c.stated_formats?.length ?? 0), 0);
 
   const editPerson = (i: number, patch: Partial<Contact>) => set({ ...ex, people: ex.people.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
   const removePerson = (i: number) => set({ ...ex, people: ex.people.filter((_, j) => j !== i) });
@@ -39,6 +42,19 @@ export function Preview({ p }: { p: Pipeline }) {
       </div>
 
       {ex.notes && <p className="text-sm text-stone-600">Note: {ex.notes}</p>}
+      {flagged > 0 && (
+        <Banner tone="warn">
+          {flagged} {flagged === 1 ? "person may" : "people may"} not work at the company they’re listed under (marked ⚠ below). Remove them before running if so.
+        </Banner>
+      )}
+      {(pastedEmails > 0 || statements > 0) && (
+        <p className="text-sm text-stone-600">
+          Found in your paste: {pastedEmails > 0 && `${pastedEmails} email${pastedEmails > 1 ? "s" : ""} next to people`}
+          {pastedEmails > 0 && statements > 0 && " · "}
+          {statements > 0 && `${statements} stated email format${statements > 1 ? "s" : ""}`}
+          {p.state.usePasteEvidence === false ? " (ignored — the setting is off)" : " — used instead of a web search where they fit."}
+        </p>
+      )}
       {ex.people.length === 0 && (
         <Banner tone="warn">
           No people found. The classifier found {ex.companies.length} companies and {ex.urls.length} URLs.{" "}
@@ -71,9 +87,13 @@ export function Preview({ p }: { p: Pipeline }) {
             </thead>
             <tbody>
               {ex.people.map((x, i) => (
-                <tr key={`${x.id}-${i}`} className="border-t border-stone-100">
+                <tr key={`${x.id}-${i}`} className={`border-t border-stone-100 ${x.flag ? "bg-amber-50" : ""}`}>
                   <td className="px-1">
-                    <input className={cell} value={x.first} aria-label="First name" onChange={(e) => editPerson(i, { first: e.target.value })} />
+                    <div className="flex items-center gap-1">
+                      {x.flag && <span title={x.flag} className="cursor-help text-amber-600">⚠</span>}
+                      <input className={cell} value={x.first} aria-label="First name" onChange={(e) => editPerson(i, { first: e.target.value })} />
+                    </div>
+                    {(x.flag || x.email) && <div className="px-1.5 pb-1 text-xs text-stone-500">{x.flag ?? x.email}</div>}
                   </td>
                   <td className="px-1">
                     <input className={cell} value={x.last} aria-label="Last name" onChange={(e) => editPerson(i, { last: e.target.value })} />

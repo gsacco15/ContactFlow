@@ -1,15 +1,18 @@
-import { DEFAULT_PATTERNS, type Candidate, type Pattern } from "./types.ts";
+import { DEFAULT_PATTERNS, type Candidate, type Pattern, type Template } from "./types.ts";
+import { TEMPLATES } from "./schemas.ts";
 import { nicknameVariant, type NormalizedName } from "./normalize.ts";
 
 const MAX = 3;
 
-function fill(template: string, f: string, l: string): string | null {
+function fill(template: string, f: string, l: string, m = ""): string | null {
   if (!f && /\{f(irst)?\}/.test(template)) return null;
   if (!l && /\{l(ast)?\}/.test(template)) return null;
+  if (!m && template.includes("{m}")) return null;
   const local = template
     .replace("{first}", f)
     .replace("{last}", l)
     .replace("{f}", f[0] ?? "")
+    .replace("{m}", m)
     .replace("{l}", l[0] ?? "");
   if (!/^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$/.test(local)) return null;
   return local;
@@ -18,6 +21,28 @@ function fill(template: string, f: string, l: string): string | null {
 /** Pattern template without braces, for display/export: "{first}.{last}" → "first.last". */
 export function patternLabel(template: string): string {
   return template.replace(/[{}]/g, "");
+}
+
+/** Does `template` need a middle initial? */
+export const needsMiddle = (template: string) => template.includes("{m}");
+
+/**
+ * Which templates turn this name into this local part? An unknown middle initial is
+ * treated as a wildcard ("ajb" for Alex Behn → {f}{m}{l}, middle "j").
+ */
+export function inferTemplates(name: NormalizedName, local: string): { template: Template; middle?: string }[] {
+  const out: { template: Template; middle?: string }[] = [];
+  const surnames = [name.last, name.lastAlt].filter((x): x is string => !!x);
+  for (const t of TEMPLATES) {
+    for (const l of surnames.length ? surnames : [""]) {
+      if (needsMiddle(t) && !name.middle) {
+        const guess = /^[a-z]$/.test(local[1] ?? "") ? local[1] : "";
+        if (guess && fill(t, name.first, l, guess) === local) out.push({ template: t, middle: guess });
+      } else if (fill(t, name.first, l, name.middle) === local) out.push({ template: t });
+      if (out.at(-1)?.template === t) break;
+    }
+  }
+  return out;
 }
 
 /**
@@ -35,7 +60,7 @@ export function generateCandidates(
   const out: Candidate[] = [];
   const push = (p: Pattern, f: string, l: string) => {
     if (out.length >= MAX) return;
-    const local = fill(p.template, f, l);
+    const local = fill(p.template, f, l, name.middle);
     if (!local) return;
     const email = `${local}@${domain}`;
     if (seen.has(email)) return;

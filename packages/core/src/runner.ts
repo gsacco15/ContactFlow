@@ -8,6 +8,8 @@ import { generateCandidates } from "./candidates.ts";
 import { normalizeName, slug } from "./normalize.ts";
 import { cleanUrl, isAggregatorDomain, isBlockedUrl, normalizeDomain, validatePatterns } from "./validate.ts";
 import { pMap } from "./pmap.ts";
+import { cleanEmail, domainFromPaste, mergePatterns, pastePatterns } from "./paste.ts";
+import { needsMiddle } from "./candidates.ts";
 
 export type RunHooks = {
   onExtract?: (ex: ExtractResult) => void;
@@ -94,11 +96,20 @@ export async function enrichCompany(co: Company, ctx: Ctx, people: Contact[] = [
   delete co.error;
   let used = 0;
 
+  const usePaste = ctx.options?.usePasteEvidence !== false;
   const fromInput = normalizeDomain(co.website);
+  const fromPaste = usePaste && !fromInput ? domainFromPaste(co, people) : undefined;
+  delete co.domain_from_paste;
   if (fromInput && !isAggregatorDomain(fromInput)) {
     co.domain = fromInput;
     co.domain_confidence = 1;
     co.domain_source_url = cleanUrl(co.website) ?? `https://${fromInput}`;
+  } else if (fromPaste) {
+    // A work email pasted next to someone at this company — no search needed, not cached (user data).
+    co.domain = fromPaste;
+    co.domain_confidence = 0.9;
+    co.domain_from_paste = true;
+    delete co.domain_source_url;
   } else {
     const cached: CompanyCache | undefined = bypass ? undefined : await ctx.cache.get(`company:${co.id}`);
     if (cached?.domain) Object.assign(co, cached);
@@ -118,13 +129,24 @@ export async function enrichCompany(co: Company, ctx: Ctx, people: Contact[] = [
   if (!co.domain) return;
 
   const cached: DomainCache | undefined = bypass ? undefined : await ctx.cache.get(`domain:${co.domain}`);
+  // Emails/formats from the paste beat a search: skip discover_pattern, and keep them out of the shared cache.
+  const paste = usePaste ? pastePatterns(co, people) : [];
+  delete co.pattern_conflict;
+  if (paste.length) {
+    const merged = mergePatterns(paste, cached?.patterns ?? []);
+    co.patterns = merged.patterns;
+    if (merged.conflict) co.pattern_conflict = merged.conflict;
+    co.mx_ok = cached ? cached.mx_ok : ctx.verifier?.domainLive ? await ctx.verifier.domainLive(co.domain) : undefined;
+    co.fetched_at = new Date().toISOString();
+    return;
+  }
   if (cached) {
     co.patterns = cached.patterns;
     co.mx_ok = cached.mx_ok;
     co.fetched_at = cached.fetched_at;
     return;
   }
-  const maxSearches = Math.max(1, Math.min(3, ctx.budget.maxSearchesPerCompany - used));
+  const maxSearches = Math.max(1, Math.min(2, ctx.budget.maxSearchesPerCompany - used));
   const p = await discoverPattern(co.domain, ctx, { maxSearches });
   if (p.ok && p.data) co.patterns = p.data.patterns;
   else co.error = `discover_pattern: ${p.error}`;
@@ -140,6 +162,7 @@ export async function enrichCompany(co: Company, ctx: Ctx, people: Contact[] = [
 /** Stage 4 (+ stage 5 statuses) for one contact given its company's current state. */
 export async function applyCompany(c: Contact, co: Company | undefined, ctx: Ctx): Promise<void> {
   delete c.error;
+  delete c.note;
   delete c.primary_email;
   c.candidates = [];
   if (!co) return void Object.assign(c, { status: "no_domain", error: "no company found for this person" });
@@ -153,13 +176,25 @@ export async function applyCompany(c: Contact, co: Company | undefined, ctx: Ctx
     c.error = `${co.domain} has no MX records`;
     return;
   }
-  const name = normalizeName(`${c.first} ${c.last}`);
+  const name = normalizeName([c.first, c.middle, c.last].filter(Boolean).join(" "));
   if (!name.first) {
     c.status = "error";
     c.error = "could not parse a name";
     return;
   }
   c.candidates = generateCandidates(name, co.domain, co.patterns, { nicknames: ctx.options?.nicknames });
+  // The person's own pasted work address goes first.
+  const own = ctx.options?.usePasteEvidence !== false ? cleanEmail(c.email) : undefined;
+  if (own?.endsWith(`@${co.domain}`)) {
+    const rest = c.candidates.filter((x) => x.email !== own);
+    c.candidates = [{ email: own, pattern: "pasted", rank: 1, verify_status: "unverified" as const }, ...rest]
+      .slice(0, 3)
+      .map((x, i) => ({ ...x, rank: (i + 1) as 1 | 2 | 3 }));
+  }
+  if (co.patterns[0] && needsMiddle(co.patterns[0].template) && !name.middle && !own) {
+    c.note = "Top pattern uses a middle initial — add it to the name to get that address.";
+  }
+  if (co.rescued) c.rescued = true;
   if (ctx.verifier && c.candidates.length) {
     const st = await ctx.verifier.verify(c.candidates.map((x) => x.email));
     for (const x of c.candidates) x.verify_status = st[x.email] ?? "unverified";
@@ -219,6 +254,7 @@ async function applyFix(co: Company, fix: RescueFix, ctx: Ctx) {
   }
   if (fix.patterns?.length) co.patterns = fix.patterns;
   delete co.error;
+  co.rescued = true;
   co.rescue_note = fix.note ?? "repaired by rescue agent";
   if (co.domain && co.patterns.length) {
     const ttl = ctx.budget.cacheTtlDays;
@@ -293,7 +329,7 @@ async function runTool(call: ToolCall, co: Company, ctx: Ctx): Promise<unknown> 
     case "find_email_pattern": {
       const domain = normalizeDomain(i.domain);
       if (!domain) return { error: "invalid domain" };
-      const r = await discoverPattern(domain, ctx, { maxSearches: 2 });
+      const r = await discoverPattern(domain, ctx, { maxSearches: 1 });
       return r.ok ? { domain, ...r.data, sources: r.sources } : { error: r.error };
     }
     case "find_people": {
@@ -336,6 +372,7 @@ export async function rerunCompany(co: Company, contacts: Contact[], ctx: Ctx, h
   co.patterns = [];
   delete co.mx_ok;
   delete co.rescue_note;
+  delete co.rescued;
   rescues.delete(co);
   await enrichCompany(co, fresh, contacts);
   hooks.onCompany?.(co);

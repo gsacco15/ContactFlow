@@ -18,7 +18,7 @@ describe("buildParams", () => {
     expect(params.messages).toEqual([{ role: "user", content: '{"domain":"acme.com"}' }]);
     const tools = params.tools as any[];
     expect(tools.map((t) => t.name)).toEqual(["report_patterns", "web_search"]);
-    expect(tools[1]).toEqual({ type: "web_search_20260209", name: "web_search", max_uses: 3 });
+    expect(tools[1]).toEqual({ type: "web_search_20260209", name: "web_search", max_uses: 2 });
     expect(params.tool_choice).toEqual({ type: "auto" });
     expect(params.output_config).toEqual({ effort: "low" });
     expect(params.fallbacks).toBe("default");

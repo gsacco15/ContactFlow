@@ -2,7 +2,7 @@ import type { Budget } from "./types.ts";
 
 export const DEFAULT_BUDGET: Budget = {
   maxSearchesPerCompany: 4,
-  maxRescueCalls: 8,
+  maxRescueCalls: 4,
   rescueThreshold: 0.6,
   cacheTtlDays: 30,
   concurrency: 5,
@@ -11,6 +11,15 @@ export const DEFAULT_BUDGET: Budget = {
 
 /** Paste size that triggers the "run the first N" warning. */
 export const LARGE_PASTE_CONTACTS = 500;
+
+/** Confidence given to patterns read from the paste: one example, 2+ agreeing examples, a format stated in words. */
+export const PASTE_CONFIDENCE = { single: 0.85, multiple: 0.95, stated: 0.8 };
+
+/** Personal mail providers — never treated as a company's domain. */
+export const FREEMAIL_DOMAINS = [
+  "gmail.com", "googlemail.com", "yahoo.com", "hotmail.com", "outlook.com", "live.com", "msn.com",
+  "icloud.com", "me.com", "aol.com", "proton.me", "protonmail.com", "gmx.com", "mail.com", "yandex.com",
+];
 
 /** Domain confidence below this is flagged red in the UI. */
 export const LOW_DOMAIN_CONFIDENCE = 0.5;

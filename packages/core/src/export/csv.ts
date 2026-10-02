@@ -12,6 +12,7 @@ export type CsvRow = Record<(typeof CSV_COLUMNS)[number], string>;
 /** One flat row per contact. Unverified guesses always export as verify_status=unverified. */
 export function toRow(c: Contact, co: Company | undefined): CsvRow {
   const primary = c.candidates.find((x) => x.email === c.primary_email) ?? c.candidates[0];
+  const pasted = primary?.pattern === "pasted";
   const pattern = primary ? co?.patterns.find((p) => p.template === primary.pattern) : undefined;
   return {
     first: c.first,
@@ -22,10 +23,10 @@ export function toRow(c: Contact, co: Company | undefined): CsvRow {
     email_1: c.candidates[0]?.email ?? "",
     email_2: c.candidates[1]?.email ?? "",
     email_3: c.candidates[2]?.email ?? "",
-    pattern: primary ? patternLabel(primary.pattern) : "",
-    pattern_confidence: pattern ? pattern.confidence.toFixed(2) : primary ? "default" : "",
-    pattern_source_url: pattern?.source_url ?? "",
-    domain_source_url: co?.domain_source_url ?? "",
+    pattern: pasted ? "pasted address" : primary ? patternLabel(primary.pattern) : "",
+    pattern_confidence: pasted ? "" : pattern ? pattern.confidence.toFixed(2) : primary ? "default" : "",
+    pattern_source_url: pasted || pattern?.from_paste ? "pasted text" : (pattern?.source_url ?? ""),
+    domain_source_url: co?.domain_from_paste ? "pasted text" : (co?.domain_source_url ?? ""),
     linkedin_url: c.linkedin_url ?? "",
     verify_status: primary?.verify_status ?? (primary ? "unverified" : ""),
     status: c.status,

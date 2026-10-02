@@ -51,7 +51,7 @@ export function usePipeline() {
       decisions: new ClaudeDecisions({ llm, onUsage }),
       verifier: new MxVerifier(client.mx),
       budget: BUDGET,
-      options: { roleFilter: state.roleFilter, nicknames: state.nicknames },
+      options: { roleFilter: state.roleFilter, nicknames: state.nicknames, usePasteEvidence: state.usePasteEvidence !== false },
       onUsage,
       signal,
     };
@@ -109,9 +109,10 @@ export function usePipeline() {
   }
 
   /** Inline name/title edits regenerate that row's candidates. */
-  async function editContact(id: string, patch: Partial<Pick<Contact, "first" | "last" | "title">>) {
+  async function editContact(id: string, patch: Partial<Pick<Contact, "first" | "middle" | "last" | "title">>) {
     const c = { ...clone(state.contacts[id]), ...patch };
-    if ((patch.first !== undefined || patch.last !== undefined) && c.status !== "pending") {
+    if (!c.middle) delete c.middle;
+    if (("first" in patch || "last" in patch || "middle" in patch) && c.status !== "pending") {
       await applyCompany(c, state.companies[c.company_id], client ? makeCtx() : ({ options: {} } as Ctx));
     }
     dispatch({ type: "row", contact: c });

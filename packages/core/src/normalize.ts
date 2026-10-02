@@ -1,4 +1,4 @@
-export type NormalizedName = { first: string; last: string; firstAlt?: string; lastAlt?: string };
+export type NormalizedName = { first: string; last: string; middle?: string; firstAlt?: string; lastAlt?: string };
 
 const HONORIFICS = new Set(["dr", "mr", "mrs", "ms", "miss", "mx", "prof", "sir", "dame", "rev", "hon"]);
 const SUFFIXES = new Set(["jr", "sr", "ii", "iii", "iv", "v"]);
@@ -36,7 +36,8 @@ export function cleanDisplayName(raw: string): string {
 /**
  * Turn a display name into email-ready first/last tokens.
  * Order: clean → drop credentials after comma → fold accents → drop apostrophes/periods →
- * split on space → strip honorifics/suffixes/credentials → first token = first, last token = last.
+ * split on space → strip honorifics/suffixes/credentials → first token = first, last token = last,
+ * first middle token's initial = middle.
  * Hyphenated last names give `last` joined and `lastAlt` first part only.
  */
 export function normalizeName(raw: string): NormalizedName {
@@ -56,6 +57,8 @@ export function normalizeName(raw: string): NormalizedName {
   const lastTokens = tokens.slice(i);
   const lastRaw = lastTokens.join("");
   const out: NormalizedName = { first, last: lastRaw.replace(/-/g, "") };
+  const middle = tokens.slice(1, i).find((t) => /^[a-z]/.test(t));
+  if (middle) out.middle = middle[0]; // initial only, for {m} templates
 
   if (lastTokens.length > 1) out.lastAlt = lastTokens.at(-1)!.replace(/-/g, "");
   else if (lastRaw.includes("-")) out.lastAlt = lastRaw.split("-")[0];

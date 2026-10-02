@@ -260,3 +260,14 @@ describe("rerunCompany company-first", () => {
     expect(rows.map((r) => r.primary_email)).toEqual(["daniel.kim@ramp.com"]);
   });
 });
+
+describe("rescued label", () => {
+  it("marks every row of a rescued company, not just the first", async () => {
+    const { ctx } = mockCtx({
+      resolve_domain: toolResponse("report_domain", { domain: null, confidence: 0, source_url: null, alternatives: [] }),
+      rescue_agent: finish({ domain: "acme.co.uk", domain_source_url: "https://acme.co.uk", patterns: [{ template: "{first}.{last}", confidence: 0.8, source_url: "https://x" }] }),
+    });
+    const res = await runPipeline(buildExtract({ people: ["Ann", "Bea", "Cy"].map((f) => ({ first: f, last: "Lee", company: "Acme" })) }), ctx);
+    expect(res.contacts.map((c) => [c.status, c.rescued])).toEqual([["ok", true], ["ok", true], ["ok", true]]);
+  });
+});

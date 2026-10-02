@@ -30,6 +30,10 @@ export function Input({ p }: { p: Pipeline }) {
           <input type="checkbox" checked={state.nicknames} onChange={(e) => dispatch({ type: "nicknames", on: e.target.checked })} />
           Nickname variants
         </label>
+        <label className="flex items-center gap-1.5 text-sm text-stone-600" title="Emails next to a person and stated formats (e.g. “the firm uses jdoe@…”) become the pattern, skipping web search. Only work addresses that fit the person’s name count.">
+          <input type="checkbox" checked={state.usePasteEvidence !== false} onChange={(e) => dispatch({ type: "paste_evidence", on: e.target.checked })} />
+          Use emails &amp; formats found in my paste
+        </label>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Button onClick={p.parse} disabled={!p.configured || busy || !state.input.trim()} title="Stage 1 only — fast, no web searches">

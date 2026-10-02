@@ -1,7 +1,8 @@
 import { INPUT_MODES } from "../schemas.ts";
-import type { Company, Contact, Ctx, ExtractResult, InputMode, StageResult } from "../types.ts";
+import type { Company, Contact, Ctx, ExtractResult, InputMode, StageResult, StatedFormat } from "../types.ts";
 import { cleanDisplayName, slug } from "../normalize.ts";
-import { cleanUrl, normalizeDomain } from "../validate.ts";
+import { cleanUrl, isTemplate, normalizeDomain } from "../validate.ts";
+import { cleanEmail } from "../paste.ts";
 import { callLlm, done, fail, findCall } from "./util.ts";
 
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
@@ -19,7 +20,21 @@ export function contactId(first: string, last: string, companyId: string): strin
  */
 export function buildExtract(input: any, fallbackCompany?: Company): ExtractResult {
   const companies = new Map<string, Company>();
-  const addCompany = (name: string, website?: string, roleHint?: string): Company | undefined => {
+  const statedFormats = (raw: unknown): StatedFormat[] =>
+    (Array.isArray(raw) ? raw : [])
+      .map((f: any): StatedFormat | undefined => {
+        const quote = str(f?.quote).slice(0, 200);
+        if (!quote) return undefined;
+        const out: StatedFormat = { quote };
+        if (isTemplate(f?.template)) out.template = f.template;
+        const ex = cleanEmail(f?.example_email);
+        if (ex) out.example_email = ex;
+        if (str(f?.example_name)) out.example_name = str(f.example_name);
+        return out.template || out.example_email ? out : undefined;
+      })
+      .filter((f): f is StatedFormat => !!f)
+      .slice(0, 5);
+  const addCompany = (name: string, website?: string, roleHint?: string, formats: StatedFormat[] = []): Company | undefined => {
     const id = slug(name);
     if (!id) return undefined;
     const existing = companies.get(id);
@@ -27,18 +42,20 @@ export function buildExtract(input: any, fallbackCompany?: Company): ExtractResu
     if (existing) {
       existing.website ??= site;
       existing.role_hint ??= roleHint || undefined;
+      if (formats.length) existing.stated_formats = [...(existing.stated_formats ?? []), ...formats];
       return existing;
     }
     const c: Company = { id, name: name.trim(), patterns: [] };
     if (site) c.website = site;
     if (roleHint) c.role_hint = roleHint;
+    if (formats.length) c.stated_formats = formats;
     companies.set(id, c);
     return c;
   };
 
   if (fallbackCompany) companies.set(fallbackCompany.id, fallbackCompany);
   for (const c of Array.isArray(input?.companies) ? input.companies : []) {
-    if (str(c?.name)) addCompany(str(c.name), str(c.website) || undefined, str(c.role_hint) || undefined);
+    if (str(c?.name)) addCompany(str(c.name), str(c.website) || undefined, str(c.role_hint) || undefined, statedFormats(c.stated_formats));
   }
 
   const people = new Map<string, Contact>();
@@ -54,6 +71,12 @@ export function buildExtract(input: any, fallbackCompany?: Company): ExtractResu
     const contact: Contact = { id, first, last, company_id, raw_source: str(p?.raw), candidates: [], status: "pending" };
     const title = cleanTitle(str(p?.title));
     if (title) contact.title = title;
+    const middle = cleanDisplayName(str(p?.middle)).replace(/\.$/, "");
+    if (middle && middle.length <= 20) contact.middle = middle;
+    const email = cleanEmail(p?.email);
+    if (email) contact.email = email;
+    const flag = str(p?.flag).slice(0, 160);
+    if (flag) contact.flag = flag;
     const li = cleanUrl(p?.linkedin_url);
     if (li) contact.linkedin_url = li;
     people.set(id, contact);

@@ -8,6 +8,7 @@ export type State = {
   input: string;
   roleFilter: string;
   nicknames: boolean;
+  usePasteEvidence: boolean; // use emails / stated formats found in the paste
   extracted?: ExtractResult; // after Parse; edits write back here before Run
   showPreview: boolean; // true after Parse until the next Run
   companies: Record<string, Company>;
@@ -25,6 +26,7 @@ export type Action =
   | { type: "input"; input: string }
   | { type: "role"; roleFilter: string }
   | { type: "nicknames"; on: boolean }
+  | { type: "paste_evidence"; on: boolean }
   | { type: "parse_start" }
   | { type: "parsed"; extracted: ExtractResult }
   | { type: "edit_extract"; extracted?: ExtractResult }
@@ -47,6 +49,7 @@ export function initialState(session: string): State {
     showPreview: false,
     roleFilter: "",
     nicknames: false,
+    usePasteEvidence: true,
     companies: {},
     contacts: {},
     order: [],
@@ -67,6 +70,8 @@ export function reducer(s: State, a: Action): State {
       return { ...s, roleFilter: a.roleFilter };
     case "nicknames":
       return { ...s, nicknames: a.on };
+    case "paste_evidence":
+      return { ...s, usePasteEvidence: a.on };
     case "parse_start":
       return { ...s, parsing: true, error: undefined };
     case "parsed":

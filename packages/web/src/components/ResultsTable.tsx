@@ -109,42 +109,58 @@ export function ResultsTable({ p }: { p: Pipeline }) {
 }
 
 function Row({ c, co, p }: { c: Contact; co?: Company; p: Pipeline }) {
-  const pattern = c.candidates[0] ? co?.patterns.find((x) => x.template === c.candidates[0].pattern) : undefined;
+  const top = c.candidates.find((x) => x.pattern !== "pasted");
+  const pattern = top ? co?.patterns.find((x) => x.template === top.pattern) : undefined;
   const failed = c.status !== "ok" && c.status !== "pending";
   return (
     <tr className="border-t border-stone-100 align-top">
       <td className="px-3 py-2">
-        <Editable value={`${c.first} ${c.last}`.trim()} className="font-medium" label="Name" onSave={(v) => {
-          const [first, ...rest] = v.trim().split(/\s+/);
-          p.editContact(c.id, { first: first ?? "", last: rest.join(" ") });
-        }} />
+        <div className="flex items-start gap-1">
+          {c.flag && <span title={c.flag} className="cursor-help text-amber-600">⚠</span>}
+          <Editable value={[c.first, c.middle, c.last].filter(Boolean).join(" ")} className="font-medium" label="Name" onSave={(v) => {
+            const parts = v.trim().split(/\s+/);
+            const [first, ...rest] = parts;
+            p.editContact(c.id, rest.length > 1 ? { first: first ?? "", middle: rest.slice(0, -1).join(" "), last: rest.at(-1)! } : { first: first ?? "", middle: undefined, last: rest.join(" ") });
+          }} />
+        </div>
         <Editable value={c.title ?? ""} placeholder="—" className="text-stone-500" label="Title" onSave={(v) => p.editContact(c.id, { title: v })} />
       </td>
       <td className="px-3 py-2">
         <div>{co?.name ?? <span className="text-stone-400">—</span>}</div>
         {co?.domain && (
           <div className={`flex items-center gap-1 ${co.domain_confidence !== undefined && co.domain_confidence < LOW_DOMAIN_CONFIDENCE ? "text-red-600" : "text-stone-500"}`} title={co.domain_confidence !== undefined ? `domain confidence ${co.domain_confidence.toFixed(2)}` : undefined}>
-            {co.domain} <LinkIcon href={co.domain_source_url} title="Where the domain came from" />
+            {co.domain} {co.domain_from_paste ? <Pill tone="blue" title="Taken from a work email in your paste">from paste</Pill> : <LinkIcon href={co.domain_source_url} title="Where the domain came from" />}
           </div>
         )}
         {co?.mx_ok === false && <div className="text-xs text-red-600">no MX records</div>}
       </td>
       <td className="px-3 py-2">
-        {c.candidates[0] && (
+        {c.candidates[0]?.pattern === "pasted" && (
+          <div className="mb-1">
+            <Pill tone="blue" title="This person’s own address, as it appeared in your paste">their address from paste</Pill>
+          </div>
+        )}
+        {top && (
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="font-mono text-xs">{patternLabel(c.candidates[0].pattern)}</span>
+            <span className="font-mono text-xs">{patternLabel(top.pattern)}</span>
             {pattern ? (
               <>
                 <Pill tone={pattern.confidence >= 0.6 ? "green" : pattern.confidence >= 0.3 ? "amber" : "red"} title="Pattern confidence">
                   {Math.round(pattern.confidence * 100)}%
                 </Pill>
-                <LinkIcon href={pattern.source_url} title="Where the format was read from" />
+                {pattern.from_paste ? (
+                  <Pill tone="blue" title={pattern.quote ? `From your paste: “${pattern.quote}”` : "From your paste"}>from paste</Pill>
+                ) : (
+                  <LinkIcon href={pattern.source_url} title="Where the format was read from" />
+                )}
               </>
             ) : (
-              <Pill title="Statistical fallback — no source found for this domain">default</Pill>
+              <Pill tone="amber" title="No source states this company’s format. These are the most common formats overall — treat them as low-confidence guesses.">no source · guess</Pill>
             )}
           </div>
         )}
+        {co?.pattern_conflict && <div className="mt-1 text-xs text-amber-700">⚠ sources disagree: {co.pattern_conflict}</div>}
+        {c.note && <div className="mt-1 max-w-56 text-xs text-stone-500">{c.note}</div>}
         {co?.rescue_note && <div className="mt-1 max-w-56 text-xs text-stone-500" title={co.rescue_note}>{c.rescued ? "rescued: " : ""}{co.rescue_note}</div>}
       </td>
       {[0, 1, 2].map((i) => (
