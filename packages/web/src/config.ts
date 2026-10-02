@@ -5,3 +5,5 @@ export const ACCESS_TOKEN: string = import.meta.env.VITE_ACCESS_TOKEN ?? "";
 export const BUDGET = { ...DEFAULT_BUDGET };
 export { LARGE_PASTE_CONTACTS, LOW_DOMAIN_CONFIDENCE };
 export const RATE_LIMIT_RETRY_MS = 10_000;
+/** OAuth client ID for "Send to Google Sheets" (public, not a secret). Empty = feature shows setup help. */
+export const GOOGLE_CLIENT_ID: string = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";

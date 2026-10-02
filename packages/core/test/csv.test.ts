@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CSV_COLUMNS, toCsv, toTsv, type Company, type Contact } from "../src/index.ts";
+import { CSV_COLUMNS, toCsv, toTable, toTsv, type Company, type Contact } from "../src/index.ts";
 
 const company: Company = {
   id: "acme",
@@ -24,6 +24,13 @@ const contact: Contact = {
 };
 
 describe("csv", () => {
+  it("toTable gives raw values with the same columns", () => {
+    const t = toTable([contact], [company], { searchOf: () => "s" });
+    expect(t[0]).toEqual([...CSV_COLUMNS, "search"]);
+    expect(t[1][CSV_COLUMNS.indexOf("title")]).toBe('=HYPERLINK("x"), VP "Sales"'); // raw: written as text, not a formula
+    expect(t[1].at(-1)).toBe("s");
+  });
+
   it("adds a search column only when asked", () => {
     const lines = toCsv([contact], [company], { searchOf: () => "Acme · sales" }).split("\r\n");
     expect(lines[0]).toBe([...CSV_COLUMNS, "search"].join(","));

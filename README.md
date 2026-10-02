@@ -113,10 +113,31 @@ Function secrets (`supabase secrets set …`). The browser never sees any of the
 | `TYPESAFE_API_KEY` | unset | Jev (TypeSafe) for the "Who do you want?" relevance judge and other decisions. Without it, Claude (Haiku) judges. |
 | `CF_JEV_MODEL` | `jev-latest` | Jev model alias |
 
-Web (`packages/web/.env`): `VITE_EDGE_URL`, `VITE_ACCESS_TOKEN` (must match `CF_ACCESS_TOKEN`).
+Web (`packages/web/.env`): `VITE_EDGE_URL`, `VITE_ACCESS_TOKEN` (must match `CF_ACCESS_TOKEN`),
+`VITE_GOOGLE_CLIENT_ID` (optional, for Push to → Google Sheets; see below).
 Scripts: `CF_EDGE_URL`, `CF_ACCESS_TOKEN_CLIENT`. Client-side budgets (max contacts 100, concurrency 5,
 rescue calls 8, rescue threshold 0.6) live in `packages/core/src/config.ts`; prices for the ≈ $ counter
 are there too and are estimates. `cf_usage` / `cf_usage_daily` hold the real token and search counts.
+
+## Google Sheets (Push to → Google Sheets)
+
+Runs in the browser with the user's own Google sign-in, scope `drive.file`: the app sees only the
+spreadsheets it creates, never the rest of the Drive. Nothing is stored on the server. Sending to an
+existing sheet adds only people not already in it (same first + last + company) and follows that
+sheet's own column order. The client ID is public; there is no client secret.
+
+One-time setup (Google Cloud console, ~10 min):
+
+1. [console.cloud.google.com](https://console.cloud.google.com) → create a project (e.g. *ContactFlow*).
+2. **APIs & Services → Library** → enable **Google Sheets API** and **Google Drive API**.
+3. **Google Auth Platform** (OAuth consent screen) → *Get started*: app name *ContactFlow*, your email,
+   audience **External** → create.
+4. **Audience → Test users** → add every Google account that will use it (while the app is in *Testing*).
+5. **Clients → Create client** → *Web application* → **Authorized JavaScript origins**:
+   `https://contact-flow-web.vercel.app` (and `http://localhost:5173` for local dev) → create → copy the **Client ID**.
+6. Vercel → project → **Settings → Environment Variables** → `VITE_GOOGLE_CLIENT_ID` = that ID → **redeploy**.
+
+Users see "Google hasn't verified this app" until the app is verified; fine for you and test users.
 
 ## Compliance and guardrails
 

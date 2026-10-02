@@ -64,6 +64,22 @@ const csvCell = (v: string) => {
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
+/**
+ * Header + rows as plain strings, for spreadsheet exports (Excel, Google Sheets). Values are
+ * raw — the caller writes them as text, never as formulas.
+ */
+export function toTable(contacts: Contact[], companies: Record<string, Company> | Company[], opts: ExportOptions = {}): string[][] {
+  const byId = Array.isArray(companies) ? Object.fromEntries(companies.map((c) => [c.id, c])) : companies;
+  const cols = columns(opts);
+  return [
+    cols,
+    ...contacts.map((c) => {
+      const row: Record<string, string> = { ...toRow(c, byId[c.company_id], opts), ...(opts.searchOf ? { search: opts.searchOf(c) } : {}) };
+      return cols.map((k) => row[k] ?? "");
+    }),
+  ];
+}
+
 export function toCsv(contacts: Contact[], companies: Record<string, Company> | Company[], opts: ExportOptions = {}): string {
   const byId = Array.isArray(companies) ? Object.fromEntries(companies.map((c) => [c.id, c])) : companies;
   const cols = columns(opts);

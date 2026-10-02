@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { toCsv, toTsv } from "@cf/core";
+import { toCsv, toTable, toTsv } from "@cf/core";
 import type { Pipeline } from "../usePipeline.ts";
-import { searchNames, tableRows } from "../state.ts";
+import { groupOf, searchNames, tableRows } from "../state.ts";
+import { downloadXlsx } from "../lib/excel.ts";
+import { PushMenu } from "./PushMenu.tsx";
 import { Button } from "./ui.tsx";
 
 const fmtTokens = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
@@ -22,6 +24,18 @@ export function ExportBar({ p }: { p: Pipeline }) {
     a.click();
     URL.revokeObjectURL(a.href);
   };
+  // Excel: an "All contacts" tab, plus one tab per search when there are several.
+  const excel = async () => {
+    const shown = state.searches.filter((x) => !x.hidden).reverse();
+    const groups = [{ name: "All contacts", table: toTable(contacts, state.companies, opts) }];
+    if (shown.length > 1) {
+      for (const x of shown) {
+        const mine = contacts.filter((c) => groupOf(state, c.id) === x.id);
+        if (mine.length) groups.push({ name: x.label, table: toTable(mine, state.companies, opts) });
+      }
+    }
+    await downloadXlsx(groups, `contacts-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
   const copy = async () => {
     await navigator.clipboard.writeText(toTsv(contacts, state.companies, opts));
     setCopied(true);
@@ -37,12 +51,11 @@ export function ExportBar({ p }: { p: Pipeline }) {
         <Button variant="primary" onClick={download} disabled={!contacts.length}>
           Download CSV
         </Button>
+        <Button onClick={excel} disabled={!contacts.length} title="Excel file with a tab per search">
+          Excel
+        </Button>
+        <PushMenu table={() => toTable(contacts, state.companies, opts)} disabled={!contacts.length} />
         <span className="text-xs text-stone-500">{contacts.length} rows{state.searches.length > 1 ? ` from ${state.searches.filter((x) => !x.hidden).length} of ${state.searches.length} searches` : ""} · {filters.includeGuesses ? "incl. backup guesses" : "sourced emails only"}</span>
-        <span title="Coming soon" className="inline-flex">
-          <Button disabled aria-disabled>
-            Push to CRM
-          </Button>
-        </span>
         <span className="ml-auto font-mono text-xs text-stone-600" title="Estimated from list prices. “This paste” resets when you paste something new; “session” resets on Clear." data-testid="cost">
           <span title={`This paste: ${state.pasteUsage?.searches ?? 0} searches, ${fmtTokens(state.pasteUsage?.tokens ?? 0)} tokens`}>
             this paste ≈ <b className="text-stone-900">${(state.pasteUsage?.cost ?? 0).toFixed(2)}</b>
