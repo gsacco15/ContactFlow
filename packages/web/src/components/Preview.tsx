@@ -60,7 +60,7 @@ export function Preview({ p }: { p: Pipeline }) {
               {p.state.skipIrrelevant !== false ? "✗ people are skipped — nothing is spent on them." : "Everyone will be looked up (skipping is off)."} Click a badge to keep or drop someone.
             </span>
           )}
-          <button className="ml-auto rounded border border-sky-300 bg-white px-2 py-0.5 text-xs font-medium hover:bg-sky-100 disabled:opacity-50" onClick={p.recheck} disabled={p.state.judging || !p.configured}>
+          <button className="ml-auto rounded border border-sky-300 bg-white px-2 py-0.5 text-xs font-medium hover:bg-sky-100 disabled:opacity-50" onClick={p.recheck} disabled={p.state.judging || !p.configured} title="Judge everyone again against what’s in “Looking for” — use it after you change that text. Costs about a hundredth of a cent; nothing is searched.">
             Re-check
           </button>
         </div>

@@ -32,8 +32,13 @@ export function ResultsTable({ p }: { p: Pipeline }) {
   );
 
   let lastCompany: string | undefined;
+  const stale = state.showPreview && !state.running; // a new paste is waiting in the preview above
   return (
-    <section className="space-y-2" aria-label="Results">
+    <section className={`space-y-2 ${stale ? "opacity-60" : ""}`} aria-label="Results">
+      <div className="flex items-baseline gap-2 border-t border-stone-200 pt-4">
+        <h2 className="text-base font-semibold">{stale ? "Last run" : state.running ? "Running…" : "Results"}</h2>
+        {stale && <span className="text-sm text-stone-500">— from your previous paste. Run the preview above to replace these.</span>}
+      </div>
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-stone-600">
         <span className="font-medium text-stone-900">
           {done}/{total} done · {ok} ok

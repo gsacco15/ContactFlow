@@ -46,8 +46,11 @@ export function ExportBar({ p }: { p: Pipeline }) {
             Push to CRM
           </Button>
         </span>
-        <span className="ml-auto font-mono text-xs text-stone-600" title="Estimate from list prices; see cf_usage for actuals" data-testid="cost">
-          searches: {state.usage.searches} · tokens: {fmtTokens(state.usage.tokens)} · ≈ ${state.usage.cost.toFixed(2)}
+        <span className="ml-auto font-mono text-xs text-stone-600" title="Estimated from list prices. “This paste” resets when you paste something new; “session” resets on Clear." data-testid="cost">
+          <span title={`This paste: ${state.pasteUsage?.searches ?? 0} searches, ${fmtTokens(state.pasteUsage?.tokens ?? 0)} tokens`}>
+            this paste ≈ <b className="text-stone-900">${(state.pasteUsage?.cost ?? 0).toFixed(2)}</b>
+          </span>
+          <span className="text-stone-400"> · session ≈ ${state.usage.cost.toFixed(2)} ({state.usage.searches} searches)</span>
         </span>
       </div>
     </footer>

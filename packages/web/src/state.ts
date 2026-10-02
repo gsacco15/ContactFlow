@@ -19,7 +19,8 @@ export type State = {
   order: string[]; // contact ids in display order
   parsing: boolean;
   running: boolean;
-  usage: Usage;
+  usage: Usage; // whole session (since Clear)
+  pasteUsage: Usage; // since the current paste was entered
   error?: string;
   rateLimitedUntil?: number;
   filters: Filters;
@@ -64,6 +65,7 @@ export function initialState(session: string): State {
     parsing: false,
     running: false,
     usage: emptyUsage(),
+    pasteUsage: emptyUsage(),
     filters: { onlyOk: false, hidePatternless: false, groupByCompany: false, includeGuesses: false, hideIrrelevant: true },
   };
 }
@@ -73,7 +75,8 @@ const byId = <T extends { id: string }>(xs: T[]) => Object.fromEntries(xs.map((x
 export function reducer(s: State, a: Action): State {
   switch (a.type) {
     case "input":
-      return { ...s, input: a.input, extracted: undefined, showPreview: false };
+      // A different paste starts a fresh "this paste" cost count.
+      return { ...s, input: a.input, extracted: undefined, showPreview: false, pasteUsage: a.input.trim() === s.input.trim() ? s.pasteUsage ?? emptyUsage() : emptyUsage() };
     case "role":
       return { ...s, roleFilter: a.roleFilter };
     case "nicknames":
@@ -114,16 +117,10 @@ export function reducer(s: State, a: Action): State {
       };
     case "company":
       return { ...s, companies: { ...s.companies, [a.company.id]: a.company } };
-    case "usage":
-      return {
-        ...s,
-        usage: {
-          tokens: s.usage.tokens + a.tokens,
-          searches: s.usage.searches + a.searches,
-          cost: s.usage.cost + a.cost,
-          calls: s.usage.calls + 1,
-        },
-      };
+    case "usage": {
+      const add = (u: Usage = emptyUsage()): Usage => ({ tokens: u.tokens + a.tokens, searches: u.searches + a.searches, cost: u.cost + a.cost, calls: u.calls + 1 });
+      return { ...s, usage: add(s.usage), pasteUsage: add(s.pasteUsage) };
+    }
     case "run_end":
       return { ...s, running: false, parsing: false, error: a.error, rateLimitedUntil: undefined };
     case "rate_limited":
