@@ -70,6 +70,16 @@ describe("verification", () => {
     expect(res.contacts.find((c) => c.first === "Priya")!.candidates.every((x) => x.verify_status === "invalid")).toBe(true);
   });
 
+  it("provider down: one attempt, the firm is flagged, emails unchanged", async () => {
+    let calls = 0;
+    const box: MailboxChecker = { name: "test", real: true, check: async () => { calls++; throw new Error("verifier unavailable: error: All EV instances failed"); } };
+    const res = await runPipeline("x", setup({ discover_pattern: firstLast }, box, "auto").ctx);
+    expect(calls).toBe(1);
+    expect(res.companies[0].verify_failed).toBe(true);
+    expect(res.companies[0].verify_unclear).toBeUndefined();
+    expect(res.contacts.find((c) => c.first === "Jo")!.primary_email).toBe("jo.li@acme.com");
+  });
+
   it("no clear answer (server hides mailboxes): the firm is flagged as unclear, emails unchanged", async () => {
     const box: MailboxChecker = { name: "test", real: true, check: async (emails) => Object.fromEntries(emails.map((e) => [e, "unverified" as const])) };
     const res = await runPipeline("x", setup({ discover_pattern: firstLast }, box, "auto").ctx);

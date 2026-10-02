@@ -64,13 +64,15 @@ export async function verifyCompany(
   if (!who) return out;
   const tryList = who.candidates.filter((x) => x.basis !== "seen").slice(0, VERIFY_LIMITS.perCompany);
   const invalid: Template[] = [];
+  let down = false;
   for (const cand of tryList) {
     if (ctx.signal?.aborted) break;
     let status: VerifyStatus;
     try {
       status = (await ctx.mailbox!.check([cand.email]))[cand.email] ?? "unverified";
     } catch {
-      break; // provider down: keep what we have, never block the run
+      down = true; // provider down: keep what we have, never block the run
+      break;
     }
     out.checks++;
     out.statuses[cand.email] = status;
@@ -93,6 +95,8 @@ export async function verifyCompany(
   const clear = Object.values(out.statuses).some((s) => s === "valid" || s === "invalid" || s === "catch_all");
   if (out.checks && !clear) co.verify_unclear = true;
   else delete co.verify_unclear;
+  if (down && !out.checks) co.verify_failed = true;
+  else delete co.verify_failed;
   ctx.onUsage?.({ stage: "verify", model: `verifier:${ctx.mailbox!.name}`, input_tokens: 0, output_tokens: 0, web_search_requests: 0, web_fetch_requests: 0, verifications: out.checks });
 
   if (out.catch_all) return markCatchAll(co, contacts, out);

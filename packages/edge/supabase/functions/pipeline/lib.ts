@@ -426,7 +426,7 @@ export const VERIFY_MAX_BATCH = 10;
  * Provider adapters: request URL, how to read the answer, and a short description of what the
  * provider said (logged for diagnosis — never the address). Add a provider here.
  */
-export const VERIFY_PROVIDERS: Record<string, { url: (email: string, key: string) => string; read: (json: any) => VerifyStatusWire; detail: (json: any) => string }> = {
+export const VERIFY_PROVIDERS: Record<string, { url: (email: string, key: string, attempt?: number) => string; read: (json: any) => VerifyStatusWire; detail: (json: any) => string }> = {
   // https://www.zerobounce.net/docs/email-validation-api-quickstart/
   zerobounce: {
     url: (email, key) => `https://api.zerobounce.net/v2/validate?api_key=${encodeURIComponent(key)}&email=${encodeURIComponent(email)}&ip_address=`,
@@ -436,9 +436,10 @@ export const VERIFY_PROVIDERS: Record<string, { url: (email: string, key: string
     },
     detail: (j) => [j?.status, j?.sub_status].filter(Boolean).join("/") || (j?.error ? `error: ${String(j.error).slice(0, 80)}` : "no answer"),
   },
-  // https://developer.millionverifier.com/ — timeout up to 60 s; slow servers answer "unknown" at 10.
+  // https://developer.millionverifier.com/ — first try the documented timeout=10; a provider-side
+  // error ("All EV instances failed") gets one retry with a longer one.
   millionverifier: {
-    url: (email, key) => `https://api.millionverifier.com/api/v3/?api=${encodeURIComponent(key)}&email=${encodeURIComponent(email)}&timeout=20`,
+    url: (email, key, attempt = 0) => `https://api.millionverifier.com/api/v3/?api=${encodeURIComponent(key)}&email=${encodeURIComponent(email)}&timeout=${attempt ? 30 : 10}`,
     read: (j) => {
       const r = String(j?.result ?? "").toLowerCase();
       return r === "ok" ? "valid" : r === "invalid" ? "invalid" : r === "catch_all" ? "catch_all" : r === "disposable" ? "risky" : "unverified";

@@ -255,7 +255,7 @@ async function readSite(domain: string, maxPages: number, bioPages: number) {
 
 // ── /verify (mailbox checks through CF_VERIFIER; the key never leaves this function) ──
 
-async function runVerify(emails: string[]): Promise<{ provider: string; real: boolean; results: Record<string, VerifyStatusWire>; details: string[] }> {
+async function runVerify(emails: string[]): Promise<{ provider: string; real: boolean; results: Record<string, VerifyStatusWire>; details: string[]; providerDown?: boolean }> {
   const provider = (env("CF_VERIFIER") ?? "").toLowerCase();
   if (!provider) throw new HttpError(501, "verification not set up (CF_VERIFIER)");
   if (provider === "mock") return { provider, real: false, results: Object.fromEntries(emails.map((e) => [e, mockVerify(e)])), details: [] };
@@ -264,23 +264,34 @@ async function runVerify(emails: string[]): Promise<{ provider: string; real: bo
   if (!adapter || !key) throw new HttpError(501, `verification provider "${provider}" not configured`);
   const results: Record<string, VerifyStatusWire> = {};
   const details: string[] = [];
-  for (const email of emails) {
+  // One call; a provider-side error ("error: …", http 5xx, network) gets one retry with a longer timeout.
+  const call = async (email: string, attempt: number): Promise<{ status: VerifyStatusWire; detail: string }> => {
     const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), 30_000);
+    const t = setTimeout(() => ctl.abort(), 40_000);
     try {
-      const r = await fetch(adapter.url(email, key), { signal: ctl.signal });
+      const r = await fetch(adapter.url(email, key, attempt), { signal: ctl.signal });
       const j = await r.json().catch(() => ({}));
-      results[email] = r.ok ? adapter.read(j) : "unverified";
-      details.push(r.ok ? adapter.detail(j) : `http ${r.status}`);
+      return r.ok ? { status: adapter.read(j), detail: adapter.detail(j) } : { status: "unverified", detail: `http ${r.status}` };
     } catch (e) {
-      results[email] = "unverified";
-      details.push(ctl.signal.aborted ? "timed out" : `fetch failed: ${String((e as Error)?.message ?? e).slice(0, 60)}`);
+      return { status: "unverified", detail: ctl.signal.aborted ? "timed out" : `fetch failed: ${String((e as Error)?.message ?? e).slice(0, 60)}` };
     } finally {
       clearTimeout(t);
     }
+  };
+  const failed = (d: string) => /^(error|http|fetch|timed out)/.test(d);
+  for (const email of emails) {
+    let a = await call(email, 0);
+    if (failed(a.detail)) {
+      await new Promise((ok) => setTimeout(ok, 800));
+      const b = await call(email, 1);
+      a = { status: b.status, detail: failed(b.detail) ? `${a.detail} → retry ${b.detail}` : b.detail };
+    }
+    results[email] = a.status;
+    details.push(a.detail);
   }
-  if (details.some((d) => d.startsWith("error") || d.startsWith("http") || d.startsWith("fetch"))) console.error("verify provider:", provider, details.join(" | "));
-  return { provider, real: true, results, details };
+  if (details.some(failed)) console.error("verify provider:", provider, details.join(" | "));
+  const providerDown = details.every(failed);
+  return { provider, real: true, results, details, providerDown };
 }
 
 // ── router ──────────────────────────────────────────────────────────────────
@@ -373,7 +384,9 @@ Deno.serve(async (req) => {
       const emails = parseVerifyBody(body);
       if (!(await underDailyLimit())) return json({ error: "daily_limit" }, 429);
       const out = await runVerify(emails);
-      if (db && out.real) await db.from("cf_usage").insert({ session, ip_hash: await sha(ip), stage: "verify", model: `verifier:${out.provider}`, input_tokens: 0, output_tokens: 0, verifications: emails.length, verify_detail: out.details.join(", ").slice(0, 300) });
+      // Provider errors aren't charged, so they're logged with 0 verifications.
+      if (db && out.real) await db.from("cf_usage").insert({ session, ip_hash: await sha(ip), stage: "verify", model: `verifier:${out.provider}`, input_tokens: 0, output_tokens: 0, verifications: out.providerDown ? 0 : emails.length, verify_detail: out.details.join(", ").slice(0, 300) });
+      if (out.providerDown) return json({ error: `verifier unavailable: ${out.details[0]}`.slice(0, 200) }, 502);
       return json(out);
     }
     if (path.endsWith("/jev")) {
