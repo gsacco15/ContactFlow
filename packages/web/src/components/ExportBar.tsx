@@ -51,8 +51,8 @@ export function ExportBar({ p }: { p: Pipeline }) {
         <Button variant="primary" onClick={download} disabled={!contacts.length}>
           Download CSV
         </Button>
-        <PushMenu table={() => toTable(contacts, state.companies, opts)} onExcel={excel} disabled={!contacts.length} />
         <span className="text-xs text-stone-500">{contacts.length} rows{state.searches.length > 1 ? ` from ${state.searches.filter((x) => !x.hidden).length} of ${state.searches.length} searches` : ""} · {filters.includeGuesses ? "incl. backup guesses" : "sourced emails only"}</span>
+        <PushMenu table={() => toTable(contacts, state.companies, opts)} onExcel={excel} disabled={!contacts.length} />
         <span className="ml-auto font-mono text-xs text-stone-600" title="Estimated from list prices. “This paste” resets when you paste something new; “session” resets on Clear." data-testid="cost">
           <span title={`This paste: ${state.pasteUsage?.searches ?? 0} searches, ${fmtTokens(state.pasteUsage?.tokens ?? 0)} tokens`}>
             this paste ≈ <b className="text-stone-900">${(state.pasteUsage?.cost ?? 0).toFixed(2)}</b>
