@@ -85,59 +85,31 @@ function Hero({ onStart, onHow }: { onStart: () => void; onHow: () => void }) {
   );
 }
 
-/** The ContactFlow mark rebuilt as soft 3D clay: cream tube, open ring, cream node, green ball. */
+/** Our pipeline mark, drawn flat and large: a signal dot travels the path from paste to email. */
 function Sculpture() {
+  const path = "M330 84 Q110 84 110 200 Q110 316 330 316";
   return (
     <div className="relative mx-auto mb-4 aspect-[1.1] w-full max-w-[290px] sm:max-w-[420px] lg:mb-0 lg:max-w-[460px]">
       <svg viewBox="0 0 440 400" className="absolute inset-0 size-full" aria-hidden>
-        <defs>
-          <linearGradient id="lp-tube" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#FFFDF8" />
-            <stop offset="0.55" stopColor="#EFE8DA" />
-            <stop offset="1" stopColor="#CFC5B1" />
-          </linearGradient>
-          <radialGradient id="lp-ball" cx="0.35" cy="0.3" r="0.75">
-            <stop offset="0" stopColor="#5FE0B6" />
-            <stop offset="0.45" stopColor={ACCENT} />
-            <stop offset="1" stopColor="#086B4E" />
-          </radialGradient>
-          <radialGradient id="lp-cream" cx="0.35" cy="0.3" r="0.8">
-            <stop offset="0" stopColor="#FFFFFF" />
-            <stop offset="0.6" stopColor="#EDE6D8" />
-            <stop offset="1" stopColor="#BFB49F" />
-          </radialGradient>
-          <radialGradient id="lp-shadow" cx="0.5" cy="0.5" r="0.5">
-            <stop offset="0" stopColor="#000" stopOpacity="0.55" />
-            <stop offset="1" stopColor="#000" stopOpacity="0" />
-          </radialGradient>
-          <filter id="lp-soft" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="0.6" />
-          </filter>
-        </defs>
-        <ellipse cx="215" cy="366" rx="150" ry="16" fill="url(#lp-shadow)" />
-        <path d="M300 92 Q118 92 118 205 Q118 318 300 318" fill="none" stroke="#8E8471" strokeWidth="50" strokeLinecap="round" transform="translate(4 8)" opacity="0.45" />
-        <path d="M300 92 Q118 92 118 205 Q118 318 300 318" fill="none" stroke="url(#lp-tube)" strokeWidth="46" strokeLinecap="round" />
-        <path d="M296 80 Q112 80 108 200" fill="none" stroke="#FFFFFF" strokeWidth="7" strokeLinecap="round" opacity="0.8" filter="url(#lp-soft)" />
-        <circle cx="304" cy="92" r="38" fill={INK} />
-        <circle cx="304" cy="92" r="38" fill="none" stroke="url(#lp-cream)" strokeWidth="22" />
-        <path d="M280 70 A30 30 0 0 1 320 64" fill="none" stroke="#FFF" strokeWidth="5" strokeLinecap="round" opacity="0.85" />
-        <circle cx="118" cy="205" r="44" fill="url(#lp-cream)" />
-        <ellipse cx="102" cy="186" rx="13" ry="8" fill="#FFF" opacity="0.9" transform="rotate(-30 102 186)" />
-        <g className="lp-bob">
-          <circle cx="304" cy="312" r="52" fill="url(#lp-ball)" />
-          <ellipse cx="284" cy="290" rx="16" ry="10" fill="#FFF" opacity="0.55" transform="rotate(-30 284 290)" />
-        </g>
+        <path d={path} fill="none" stroke="rgba(246,245,242,.12)" strokeWidth="34" strokeLinecap="round" />
+        <path d={path} fill="none" stroke={PAPER} strokeWidth="14" strokeLinecap="round" />
+        <path d={path} fill="none" stroke={ACCENT} strokeWidth="14" strokeLinecap="round" strokeDasharray="60 560" className="lp-dash" />
+        <circle cx="330" cy="84" r="26" fill={INK} stroke={PAPER} strokeWidth="12" />
+        <circle cx="110" cy="200" r="30" fill={PAPER} />
+        <circle cx="330" cy="316" r="38" fill={ACCENT} />
+        <circle cx="330" cy="316" r="38" fill="none" stroke={ACCENT} strokeWidth="3" className="lp-ping" />
       </svg>
-      <Chip className="lp-float top-[10%] -left-[6%] -rotate-6 sm:left-0">
+      <Chip className="lp-float top-[6%] -left-[6%] -rotate-3 sm:left-0">
+        <span className="text-stone-400">paste</span>
+        <span className="font-data">Priya Natarajan, Partner</span>
+      </Chip>
+      <Chip className="lp-float-slow top-[44%] right-[2%] rotate-2">
         <span className="font-data">flast@</span>
         <span className="rounded-md px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: MINT, color: DEEP }}>sourced</span>
       </Chip>
-      <Chip className="lp-float-slow -right-[4%] bottom-[40%] rotate-3 sm:right-0">
+      <Chip className="lp-float bottom-[0%] left-[2%] hidden -rotate-2 sm:flex">
         <span className="size-2 rounded-full" style={{ background: ACCENT }} />
-        <span className="font-data">@harborpine.com</span>
-      </Chip>
-      <Chip className="lp-float bottom-[2%] left-[4%] hidden rotate-2 sm:flex">
-        <span className="font-data text-stone-500">3 people · 1 firm</span>
+        <span className="font-data">pnatarajan@harborpine.com</span>
       </Chip>
     </div>
   );

@@ -44,3 +44,8 @@ input[type="checkbox"] {
 @media (prefers-reduced-motion: reduce) {
   .lp-bob { animation: none; }
 }
+@keyframes lp-dash { from { stroke-dashoffset: 620; } to { stroke-dashoffset: 0; } }
+.lp-dash { animation: lp-dash 3.2s cubic-bezier(.5,0,.3,1) infinite; }
+@keyframes lp-ping { 0% { transform: scale(1); opacity: .8; } 100% { transform: scale(1.6); opacity: 0; } }
+.lp-ping { transform-box: fill-box; transform-origin: center; animation: lp-ping 3.2s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) { .lp-dash, .lp-ping { animation: none; } }
