@@ -53,7 +53,7 @@ export function Preview({ p }: { p: Pipeline }) {
           {p.state.judging ? (
             <span className="animate-pulse">{judgeName} is checking who fits “{roles}”…</span>
           ) : stale ? (
-            <span>“Who do you want?” changed — click Re-check to judge everyone against it.</span>
+            <span>“Looking for” changed — click Re-check to judge everyone against it.</span>
           ) : (
             <span>
               {judgeName}: {ex.people.length - filteredOut - unsure} relevant · {unsure} unsure · {filteredOut} not relevant.{" "}

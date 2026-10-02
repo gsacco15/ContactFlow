@@ -261,7 +261,7 @@ const INCOMPLETE_LAST = "Last name is incomplete (e.g. “Maria O.”) — click
 const rescues = new WeakMap<Company, Promise<StageResult<RescueFix>>>();
 
 const SKIPPED_FLAG = "⚠ may not work here — click Include to look them up.";
-const SKIPPED_ROLE = "Not relevant to “Who do you want?” — click Include to look them up.";
+const SKIPPED_ROLE = "Not relevant to “Looking for” — click Include to look them up.";
 
 /** Looked up only if not ⚠-flagged and not judged irrelevant — unless the user clicked Include. */
 function isActive(c: Contact, ctx: Ctx): boolean {

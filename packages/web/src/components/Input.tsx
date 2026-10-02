@@ -18,17 +18,17 @@ export function Input({ p }: { p: Pipeline }) {
       />
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex min-w-72 flex-1 items-center gap-2 text-sm">
-          <span className="whitespace-nowrap text-stone-600">Who do you want?</span>
+          <span className="whitespace-nowrap text-stone-600">Looking for</span>
           <input
             value={state.roleFilter}
             onChange={(e) => dispatch({ type: "role", roleFilter: e.target.value })}
-            placeholder="Plain words, e.g. “decision makers who’d buy legal software — partners, firm administrators; not marketing or paralegals”"
+            placeholder="optional — e.g. partners, firm admins; not paralegals"
             className="w-full rounded-md border border-stone-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-stone-500"
           />
         </label>
         <label
           className={`flex items-center gap-1.5 text-sm ${state.roleFilter.trim() ? "text-stone-600" : "text-stone-400"}`}
-          title="When “Who do you want?” is filled in: people judged not relevant are not looked up, so nothing is spent on them. They stay in the table and can be included later. With the box empty, nobody is judged or skipped."
+          title="When “Looking for” is filled in: people judged not relevant are not looked up, so nothing is spent on them. They stay in the table and can be included later. With the box empty, nobody is judged or skipped."
         >
           <input type="checkbox" checked={state.skipIrrelevant !== false} onChange={(e) => dispatch({ type: "skip_irrelevant", on: e.target.checked })} />
           Skip not-relevant before searching
