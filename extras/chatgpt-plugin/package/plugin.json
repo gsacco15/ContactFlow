@@ -1,0 +1,44 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "contactflow",
+  "version": "0.1.0",
+  "description": "Paste anything (LinkedIn results, team pages, notes) and get work emails you can trust: each with the company's email format, its source, and whether a mailbox check confirmed it.",
+  "author": {
+    "name": "ContactFlow",
+    "email": "support@jobpaperapp.com",
+    "url": "https://contact-flow-web.vercel.app"
+  },
+  "homepage": "https://contact-flow-web.vercel.app",
+  "license": "UNLICENSED",
+  "keywords": ["email finder", "work email", "email format", "sales", "recruiting", "outreach"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "ContactFlow",
+        "shortDescription": "Work emails you can trust",
+        "longDescription": "Paste anything with names in it (a LinkedIn search, a team page, conference notes, a list of firms) and ContactFlow finds each person's work email.\n\nFor every company it works out how that company writes its addresses (first.last, flast…) and tells you where that came from, so you can see why an email is likely right instead of trusting a black box. Each person gets up to three ranked addresses.\n\nAsk for verified emails and ContactFlow checks a mailbox at each company: when one is confirmed, the format is proven for everyone there. Servers that accept any address are flagged, so you know when an address can't be proven.\n\nIt never opens LinkedIn or login-walled pages, never invents an address, and never presents a likely email as confirmed.",
+        "developerName": "ContactFlow",
+        "category": "Productivity",
+        "capabilities": [
+          "Find work emails for people in any paste",
+          "Show each company's email format and its source",
+          "Confirm emails with a mailbox check on request",
+          "Find people in given roles at a company"
+        ],
+        "websiteURL": "https://contact-flow-web.vercel.app",
+        "supportURL": "mailto:support@jobpaperapp.com",
+        "privacyPolicyURL": "https://contact-flow-web.vercel.app/#privacy",
+        "termsOfServiceURL": "https://contact-flow-web.vercel.app/#terms",
+        "defaultPrompt": [
+          "Find work emails for the people in this LinkedIn search I'm about to paste.",
+          "What's the email format at Stripe, and where does that come from?",
+          "Find verified emails for the managing partners at these three law firms."
+        ],
+        "brandColor": "#15171A",
+        "brandColorDark": "#12A87C",
+        "composerIcon": "./assets/icon.png",
+        "logo": "./assets/logo.png"
+      }
+    }
+  }
+}

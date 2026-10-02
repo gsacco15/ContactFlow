@@ -45,6 +45,8 @@ What we're building, in order. Updated as each item lands. `[x]` done · `[~]` i
    - [ ] Then: "Only verified" filter · pro-account gate
 6. [~] **API → MCP → ChatGPT app** — see `docs/mcp.md`
    - [x] MCP server (Vercel Function `/api/mcp`, open for testing; `CF_MCP_KEY` / login later), two goal tools: `find_emails`, `get_email_format` (evidence engine & co. hidden underneath)
+   - [x] Server live on Vercel (`/api/mcp` answers)
+   - [x] ChatGPT plugin package: `extras/chatgpt-plugin/` (listing, skill, logo/icon, brand kit, ZIP builder)
    - [ ] **You:** connect in ChatGPT developer mode (`https://contact-flow-web.vercel.app/api/mcp`)
    - [ ] First real test in ChatGPT
    - [ ] Later: login (OAuth) or `CF_MCP_KEY` lock · results widget · own domain + listing · `/v1/enrich` REST API with keys
