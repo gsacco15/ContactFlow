@@ -2,8 +2,24 @@
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 body {
-  @apply bg-stone-50 text-stone-900 antialiased;
+  @apply bg-stone-100/60 text-stone-900 antialiased;
+  font-feature-settings: "cv11", "ss01";
+}
+
+/* Calm, consistent controls everywhere. */
+input[type="checkbox"] {
+  @apply size-3.5 cursor-pointer rounded accent-stone-900;
+}
+:where(button, a, select, input, textarea, summary):focus-visible {
+  @apply outline-2 outline-offset-2 outline-stone-900/40;
+}
+::selection {
+  @apply bg-stone-900 text-white;
+}
+.tabular {
+  font-variant-numeric: tabular-nums;
 }

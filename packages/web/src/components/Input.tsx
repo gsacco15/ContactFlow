@@ -8,22 +8,22 @@ export function Input({ p }: { p: Pipeline }) {
   const pending = state.order.filter((id) => state.contacts[id]?.status === "pending").length;
 
   return (
-    <section className="space-y-3">
+    <section className="space-y-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm" aria-label="Input">
       <textarea
         value={state.input}
         onChange={(e) => dispatch({ type: "input", input: e.target.value })}
         placeholder="Paste names, companies, team pages, LinkedIn results, URLs — anything."
         aria-label="Paste input"
-        className="h-48 w-full resize-y rounded-lg border border-stone-300 bg-white p-3 font-mono text-sm shadow-sm outline-none focus:border-stone-500 focus:ring-2 focus:ring-stone-200"
+        className="h-44 w-full resize-y rounded-lg border border-stone-200 bg-stone-50/60 p-3 font-mono text-[13px] leading-relaxed placeholder:font-sans placeholder:text-stone-400 outline-none transition focus:border-stone-400 focus:bg-white focus:ring-4 focus:ring-stone-100"
       />
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex min-w-72 flex-1 items-center gap-2 text-sm">
-          <span className="whitespace-nowrap text-stone-600">Looking for</span>
+          <span className="whitespace-nowrap font-medium text-stone-700">Looking for</span>
           <input
             value={state.roleFilter}
             onChange={(e) => dispatch({ type: "role", roleFilter: e.target.value })}
             placeholder="optional — e.g. partners, firm admins; not paralegals"
-            className="w-full rounded-md border border-stone-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-stone-500"
+            className="w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm outline-none transition placeholder:text-stone-400 focus:border-stone-400 focus:ring-4 focus:ring-stone-100"
           />
         </label>
         <label
@@ -42,7 +42,7 @@ export function Input({ p }: { p: Pipeline }) {
           Use emails &amp; formats found in my paste
         </label>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 border-t border-stone-100 pt-3">
         <Button onClick={p.parse} disabled={!p.configured || busy || !state.input.trim()} title="Stage 1 only — fast, no web searches">
           {state.parsing ? "Parsing…" : "Parse"}
         </Button>
@@ -61,7 +61,7 @@ export function Input({ p }: { p: Pipeline }) {
           </Button>
         )}
         <select
-          className="ml-auto rounded-md border border-stone-300 bg-white px-2 py-1.5 text-sm text-stone-600"
+          className="ml-auto rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm text-stone-600 hover:border-stone-300"
           value=""
           aria-label="Load a sample"
           onChange={(e) => {

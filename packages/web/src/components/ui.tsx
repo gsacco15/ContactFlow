@@ -2,11 +2,11 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 export function Button({ variant = "secondary", className = "", ...p }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "ghost" }) {
   const styles = {
-    primary: "bg-stone-900 text-white hover:bg-stone-700 disabled:bg-stone-300",
-    secondary: "border border-stone-300 bg-white hover:bg-stone-100 disabled:text-stone-400 disabled:hover:bg-white",
+    primary: "bg-stone-900 text-white shadow-sm hover:bg-stone-800 active:bg-stone-950 disabled:bg-stone-300 disabled:shadow-none",
+    secondary: "border border-stone-300 bg-white shadow-sm hover:border-stone-400 hover:bg-stone-50 disabled:text-stone-400 disabled:shadow-none disabled:hover:bg-white",
     ghost: "text-stone-600 hover:bg-stone-100 hover:text-stone-900 disabled:text-stone-300",
   }[variant];
-  return <button {...p} className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed ${styles} ${className}`} />;
+  return <button {...p} className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed ${styles} ${className}`} />;
 }
 
 export function Pill({ tone = "stone", children, title }: { tone?: "stone" | "green" | "amber" | "red" | "blue"; children: ReactNode; title?: string }) {
@@ -40,7 +40,7 @@ export function LinkIcon({ href, title }: { href?: string; title?: string }) {
 export function Banner({ tone, children, onClose }: { tone: "info" | "warn" | "error"; children: ReactNode; onClose?: () => void }) {
   const styles = { info: "bg-sky-50 text-sky-900 border-sky-200", warn: "bg-amber-50 text-amber-900 border-amber-200", error: "bg-red-50 text-red-900 border-red-200" }[tone];
   return (
-    <div className={`flex items-start justify-between gap-3 rounded-md border px-3 py-2 text-sm ${styles}`} role={tone === "error" ? "alert" : "status"}>
+    <div className={`flex items-start justify-between gap-3 rounded-lg border px-3.5 py-2.5 text-sm ${styles}`} role={tone === "error" ? "alert" : "status"}>
       <div>{children}</div>
       {onClose && (
         <button onClick={onClose} className="opacity-60 hover:opacity-100" aria-label="Dismiss">

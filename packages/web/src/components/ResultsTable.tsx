@@ -28,7 +28,7 @@ function Searches({ p }: { p: Pipeline }) {
         return (
           <div
             key={x.id}
-            className={`flex items-center gap-2 rounded-lg border border-l-4 px-2.5 py-1.5 text-sm shadow-sm ${x.hidden ? "border-stone-200 bg-stone-50 text-stone-400" : "border-stone-300 bg-white"}`}
+            className={`flex items-center gap-2 rounded-lg border border-l-4 px-2.5 py-1.5 text-sm shadow-sm transition hover:shadow ${x.hidden ? "border-stone-200 bg-stone-50 text-stone-400" : "border-stone-300 bg-white"}`}
             style={{ borderLeftColor: x.hidden ? undefined : color }}
           >
             <input type="checkbox" aria-label={`Show ${x.label}`} checked={!x.hidden} onChange={(e) => dispatch({ type: "search_toggle", id: x.id, hidden: !e.target.checked || undefined })} />
@@ -99,10 +99,10 @@ export function ResultsTable({ p }: { p: Pipeline }) {
   const ok = listed.filter((r) => r.status === "ok").length;
   const anyWant = state.searches.some((x) => x.want);
 
-  const toggle = (k: keyof typeof filters) => (
+  const toggle = (k: "hidePatternless" | "includeGuesses" | "hideIrrelevant") => (
     <label className="flex items-center gap-1.5">
       <input type="checkbox" checked={filters[k]} onChange={(e) => dispatch({ type: "filters", filters: { [k]: e.target.checked } })} />
-      {{ onlyOk: "Only ok", hidePatternless: "Only rows with an email", groupByCompany: "Group by company", groupBy: "", includeGuesses: "Include backup guesses", hideIrrelevant: "Hide not relevant" }[k]}
+      {{ hidePatternless: "Only rows with an email", includeGuesses: "Include backup guesses", hideIrrelevant: "Hide not relevant" }[k]}
     </label>
   );
 
@@ -111,8 +111,8 @@ export function ResultsTable({ p }: { p: Pipeline }) {
   return (
     <section className="space-y-3" aria-label="Results">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-stone-200 pt-4">
-        <h2 className="text-base font-semibold">Your list</h2>
-        <span className="text-sm text-stone-500">
+        <h2 className="text-lg font-semibold tracking-tight">Your list</h2>
+        <span className="tabular text-sm text-stone-500">
           {total} {total === 1 ? "person" : "people"} · {ok} with email{state.searches.length > 1 ? ` · ${shown.size} of ${state.searches.length} searches shown` : ""}
         </span>
         <Button
@@ -155,9 +155,9 @@ export function ResultsTable({ p }: { p: Pipeline }) {
           {toggle("includeGuesses")}
         </span>
       </div>
-      <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
         <table className="w-full text-left text-sm">
-          <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+          <thead className="border-b border-stone-200 bg-stone-50 text-[11px] font-semibold uppercase tracking-wider text-stone-500">
             <tr>
               <th className="px-3 py-2">Name / Title</th>
               <th className="px-3 py-2">Company → domain</th>
@@ -243,7 +243,7 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
   const failed = c.status !== "ok" && c.status !== "pending" && c.status !== "skipped";
   const shown = visibleCandidates(c, { includeGuesses: !!p.state.filters.includeGuesses });
   return (
-    <tr className="border-t border-stone-100 align-top">
+    <tr className="border-t border-stone-100 align-top transition-colors hover:bg-stone-50/70">
       <td className="px-3 py-2" style={color ? { boxShadow: `inset 3px 0 0 ${color}` } : undefined}>
         <div className="flex items-start gap-1">
           {c.flag && <span title={c.flag} className="cursor-help text-amber-600">⚠</span>}

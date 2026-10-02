@@ -37,7 +37,7 @@ export function Preview({ p }: { p: Pipeline }) {
     set({ ...ex, companies: ex.companies.filter((x) => x.id !== c.id), people: ex.people.filter((x) => x.company_id !== c.id) });
 
   return (
-    <section className="space-y-3 rounded-lg border border-stone-200 bg-white p-4 shadow-sm" aria-label="Parse preview">
+    <section className="space-y-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm" aria-label="Parse preview">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-semibold">
           Found {ex.people.length} {ex.people.length === 1 ? "person" : "people"} at {ex.companies.length} {ex.companies.length === 1 ? "company" : "companies"}
