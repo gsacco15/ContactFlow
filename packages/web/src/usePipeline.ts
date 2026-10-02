@@ -107,10 +107,15 @@ export function usePipeline() {
     dispatch({ type: "parse_start" });
     try {
       const ctx = makeCtx();
-      const r = await classifyExtract(state.input, ctx);
-      if (!r.ok || !r.data) throw new Error(r.error ?? "extraction failed");
-      await judge(r.data, ctx);
-      dispatch({ type: "parsed", extracted: r.data });
+      // Same text as last time (any edit to the paste clears this): reuse that read — no cost.
+      let ex = state.extracted ? clone(state.extracted) : undefined;
+      if (!ex) {
+        const r = await classifyExtract(state.input, ctx);
+        if (!r.ok || !r.data) throw new Error(r.error ?? "extraction failed");
+        ex = r.data;
+      }
+      await judge(ex, ctx);
+      dispatch({ type: "parsed", extracted: ex });
     } catch (e) {
       dispatch({ type: "error", error: (e as Error).message });
     }

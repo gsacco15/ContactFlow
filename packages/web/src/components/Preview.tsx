@@ -20,6 +20,8 @@ export function Preview({ p }: { p: Pipeline }) {
   const stale = roles && ex.people.some((x) => x.title && !x.keep && !x.drop && x.fit?.for !== roles);
   const judgeName = p.state.judge === "jev" ? "Jev" : "Claude";
   const pastedEmails = ex.people.filter((x) => x.email).length;
+  // People already in the list with an email: Run reuses them instead of looking them up again.
+  const known = ex.people.filter((x) => p.state.contacts[x.id]?.status === "ok" && p.state.companies[x.company_id]?.domain).length;
   const statements = ex.companies.reduce((n, c) => n + (c.stated_formats?.length ?? 0), 0);
 
   const editPerson = (i: number, patch: Partial<Contact>) => set({ ...ex, people: ex.people.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
@@ -64,6 +66,13 @@ export function Preview({ p }: { p: Pipeline }) {
             Re-check
           </button>
         </div>
+      )}
+      {known > 0 && (
+        <Banner tone="info">
+          {known === ex.people.length
+            ? `Everyone here is already in your list with an email. Running again costs nothing — it just ${p.state.roleFilter.trim() ? "re-applies “Looking for” and " : ""}adds this as a search.`
+            : `${known} of ${ex.people.length} are already in your list with an email — they won’t be looked up again. Only the other ${ex.people.length - known} cost anything.`}
+        </Banner>
       )}
       {flagged > 0 && (
         <Banner tone="warn">
