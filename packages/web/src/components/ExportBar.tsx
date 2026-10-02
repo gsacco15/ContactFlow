@@ -77,7 +77,7 @@ export function ExportBar({ p }: { p: Pipeline }) {
           <span className="block text-[10px] transition-colors duration-700" style={{ color: session ? ACCENT : "#a8a29e" }}>
             {session ? "session" : "this paste"}
           </span>
-          <span className="transition-colors duration-700" style={{ color: session ? ACCENT : undefined, fontWeight: session ? 600 : undefined }}>
+          <span className="transition-colors duration-700" style={{ color: session ? ACCENT : undefined }}>
             ≈ ${(session ? state.usage.cost : state.pasteUsage?.cost ?? 0).toFixed(2)}
           </span>
         </button>
