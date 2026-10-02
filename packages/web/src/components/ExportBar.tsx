@@ -33,6 +33,8 @@ export function ExportBar({ p }: { p: Pipeline }) {
     };
   }, [tapped, cost, state.running]);
   const session = showSession || peek;
+  // Fade only for the automatic flip; a tap switches instantly.
+  const fade = tapped ? "" : "transition-colors duration-700";
   const { filters } = state;
   // Export exactly what the table shows: ticked searches, same filters, guesses only when switched on.
   const contacts = tableRows(state).filter((c) => c.status !== "pending");
@@ -74,10 +76,10 @@ export function ExportBar({ p }: { p: Pipeline }) {
           title="Tap to switch between this paste and the whole session"
           data-testid="cost-mobile"
         >
-          <span className="block text-[10px] transition-colors duration-700" style={{ color: session ? ACCENT : "#a8a29e" }}>
+          <span className={`block text-[10px] ${fade}`} style={{ color: session ? ACCENT : "#a8a29e" }}>
             {session ? "session" : "this paste"}
           </span>
-          <span className="transition-colors duration-700" style={{ color: session ? ACCENT : undefined }}>
+          <span className={fade} style={{ color: session ? ACCENT : undefined }}>
             ≈ ${(session ? state.usage.cost : state.pasteUsage?.cost ?? 0).toFixed(2)}
           </span>
         </button>
