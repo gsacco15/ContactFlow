@@ -36,6 +36,8 @@ What we're building, in order. Updated as each item lands. `[x]` done · `[~]` i
    - [x] Modes: `off` (now) · `button` (✓ Verify / ✓ Verify all) · `auto` (every search); `?verify=button` to try
    - [x] Badges: ✓ valid · ~ risky · ◎ accept-all · "✓ verified here" on the format; CSV/JSON say "verified by mailbox check"
    - [x] Edge `/verify` (v17): ZeroBounce + MillionVerifier adapters, `mock` stand-in (never recorded); key only on the server; checks logged and priced
+   - [x] Bottom-bar "✓ Verify N firms · ≈ $X" for the ticked searches (per-row ✓ Verify stays)
+   - [x] Demo answers until a provider key exists, labelled "Demo checks — fake results", never saved; only visible with `?verify=button`
    - [ ] **You:** pick a provider and add `CF_VERIFIER` + `CF_VERIFIER_KEY` in Supabase secrets
    - [ ] Then: "Only verified" filter · `format_verified` CSV column · pro-account gate
 6. [ ] **API → MCP → ChatGPT app** — `/v1/enrich` with API keys, MCP tools (`enrich_contacts`, `find_domain`, `get_format`, later `verify`), results widget inside ChatGPT.

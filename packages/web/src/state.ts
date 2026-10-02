@@ -311,3 +311,16 @@ export function searchNames(s: State, c: Contact): string {
 }
 
 export { when as searchTime };
+
+/** Firms the bottom-bar Verify would check: in the ticked searches, with an unproven format and a row still to check. */
+export function firmsToVerify(s: State): string[] {
+  const ids = new Set<string>();
+  for (const c of tableRows(s)) {
+    const co = s.companies[c.company_id];
+    if (!co?.domain || co.format_verified || co.catch_all || co.mx_ok === false) continue;
+    if (c.status !== "ok" && c.status !== "no_pattern") continue;
+    if (c.candidates.some((x) => x.verify_status === "valid")) continue;
+    if (c.candidates.some((x) => x.basis !== "seen" && (!x.verify_status || x.verify_status === "unverified"))) ids.add(co.id);
+  }
+  return [...ids];
+}

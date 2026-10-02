@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import {
   ClaudeDecisions, JevDecisions, MxVerifier, VERIFY_MODE, applyCompany, classifyExtract, estimateCost, judgeFit, rerunCompany, runPipeline, verifyRow,
   type Contact, type Ctx, type DecisionProvider, type ExtractResult, type RunHooks,
@@ -6,7 +6,7 @@ import {
 import { ACCESS_TOKEN, BUDGET, EDGE_URL, RATE_LIMIT_RETRY_MS } from "./config.ts";
 import { edgeClient, layeredCache } from "./lib/edgeClient.ts";
 import { clearLocalCache, load, localCache, remove, save, sessionId } from "./lib/storage.ts";
-import { initialState, migrate, persistable, reducer, searchLabel, type State } from "./state.ts";
+import { firmsToVerify, initialState, migrate, persistable, reducer, searchLabel, type State } from "./state.ts";
 
 const stateKey = (session: string) => `cf:state:${session}`;
 const clone = <T,>(v: T): T => structuredClone(v);
@@ -17,6 +17,8 @@ export function usePipeline() {
     return migrate({ ...initialState(session), ...load<State>(stateKey(session)), running: false, parsing: false });
   });
   const abort = useRef<AbortController | null>(null);
+  /** The last checks were demo answers (no provider key on the server yet). */
+  const [verifyDemo, setVerifyDemo] = useState(false);
 
   // Persist on every change, keyed by session.
   useEffect(() => save(stateKey(state.session), persistable(state)), [state]);
@@ -194,7 +196,8 @@ export function usePipeline() {
   async function verify(contactId?: string) {
     if (!client || verifyModeNow() === "off") return;
     const target = contactId ? state.contacts[contactId] : undefined;
-    const companyIds = target ? [target.company_id] : [...new Set(state.order.map((id) => state.contacts[id]?.company_id).filter(Boolean))];
+    // Without a row: every firm in the ticked searches that still needs proving.
+    const companyIds = target ? [target.company_id] : firmsToVerify(state);
     dispatch({ type: "run_start" });
     try {
       const ctx = makeCtx();
@@ -205,6 +208,7 @@ export function usePipeline() {
         const person = target ? contacts.find((c) => c.id === target.id) : undefined;
         await verifyRow(clone(co), contacts, ctx, hooks, person);
       }
+      setVerifyDemo(ctx.mailbox?.name === "demo");
       dispatch({ type: "run_end" });
     } catch (e) {
       dispatch({ type: "run_end", error: (e as Error).message });
@@ -249,7 +253,7 @@ export function usePipeline() {
     dispatch({ type: "clear", session: sessionId() });
   }
 
-  return { state, dispatch, parse, recheck, run, resume, retry, include, verify, verifyMode: verifyModeNow(), stop, clear, editContact, configured: !!client };
+  return { state, dispatch, parse, recheck, run, resume, retry, include, verify, verifyMode: verifyModeNow(), verifyDemo, stop, clear, editContact, configured: !!client };
 }
 
 export type Pipeline = ReturnType<typeof usePipeline>;

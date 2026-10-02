@@ -56,10 +56,18 @@ export function edgeClient(o: EdgeOptions) {
         name: "verifier",
         real: false,
         async check(emails: string[]) {
-          const r = await post<{ provider: string; real: boolean; results: Record<string, VerifyStatus> }>("verify", { emails });
-          box.name = r.provider;
-          box.real = r.real;
-          return r.results;
+          try {
+            const r = await post<{ provider: string; real: boolean; results: Record<string, VerifyStatus> }>("verify", { emails });
+            box.name = r.provider;
+            box.real = r.real;
+            return r.results;
+          } catch (e) {
+            // No provider key on the server yet → demo answers (fake, never recorded as evidence).
+            if (!/not set up|not configured|501/i.test(String((e as Error)?.message))) throw e;
+            box.name = "demo";
+            box.real = false;
+            return Object.fromEntries(emails.map((x) => [x, demoVerify(x)]));
+          }
         },
       };
       return box;
@@ -104,4 +112,11 @@ export function layeredCache(local: Cache, remote?: Cache): Cache {
       await remote?.set(k, v, ttl).catch(() => {});
     },
   };
+}
+
+/** Demo answers until a verification provider is set up: addresses with a "." are "valid". Fake on purpose. */
+function demoVerify(email: string): VerifyStatus {
+  const [local, domain = ""] = email.split("@");
+  if (domain.startsWith("catchall")) return "catch_all";
+  return local.includes(".") ? "valid" : "invalid";
 }

@@ -158,10 +158,10 @@ export function ResultsTable({ p }: { p: Pipeline }) {
         <span className="sm:border-l sm:border-stone-300 sm:pl-4" title="Common formats with no source behind them. Off = they are hidden here and left out of Copy/CSV.">
           {toggle("includeGuesses")}
         </span>
-        {p.verifyMode !== "off" && (
-          <Button variant="ghost" className="!px-2 !py-1 text-xs" disabled={state.running || !p.configured} onClick={() => p.verify()} title="One mailbox check per company. A valid result proves the format for everyone there.">
-            ✓ Verify all
-          </Button>
+        {p.verifyDemo && (
+          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-200" title="No verification provider is set up yet, so checks return made-up answers. They are never saved.">
+            Demo checks — fake results
+          </span>
         )}
       </div>
       <div className="relative overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
