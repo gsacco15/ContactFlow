@@ -1,13 +1,10 @@
 /**
- * Strip page clutter from a paste before the model reads it. Three layers:
- *  1. Universal rules — safe for any text: blank-line runs, letter-less lines, exact repeats,
- *     repeated multi-line blocks, cookie banners / "skip to content" / copyright lines.
- *  2. Source packs — only when the paste is recognised (today: LinkedIn): menus, buttons,
- *     footer, messaging overlay, "People also viewed" sections, "• 3rd+" suffixes.
- *  3. Never-remove — a line with an email, URL or domain is never dropped by rules 1–2.
- * Unknown sources only get layer 1, and if cleaning would remove most of an unrecognised paste,
- * the original is returned untouched. The user's paste box is never changed — only what the
- * model reads.
+ * Strip LinkedIn page clutter from a paste before the model reads it — and only from a paste
+ * that is unmistakably LinkedIn (see isLinkedIn). Every other input is returned untouched.
+ * Inside a LinkedIn paste: menus, buttons, footer, messaging overlay, "People also viewed"
+ * sections, "• 3rd+" suffixes, letter-less lines, cookie/copyright lines and repeated pages go.
+ * Never-remove: a line with an email, URL or domain always stays. The user's paste box is never
+ * changed — only what the model reads.
  */
 
 export type CleanResult = { text: string; removedChars: number; packs: string[] };
@@ -80,8 +77,11 @@ function dropRepeatedRuns(lines: string[]): string[] {
 }
 
 export function cleanPaste(input: string): CleanResult {
-  const packs = isLinkedIn(input) ? ["linkedin"] : [];
-  const li = packs.includes("linkedin");
+  // Only a recognised LinkedIn paste is touched. Anything else — notes, team pages, CSVs,
+  // emails, unknown sources — goes to the model exactly as pasted.
+  if (!isLinkedIn(input)) return { text: input, removedChars: 0, packs: [] };
+  const packs = ["linkedin"];
+  const li = true;
   const out: string[] = [];
   let skipSection = 0;
 

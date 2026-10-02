@@ -128,22 +128,23 @@ describe("cleanPaste", () => {
     expect(t).toContain("Firm Administrator");
   });
 
-  it("leaves non-LinkedIn text alone apart from safe universal rules", () => {
-    const notes = "Acme (acme.com) — Jane Doe, VP Sales\nBeta Corp — need CFO\n\n\n\nMessage\nConnect\nPartner\nJobs";
-    const r = cleanPaste(notes);
-    expect(r.packs).toEqual([]);
-    // "Message", "Jobs" etc. could be data elsewhere — only LinkedIn's pack removes them.
-    expect(r.text).toBe("Acme (acme.com) — Jane Doe, VP Sales\nBeta Corp — need CFO\n\nMessage\nConnect\nPartner\nJobs");
+  it("anything that isn't LinkedIn is returned exactly as pasted", () => {
+    const inputs = [
+      "Acme (acme.com) — Jane Doe, VP Sales\nBeta Corp — need CFO\n\n\n\nMessage\nConnect\nPartner\nJobs",
+      "Skip to main content\nAccept all cookies\nOur Team\nSam Lee — Partner\n•••\n2026\n© 2026 Acme LLP. All rights reserved.\ncontact: sam@acme.com",
+      "first,last,company\nJane,Doe,Acme\nJane,Doe,Acme\n1\n2\n3",
+      "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\nZed",
+      "Message from Sam: connect me with Priya at Stripe, she's 2nd in command there",
+    ];
+    for (const t of inputs) expect(cleanPaste(t)).toEqual({ text: t, removedChars: 0, packs: [] });
   });
 
-  it("universal rules: cookie banners, copyright lines and letter-less lines go; emails and URLs always stay", () => {
-    const r = cleanPaste("Skip to main content\nAccept all cookies\nOur Team\nSam Lee — Partner\n•••\n2026\n© 2026 Acme LLP. All rights reserved.\ncontact: sam@acme.com\nhttps://acme.com/team");
-    expect(r.text).toBe("Our Team\nSam Lee — Partner\ncontact: sam@acme.com\nhttps://acme.com/team");
-  });
-
-  it("never strips most of an unrecognised paste (safety cap)", () => {
-    const odd = "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\nZed";
-    expect(cleanPaste(odd).text).toBe(odd);
+  it("inside a LinkedIn paste, cookie/copyright and letter-less lines go; emails and URLs always stay", () => {
+    const r = cleanPaste(`${PAGE}\nAccept all cookies\n•••\n© 2026 Acme LLP. All rights reserved.\ncontact: sam@acme.com\nhttps://acme.com/team`);
+    expect(r.text).not.toContain("Accept all cookies");
+    expect(r.text).not.toContain("All rights reserved");
+    expect(r.text).toContain("contact: sam@acme.com");
+    expect(r.text).toContain("https://acme.com/team");
   });
 
   it("keeps two different people who share a title", () => {
