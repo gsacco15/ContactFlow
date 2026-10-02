@@ -58,6 +58,7 @@ describe("structured input end to end", () => {
       emails: [{ address: "jdoe@acme.com", rank: 1, basis: "sourced", verify_status: "unverified" }],
       pattern: { format: "flast", template: "{f}{last}", confidence: 0.95, confidence_basis: "stated by source", source: "RocketReach", source_url: "https://rocketreach.co/acme-email-format" },
       status: "ok",
+      verified: "not checked",
     });
     expect(res.people[1].ref).toBeUndefined();
     expect(res.people[1].emails[0].address).toBe("soneil@acme.com");

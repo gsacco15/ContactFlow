@@ -10,7 +10,7 @@ import type { Candidate, Company, Contact, ContactStatus, EmailBasis, ExtractRes
 import { buildExtract, contactId } from "./stages/classifyExtract.ts";
 import { cleanDisplayName, slug } from "./normalize.ts";
 import { patternLabel } from "./candidates.ts";
-import { confidenceBasis, visibleCandidates } from "./export/csv.ts";
+import { confidenceBasis, verifiedLabel, visibleCandidates } from "./export/csv.ts";
 import { sourceName } from "./validate.ts";
 
 export const API_VERSION = "v1";
@@ -91,6 +91,8 @@ export type EnrichPersonOut = {
   emails: EnrichEmail[];
   pattern: EnrichPattern | null;
   status: ContactStatus;
+  /** Mailbox check for emails[0], in words: yes · format proven · no (bounced) · accept-all server · risky · not checked · demo. */
+  verified: string;
   /** Why there's no email, what a retry found, or a warning. */
   note?: string;
   /** e.g. their headline names a different employer. */
@@ -102,6 +104,8 @@ export type EnrichCompanyOut = {
   name: string;
   domain: string | null;
   patterns: EnrichPattern[];
+  /** What mailbox checks found for the company, when any ran. */
+  verification?: "format proven" | "accept-all server" | "all checked addresses bounced" | "check unclear" | "verifier unavailable";
   note?: string;
 };
 
@@ -226,7 +230,7 @@ export function toExtract(req: EnrichRequest): { extract: ExtractResult; refs: M
 
 // ── Pipeline result → response ───────────────────────────────────────────────
 
-function toPattern(p: Pattern, domain?: string): EnrichPattern {
+export function toEnrichPattern(p: Pattern, domain?: string): EnrichPattern {
   const basis = confidenceBasis(p);
   return {
     format: patternLabel(p.template),
@@ -258,8 +262,9 @@ export function toEnrichResponse(result: Pick<RunResult, "companies" | "contacts
       domain: co?.domain ?? null,
       domain_source_url: co?.domain_from_paste ? null : (co?.domain_source_url ?? null),
       emails,
-      pattern: pattern ? toPattern(pattern, co?.domain) : null,
+      pattern: pattern ? toEnrichPattern(pattern, co?.domain) : null,
       status: c.status,
+      verified: verifiedLabel(visibleCandidates(c, { includeGuesses: !!opts.include_guesses })[0], co),
     };
     const ref = refs.get(c.id);
     if (ref) out.ref = ref;
@@ -270,10 +275,12 @@ export function toEnrichResponse(result: Pick<RunResult, "companies" | "contacts
     return out;
   });
   const companies = result.companies.map((co): EnrichCompanyOut => {
-    const out: EnrichCompanyOut = { name: co.name, domain: co.domain ?? null, patterns: co.patterns.map((p) => toPattern(p, co.domain)) };
+    const out: EnrichCompanyOut = { name: co.name, domain: co.domain ?? null, patterns: co.patterns.map((p) => toEnrichPattern(p, co.domain)) };
     const ref = refs.get(`company:${co.id}`);
     if (ref) out.ref = ref;
-    const note = co.skipped ?? co.error ?? co.rescue_note;
+    const verification = co.format_verified ? "format proven" : co.catch_all ? "accept-all server" : co.verify_note ? "all checked addresses bounced" : co.verify_unclear ? "check unclear" : co.verify_failed ? "verifier unavailable" : undefined;
+    if (verification) out.verification = verification;
+    const note = co.skipped ?? co.error ?? co.verify_note ?? co.rescue_note;
     if (note) out.note = note;
     return out;
   });

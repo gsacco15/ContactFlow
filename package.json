@@ -17,11 +17,13 @@
     "smoke": "tsx --env-file-if-exists=.env scripts/smoke.ts",
     "record": "tsx --env-file-if-exists=.env scripts/record.ts",
     "mock": "node scripts/mock-anthropic.mjs",
-    "bench": "tsx --env-file-if-exists=.env scripts/bench.ts"
+    "bench": "tsx --env-file-if-exists=.env scripts/bench.ts",
+    "mcp:build": "node scripts/build-mcp.mjs"
   },
   "devDependencies": {
     "@cf/core": "workspace:*",
     "@types/node": "^26.6.4",
+    "esbuild": "0.28.2",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",
     "vitest": "^4.0.0"

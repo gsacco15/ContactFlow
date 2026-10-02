@@ -9,6 +9,7 @@ Constraints that override anything else:
 - Never add code that fetches linkedin.com or any login-walled page.
 - Prompts are Markdown in /prompts, read at runtime; never inline them in code.
 - Model ids, budgets and thresholds come from env or `packages/core/src/config.ts`, never literals in logic.
+- `packages/web/api/mcp.js` is generated: after changing `packages/mcp` or core, run `pnpm mcp:build` and commit it (`pnpm test` checks).
 - Server tool type strings live only in `WEB_TOOLS` in `packages/edge/supabase/functions/pipeline/lib.ts`.
 
 Checks: `pnpm test` (all packages), `pnpm typecheck`. End-to-end without a key: see "Run it locally" in README.

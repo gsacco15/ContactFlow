@@ -115,6 +115,12 @@ export function estimateCost(u: {
 export const API_LIMITS = { people: 200, companies: 50, textChars: 50_000, field: 200 };
 
 /**
+ * MCP server (ChatGPT / Claude apps): one tool call must finish inside the host's timeout, so
+ * find_emails takes a few companies at a time — the host model calls it again for more.
+ */
+export const MCP_LIMITS = { companiesPerCall: 3, peoplePerCall: 25 };
+
+/**
  * Evidence engine. "off": nothing recorded or read. "shadow": record evidence from every lookup,
  * change nothing. "on": strong evidence for a domain skips the paid format search.
  */

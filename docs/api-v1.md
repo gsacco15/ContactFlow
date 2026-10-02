@@ -43,7 +43,8 @@ Bad input returns every problem at once, with paths: `people[0].company: require
       "company": "Acme Legal", "domain": "acmelegal.com", "domain_source_url": "https://acmelegal.com",
       "emails": [{ "address": "jdoe@acmelegal.com", "rank": 1, "basis": "sourced", "verify_status": "unverified" }],
       "pattern": { "format": "flast", "template": "{f}{last}", "confidence": 0.95, "confidence_basis": "stated by source", "source": "RocketReach", "source_url": "https://rocketreach.co/…" },
-      "status": "ok"
+      "status": "ok",
+      "verified": "not checked"
     }
   ],
   "companies": [{ "ref": "c1", "name": "Beta Corp", "domain": "betacorp.com", "patterns": [] }]
@@ -53,6 +54,7 @@ Bad input returns every problem at once, with paths: `people[0].company: require
 - `emails[].basis`: `seen` (in your input) · `sourced` (built from a sourced format) · `guess` (common format, no source — only with `include_guesses`).
 - `emails[].verify_status`: `unverified` until verification ships, then `valid` / `invalid` / `catch_all` / `risky`.
 - `pattern.confidence_basis`: `verified by mailbox check` · `proven by earlier lookups` · `your input` · `company website` · `stated by source` · `estimated`. Third-party sources top out at 0.95.
+- `verified`: the mailbox check for the first email, in words — `yes` · `format proven` · `no (bounced)` · `accept-all server` · `risky` · `not checked` · `from your paste` · `demo`. Companies carry `verification` when checks ran (`format proven`, `accept-all server`, `all checked addresses bounced`, `check unclear`, `verifier unavailable`).
 - `status`: `ok` · `no_domain` · `no_pattern` · `skipped` · `error`.
 - `note`: why there's no email, or what a retry found. `flag`: e.g. their headline names a different employer.
 - `ref` is echoed back so you can match rows to your own records.

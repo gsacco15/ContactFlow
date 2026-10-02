@@ -56,10 +56,10 @@ describe("scoreBench", () => {
     version: "v1",
     companies: [],
     people: [
-      { ref: "r2", first: "Jane", last: "Doe", company: "Acme", domain: "acme.com", domain_source_url: null, emails: [e("jdoe@acme.com", 1), e("jane.doe@acme.com", 2)], pattern: rr, status: "ok" },
-      { ref: "r3", first: "Sam", last: "Lee", company: "Acme", domain: "acme.com", domain_source_url: null, emails: [e("slee@acme.com", 1), e("sam.lee@acme.com", 2)], pattern: rr, status: "ok" },
-      { ref: "r4", first: "Ann", last: "Ray", company: "Beta", domain: "beta.com", domain_source_url: null, emails: [e("ann.ray@beta.com", 1, "guess")], pattern: null, status: "no_pattern" },
-      { ref: "r5", first: "Bo", last: "Kim", company: "Acme", domain: "acme.com", domain_source_url: null, emails: [e("bkim@acme.com", 1)], pattern: rr, status: "ok" },
+      { ref: "r2", first: "Jane", last: "Doe", company: "Acme", domain: "acme.com", domain_source_url: null, emails: [e("jdoe@acme.com", 1), e("jane.doe@acme.com", 2)], pattern: rr, status: "ok", verified: "not checked" },
+      { ref: "r3", first: "Sam", last: "Lee", company: "Acme", domain: "acme.com", domain_source_url: null, emails: [e("slee@acme.com", 1), e("sam.lee@acme.com", 2)], pattern: rr, status: "ok", verified: "not checked" },
+      { ref: "r4", first: "Ann", last: "Ray", company: "Beta", domain: "beta.com", domain_source_url: null, emails: [e("ann.ray@beta.com", 1, "guess")], pattern: null, status: "no_pattern", verified: "not checked" },
+      { ref: "r5", first: "Bo", last: "Kim", company: "Acme", domain: "acme.com", domain_source_url: null, emails: [e("bkim@acme.com", 1)], pattern: rr, status: "ok", verified: "not checked" },
     ],
   };
   const r = scoreBench(rows, res, { cost_usd: 0.3, seconds: 12, companies: 2, mode: "test", settings: {} }, "2026-10-02T00:00:00Z");
