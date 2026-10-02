@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { patternLabel, sourceName, visibleCandidates, type Candidate, type Company, type Contact } from "@cf/core";
+import { patternLabel, sourceName, visibleCandidates, type Candidate, type Company, type Contact, type Pattern } from "@cf/core";
 import { FitBadge } from "./FitBadge.tsx";
 import { LOW_DOMAIN_CONFIDENCE } from "../config.ts";
 import type { Pipeline } from "../usePipeline.ts";
@@ -159,13 +159,13 @@ export function ResultsTable({ p }: { p: Pipeline }) {
         <table className="w-full text-left text-sm">
           <thead className="border-b border-stone-200 bg-stone-50 text-[11px] font-semibold uppercase tracking-wider text-stone-500">
             <tr>
-              <th className="px-3 py-2">Name / Title</th>
-              <th className="px-3 py-2">Company → domain</th>
-              <th className="px-3 py-2">Pattern</th>
-              <th className="px-3 py-2">Email 1</th>
-              <th className="px-3 py-2">Email 2</th>
-              <th className="px-3 py-2">Email 3</th>
-              <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2"><span className="sm:hidden">Contact</span><span className="hidden sm:inline">Name / Title</span></th>
+              <th className="hidden px-3 py-2 sm:table-cell">Company → domain</th>
+              <th className="hidden px-3 py-2 sm:table-cell">Pattern</th>
+              <th className="hidden px-3 py-2 sm:table-cell">Email 1</th>
+              <th className="hidden px-3 py-2 sm:table-cell">Email 2</th>
+              <th className="hidden px-3 py-2 sm:table-cell">Email 3</th>
+              <th className="hidden px-3 py-2 sm:table-cell">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -255,8 +255,42 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
           }} />
         </div>
         <Editable value={c.title ?? ""} placeholder="—" className="text-stone-500" label="Title" onSave={(v) => p.editContact(c.id, { title: v })} />
+        {/* Phone: everything else stacked under the name. */}
+        <div className="mt-1.5 space-y-1.5 sm:hidden">
+          <div className="text-xs text-stone-500">
+            {co?.name ?? "—"}
+            {co?.domain && <span className="text-stone-400"> · {co.domain}</span>}
+          </div>
+          {shown.length > 0 ? (
+            <div className="space-y-0.5">
+              {shown.map((cand) => (
+                <Email key={cand.email} cand={cand} />
+              ))}
+            </div>
+          ) : (
+            <Pill tone={STATUS_TONE[c.status]} title={c.error}>
+              {c.status === "pending" && p.state.running ? "running…" : STATUS_LABEL[c.status]}
+            </Pill>
+          )}
+          <PatternInfo top={top} pattern={pattern} co={co} />
+          <Why text={[co?.pattern_conflict && `sources disagree: ${co.pattern_conflict}`, c.note, co?.rescue_note, c.error].filter(Boolean).join(" · ")} />
+          {(c.status === "skipped" || (failed && co)) && (
+            <div className="flex gap-1">
+              {c.status === "skipped" && (
+                <Button variant="ghost" className="!px-1.5 !py-0.5 text-xs" disabled={p.state.running || !p.configured} onClick={() => p.include(c.id)}>
+                  Include
+                </Button>
+              )}
+              {failed && co && (
+                <Button variant="ghost" className="!px-1.5 !py-0.5 text-xs" disabled={p.state.running || !p.configured} onClick={() => p.retry(co.id)}>
+                  Retry
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
       </td>
-      <td className="px-3 py-2">
+      <td className="hidden px-3 py-2 sm:table-cell">
         <div>{co?.name ?? <span className="text-stone-400">—</span>}</div>
         {co?.domain && (
           <div className={`flex items-center gap-1 ${co.domain_confidence !== undefined && co.domain_confidence < LOW_DOMAIN_CONFIDENCE ? "text-red-600" : "text-stone-500"}`} title={co.domain_confidence !== undefined ? `domain confidence ${co.domain_confidence.toFixed(2)}` : undefined}>
@@ -265,53 +299,23 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
         )}
         {co?.mx_ok === false && <div className="text-xs text-red-600">no MX records</div>}
       </td>
-      <td className="px-3 py-2">
+      <td className="hidden px-3 py-2 sm:table-cell">
         {c.candidates[0]?.pattern === "pasted" && (
           <div className="mb-1">
             <Pill tone="blue" title="This person’s own address, as it appeared in your paste">their address from paste</Pill>
           </div>
         )}
-        {top && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="font-mono text-xs">{patternLabel(top.pattern)}</span>
-            {pattern ? (
-              <>
-                <Pill
-                  tone={pattern.confidence >= 0.6 ? "green" : pattern.confidence >= 0.3 ? "amber" : "red"}
-                  title={pattern.from_paste ? "Confidence from your paste" : pattern.from_site ? "Proven by real addresses on the company's website" : pattern.stated ? "Percentage stated by the source" : "Estimated from search snippets — no percentage was stated"}
-                >
-                  {pattern.stated === false && !pattern.from_site ? "≈" : !pattern.stated && !pattern.from_paste && !pattern.from_site ? "≈" : ""}
-                  {Math.round(pattern.confidence * 100)}%
-                </Pill>
-                {pattern.from_paste ? (
-                  <Pill tone="blue" title={pattern.quote ? `From your paste: “${pattern.quote}”` : "From your paste"}>from paste</Pill>
-                ) : pattern.from_site ? (
-                  <a href={pattern.source_url} target="_blank" rel="noreferrer noopener" title={`Real addresses on the company's own website: ${(pattern.evidence ?? []).join(", ")}`}>
-                    <Pill tone="green">from their site</Pill>
-                  </a>
-                ) : sourceName(pattern.source_url, co?.domain) ? (
-                  <a href={pattern.source_url} target="_blank" rel="noreferrer noopener" title="Where the format was read from" className="text-xs text-stone-500 underline decoration-stone-300 underline-offset-2 hover:text-stone-900">
-                    {sourceName(pattern.source_url, co?.domain)} ↗
-                  </a>
-                ) : (
-                  <LinkIcon href={pattern.source_url} title="Where the format was read from" />
-                )}
-              </>
-            ) : (
-              <Pill tone="amber" title="No source states this company’s format. These are the most common formats overall — treat them as low-confidence guesses.">no source · guess</Pill>
-            )}
-          </div>
-        )}
+        <PatternInfo top={top} pattern={pattern} co={co} />
         {co?.pattern_conflict && <div className="mt-1 text-xs text-amber-700">⚠ sources disagree: {co.pattern_conflict}</div>}
         {c.note && <div className="mt-1 max-w-56 text-xs text-stone-500">{c.note}</div>}
         {co?.rescue_note && <div className="mt-1 max-w-56 text-xs text-stone-500" title={co.rescue_note}>{c.rescued ? "rescued: " : ""}{co.rescue_note}</div>}
       </td>
       {[0, 1, 2].map((i) => (
-        <td key={i} className="px-3 py-2">
+        <td key={i} className="hidden px-3 py-2 sm:table-cell">
           <Email cand={shown[i]} />
         </td>
       ))}
-      <td className="px-3 py-2">
+      <td className="hidden px-3 py-2 sm:table-cell">
         <div className="flex flex-col items-start gap-1">
           <Pill tone={STATUS_TONE[c.status]} title={c.error}>
             {c.status === "pending" && p.state.running ? "running…" : STATUS_LABEL[c.status]}
@@ -330,6 +334,57 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
         </div>
       </td>
     </tr>
+  );
+}
+
+function PatternInfo({ top, pattern, co }: { top?: Candidate; pattern?: Pattern; co?: Company }) {
+  return (
+    <>
+        {top && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="font-mono text-xs">{patternLabel(top.pattern)}</span>
+          {pattern ? (
+            <>
+              <Pill
+                tone={pattern.confidence >= 0.6 ? "green" : pattern.confidence >= 0.3 ? "amber" : "red"}
+                title={pattern.from_paste ? "Confidence from your paste" : pattern.from_site ? "Proven by real addresses on the company's website" : pattern.stated ? "Percentage stated by the source" : "Estimated from search snippets — no percentage was stated"}
+              >
+                {pattern.stated === false && !pattern.from_site ? "≈" : !pattern.stated && !pattern.from_paste && !pattern.from_site ? "≈" : ""}
+                {Math.round(pattern.confidence * 100)}%
+              </Pill>
+              {pattern.from_paste ? (
+                <Pill tone="blue" title={pattern.quote ? `From your paste: “${pattern.quote}”` : "From your paste"}>from paste</Pill>
+              ) : pattern.from_site ? (
+                <a href={pattern.source_url} target="_blank" rel="noreferrer noopener" title={`Real addresses on the company's own website: ${(pattern.evidence ?? []).join(", ")}`}>
+                  <Pill tone="green">from their site</Pill>
+                </a>
+              ) : sourceName(pattern.source_url, co?.domain) ? (
+                <a href={pattern.source_url} target="_blank" rel="noreferrer noopener" title="Where the format was read from" className="text-xs text-stone-500 underline decoration-stone-300 underline-offset-2 hover:text-stone-900">
+                  {sourceName(pattern.source_url, co?.domain)} ↗
+                </a>
+              ) : (
+                <LinkIcon href={pattern.source_url} title="Where the format was read from" />
+              )}
+            </>
+          ) : (
+            <Pill tone="amber" title="No source states this company’s format. These are the most common formats overall — treat them as low-confidence guesses.">no source · guess</Pill>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** One line of explanation on phones; tap to read the rest. */
+function Why({ text }: { text: string }) {
+  if (!text) return null;
+  return (
+    <details className="group text-xs text-stone-500">
+      <summary className="cursor-pointer list-none truncate group-open:whitespace-normal [&::-webkit-details-marker]:hidden">
+        <span className="text-stone-400 group-open:hidden">why: </span>
+        {text}
+      </summary>
+    </details>
   );
 }
 

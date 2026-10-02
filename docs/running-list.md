@@ -6,8 +6,8 @@ What we're building, in order. Updated as each item lands. `[x]` done · `[~]` i
 
 1. **Three quick fixes**
    - [x] **100% cap** — third-party sites (RocketReach, ContactOut…) show at most 95%, with the site's name in the pill. Only the firm's own site (and later verification) can go higher.
-   - [~] **Phone-width results table** — email under the name, pattern + score on one line, long notes collapse to one tappable line.
-   - [ ] **Bio pages** — the website reader follows links from the team page into individual bio pages (where law firms list addresses).
+   - [x] **Phone-width results table** — email under the name, pattern + score on one line, long notes collapse to one tappable line.
+   - [~] **Bio pages** — the website reader follows links from the team page into individual bio pages (where law firms list addresses).
 2. **JSON format (the contract)**
    - [ ] Input: people `{first, last, company, title?, domain?}` or companies + roles.
    - [ ] Output: people with up to 3 emails, pattern, source, confidence, verify status, notes.
