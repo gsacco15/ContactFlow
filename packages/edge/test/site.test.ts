@@ -42,4 +42,8 @@ describe("site reading helpers", () => {
     expect(found.find((e) => e.email === "smorris@acme.com")!.context).toContain("Sandy Morris");
     expect(found.find((e) => e.email === "jpratt@acme.com")!.context).toContain("Jon Pratt");
   });
+
+  it("extractEmails survives a malformed mailto escape", () => {
+    expect(extractEmails('<a href="mailto:bad%E0%A4%A@acme.com">x</a> ok@acme.com', "acme.com", "p").map((e) => e.email)).toContain("ok@acme.com");
+  });
 });

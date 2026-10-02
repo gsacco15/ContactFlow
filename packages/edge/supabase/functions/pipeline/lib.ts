@@ -323,7 +323,11 @@ export function extractEmails(html: string, domain: string, page: string): SiteE
     const at = text.toLowerCase().indexOf(m[1].toLowerCase());
     // Name for a mailto link: the text around it on the page, or the link's own markup.
     const around = at >= 0 ? text.slice(Math.max(0, at - 160), at + m[1].length + 80) : html.slice(Math.max(0, m.index! - 300), m.index! + 200).replace(/<[^>]+>/g, " ");
-    add(decodeURIComponent(m[1]), around);
+    let addr = m[1];
+    try {
+      addr = decodeURIComponent(addr);
+    } catch { /* malformed %-escape: use as written */ }
+    add(addr, around);
   }
   for (const m of deob.matchAll(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi)) {
     add(m[0], deob.slice(Math.max(0, m.index! - 160), m.index! + m[0].length + 80));
