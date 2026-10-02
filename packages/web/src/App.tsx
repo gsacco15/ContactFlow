@@ -29,7 +29,7 @@ export default function App() {
   const go = (to: Page) => {
     if (to === "app") save(VISITED, true);
     setPage(to);
-    history.replaceState(null, "", to === "app" ? location.pathname : `#${to}`);
+    history.replaceState(null, "", to === "app" ? location.pathname + location.search : `${location.search}#${to}`); // keep ?verify= / ?site= test switches
     scrollTo(0, 0);
   };
   useEffect(() => {
