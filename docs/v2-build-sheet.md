@@ -14,7 +14,7 @@ never fetch linkedin.com or login-walled pages.
 
 | # | Feature | Why | Size | Running cost |
 |---|---|---|---|---|
-| 1 | Email verification | "Emails you can trust", literally: valid / risky / catch-all / invalid per email | M | ≈ $0.003–0.01 per email checked |
+| 1 | Email verification (during search, per-company format proof, cached) | "Emails you can trust", literally; proven formats become a shared asset | M | ≈ $0.004–0.012 per new firm; $0 for cached firms |
 | 1b | ChatGPT app (lightweight MCP) | ContactFlow inside ChatGPT: it reads the paste, our tools find domain, format and emails | S–M | ≈ cents per company, cached; per-user limits |
 | 2 | HubSpot push | Results straight into the CRM, deduped | M | free (user's HubSpot) |
 | 3 | Lead score + best-first sort | Long lists come out prioritised | S | ≈ $0 (reuses Jev scores) |
@@ -32,32 +32,57 @@ public launch. 1b's prototype can start before 1 finishes (verify_email is added
 
 ---
 
-## 1. Email verification
+## 1. Email verification — verify during the search, prove formats per company
 
-**What changes for the user.** Each person's top email gets a badge: ✓ valid, ~ risky, ◎ catch-all,
-✗ invalid. A valid candidate becomes Email 1; invalid ones drop to the bottom (and out of exports
-unless backups are on). "Only rows with an email" gains "Only verified".
+**Route (decided).** Verify while searching, not at export: it fixes wrong answers in the run,
+cracks firms with no published format, and each check proves a company's format for everyone
+after. Verified results are a paid-plan feature; export stays open to all.
+
+**What changes for the user.** Emails carry ✓ verified, ~ risky, ◎ catch-all or ✗ invalid. Firms
+whose format is proven show "✓ format verified at this company" — on free plans too (a free taste).
+Invalid candidates drop down (and out of exports unless backups are on). Filter: "Only verified".
+
+**The flow, per company (cheapest first).**
+1. **Cache hit — verified format for this domain?** Build emails, mark "format verified". **$0.**
+2. **Catch-all domain already known?** Skip checks; mark rows ◎ catch-all ("sourced, not
+   verifiable"). **$0.**
+3. **Otherwise sample one person** (prefer an uncommon name): verify the top candidate.
+   - valid → this format is **proven for the domain**; cache it (`vformat:<domain>`, 90 days);
+     everyone else at the firm gets "format verified" without their own check.
+   - invalid → try the next sourced format; then the common guesses (≤ 3 checks total) — this is
+     how firms with no published format get cracked.
+   - catch-all → cache `catchall:<domain>` (90 days) and stop.
+4. **Per-person checks only for exceptions:** very common names (likely jsmith2@ collisions),
+   ambiguous names (middle initials, hyphens), or a user clicking Verify on a row.
+5. **Never verify** an address that was in the paste (`basis: "seen"`).
+
+**Cost.** First time a firm is seen: ~1–3 checks (≈ $0.004–0.012) on top of today's search cost.
+Repeat firm: **$0 verification** (and ≈ $0 search, from the format cache). Cost per contact falls
+as the shared cache grows — that cache of proven formats is the long-term moat.
+
+**Privacy.** Format and catch-all caches are per domain (no names). Individual results cache as
+`verify:<sha256(email)>` → status, 90 days — never the address itself.
 
 **Build.**
-- Edge function: new route `POST /verify` `{ emails: string[] }` → `{ [email]: VerifyStatus }`.
-  Provider key (`CF_VERIFIER`, `CF_VERIFIER_KEY`) lives only here. Per-email cache in `cf_cache`
-  (`verify:<email>`, 30 days) so re-runs are free. Log counts to `cf_usage` (stage `verify`).
-- Core: `RemoteVerifier implements Verifier` (`packages/core/src/verify/`) calling an injected
-  `verify(emails)` — no network code in core. Keep `domainLive` from `MxVerifier` (compose them).
-- Runner already calls `ctx.verifier.verify(...)` and promotes `valid` to `primary_email`
-  (`runner.ts`, end of `applyCompany`). Add a budget: verify **only the top candidate** by default,
-  the next one only if the first is invalid (`DEFAULT_BUDGET.maxVerifyPerContact`, default 2).
-- Skip verification for `basis: "seen"` (address was in the paste) and for catch-all domains once
-  known (one catch-all answer marks the domain; store on `Company`).
-- UI: badge in `Email` cell; filter; cost counter adds verify cost (`PRICES.verify` in `config.ts`).
-- CSV already has `verify_status`; it starts carrying real values.
+- Edge function: `POST /verify` `{ emails: string[] }` → `{ [email]: VerifyStatus }`; vendor key
+  (`CF_VERIFIER`, `CF_VERIFIER_KEY`) only here; caches above; usage logged to `cf_usage`
+  (stage `verify`). Plan gate: verification runs only for paid keys/sessions.
+- Core: `RemoteVerifier implements Verifier` (`packages/core/src/verify/`), injected — no network
+  code in core. Runner: the per-company sampling step above in `enrichCompany` / `applyCompany`;
+  new `Company` fields `format_verified`, `catch_all`; budget `DEFAULT_BUDGET.maxVerifyPerCompany`
+  (default 3) and `maxVerifyPerContact` (default 1, exceptions only). TTLs in `config.ts`.
+- Runner already promotes `valid` to `primary_email`; CSV `verify_status` starts carrying values;
+  add `format_verified` column.
+- UI: badges, "format verified" note on the pattern pill, filter, Verify button per row (paid),
+  cost counter adds verify cost (`PRICES.verify`).
 
-**Decide first.** Provider: ZeroBounce, NeverBounce or Hunter (price per check, catch-all handling,
-rate limits). One adapter only.
+**Decide first.** Vendor: ZeroBounce, NeverBounce, MillionVerifier or Hunter — price per check,
+catch-all detection quality, rate limits. One adapter.
 
-**Done when.** Mock provider in `scripts/mock-anthropic.mjs` (or a sibling mock) drives an
-end-to-end run: valid promoted to Email 1, invalid demoted, cached second run makes zero verify
-calls; unit tests for the budget and catch-all short-circuit; counter matches `cf_usage`.
+**Done when.** Mock vendor drives end-to-end runs: a firm's first run makes ≤ 3 checks and caches
+the proven format; a second run (any user) makes zero checks; invalid top candidate falls through
+to the next format; catch-all short-circuits; a pasted address is never checked; free plan shows
+cached "format verified" but makes no checks; counter matches `cf_usage`.
 
 ## 1b. ChatGPT app (lightweight MCP)
 
