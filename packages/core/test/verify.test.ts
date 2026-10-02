@@ -48,7 +48,7 @@ describe("verification", () => {
     expect(priya.candidates[0]).toMatchObject({ email: "priya.natarajan@acme.com", verify_status: "valid" });
     expect(res.contacts.find((c) => c.first === "Jo")!.primary_email).toBe("jo.li@acme.com");
     expect(evidence.rows.filter((r) => r.kind === "verifier_valid")).toHaveLength(1);
-    expect(estimateCost(usage.find((u) => u.stage === "verify")!)).toBeCloseTo(0.004);
+    expect(estimateCost(usage.find((u) => u.stage === "verify")!)).toBeCloseTo(0.00245, 5);
   });
 
   it("cracks a firm with no published format: invalid, then valid", async () => {

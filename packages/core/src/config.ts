@@ -156,5 +156,5 @@ export const VERIFY_MODE: "off" | "button" | "auto" = "button";
 export const VERIFY_LIMITS = { perCompany: 3 };
 /** Confidence shown for a format a mailbox check proved at this company. */
 export const VERIFIED_CONFIDENCE = 0.97;
-/** Rough cost of one check (provider-dependent; ZeroBounce / MillionVerifier are ~$0.002–0.008). */
-export const PRICE_PER_VERIFY = 0.004;
+/** Cost of one check. MillionVerifier: 2,000 credits for $4.90 = $0.00245 (Oct 2026). */
+export const PRICE_PER_VERIFY = 0.00245;
