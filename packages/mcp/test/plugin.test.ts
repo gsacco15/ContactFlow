@@ -28,7 +28,7 @@ describe("ChatGPT plugin package", () => {
   it("skill names only tools the server really has; no MCP server declared (would be Desktop only)", () => {
     const skill = readFileSync(`${dir}skills/contactflow/SKILL.md`, "utf8");
     expect(skill).toMatch(/^---\nname: contactflow\ndescription: .+\n---/);
-    const named = [...skill.matchAll(/`([a-z_]+)`/g)].map((m) => m[1]).filter((n) => /^(find|get|build|check|verify)_/.test(n));
+    const named = [...skill.matchAll(/`([a-z_]+)`/g)].map((m) => m[1]).filter((n) => /^(find|get|build|check|verify|show)_/.test(n));
     expect(new Set(named)).toEqual(new Set(TOOLS.map((t) => t.name)));
     expect(existsSync(`${dir}mcp.json`) || existsSync(`${dir}.mcp.json`)).toBe(false);
   });

@@ -5,10 +5,11 @@ description: Find work email addresses for people with ContactFlow. Use when the
 
 # Finding work emails with ContactFlow
 
-ContactFlow finds work emails and tells you how sure to be about each one. Two tools:
+ContactFlow finds work emails and tells you how sure to be about each one. Three tools:
 
-- `find_emails` — names and companies in, emails out.
+- `find_emails` — names and companies in, emails out (with a mailbox check per company).
 - `get_email_format` — "how does Acme write its emails?"
+- `show_results` — shows the results as a ContactFlow table in the chat.
 
 ## If the tools aren't available
 
@@ -30,13 +31,19 @@ If the user names companies but no people ("the CFO at Beta Corp"), pass `compan
 ## Calling find_emails
 
 - At most 3 companies per call. For more, make several calls; parallel is fine.
-- Only set `verify: true` when the user asks for verified or confirmed emails — it costs a little extra.
+- Mailbox checks run by default (one per company; companies proven before are free). Set
+  `verify: false` only if the user asks for no checks.
 - Calls take 10–60 seconds; say you're looking things up.
 
 ## Presenting results
 
-Show a table: **Name · Title · Email · Verified · Source**. Then one line per company with its
-email format and where it came from.
+When every `find_emails` call is done, call `show_results` once with all the `people` and
+`companies` from those results combined, unchanged. It shows the ContactFlow table with copy
+buttons. Then add two or three sentences: how many emails, how many verified, and anything to watch
+(an accept-all company, someone whose headline names another employer).
+
+If `show_results` isn't available or nothing is shown, give a table instead: **Name · Title ·
+Email · Verified · Source**, then one line per company with its email format and where it came from.
 
 The `verified` field decides how you describe an email:
 
@@ -53,6 +60,8 @@ or a format, and never fill gaps by guessing. If a company has no email, say why
 
 ## Boundaries
 
+- If someone's headline doesn't name the company (a LinkedIn company filter can include past or
+  partner staff), still look them up but say so.
 - Don't pass linkedin.com links as company websites, and don't ask ContactFlow to open LinkedIn.
 - Remind users sending cold email to follow the rules where they are (CAN-SPAM in the US,
   GDPR/PECR in the EU and UK): an honest sender, an unsubscribe link, and a suppression list.

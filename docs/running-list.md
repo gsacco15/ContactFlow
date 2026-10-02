@@ -48,8 +48,10 @@ What we're building, in order. Updated as each item lands. `[x]` done · `[~]` i
    - [x] Server live on Vercel (`/api/mcp` answers)
    - [x] ChatGPT plugin package: `extras/chatgpt-plugin/` (listing, skill, logo/icon, brand kit, ZIP builder)
    - [ ] **You:** connect in ChatGPT developer mode (`https://contact-flow-web.vercel.app/api/mcp`)
-   - [ ] First real test in ChatGPT
-   - [ ] Later: login (OAuth) or `CF_MCP_KEY` lock · results widget · own domain + listing · `/v1/enrich` REST API with keys
+   - [x] First real test in ChatGPT (personal plugin with the MCP server; LinkedIn paste → Kirkland emails)
+   - [x] Results view inside ChatGPT (`show_results`, MCP Apps) · checks on by default
+   - [ ] Fix: verified call reported "connection failed" although the lookup finished (check Vercel logs)
+   - [ ] Later: login (OAuth) or `CF_MCP_KEY` lock · own domain + listing · `/v1/enrich` REST API with keys
 
 ## Later / ideas
 

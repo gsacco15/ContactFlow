@@ -3,7 +3,7 @@
 import { ClaudeDecisions, DEFAULT_BUDGET, MxVerifier, VERIFY_MODE, memoryCache, type Ctx } from "@cf/core";
 import { edgeClient, layeredCache } from "../../web/src/lib/edgeClient.ts";
 import { RPC, handleBody } from "./protocol.ts";
-import { INSTRUCTIONS, TOOLS, type Deps } from "./tools.ts";
+import { INSTRUCTIONS, RESOURCES, TOOLS, type Deps } from "./tools.ts";
 
 export type Env = (key: string) => string | undefined;
 
@@ -76,6 +76,6 @@ export async function handleHttp(req: Request, env: Env, deps: Deps | undefined 
   } catch {
     return json({ jsonrpc: "2.0", id: null, error: { code: RPC.parse, message: "invalid JSON" } }, 400);
   }
-  const out = await handleBody(body, TOOLS, deps, INSTRUCTIONS);
+  const out = await handleBody(body, TOOLS, deps, INSTRUCTIONS, RESOURCES);
   return out === undefined ? new Response(null, { status: 202, headers: CORS }) : json(out);
 }

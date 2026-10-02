@@ -6,7 +6,8 @@ import {
   LOW_DOMAIN_CONFIDENCE, MCP_LIMITS, enrichCompany, normalizeDomain, parseEnrichRequest, runPipeline, slug, toEnrichPattern, toEnrichResponse, toExtract,
   type Company, type Ctx, type EnrichResponse,
 } from "@cf/core";
-import type { Tool, ToolResult } from "./protocol.ts";
+import type { Resource, Tool, ToolResult } from "./protocol.ts";
+import { WIDGET_HTML, WIDGET_META, WIDGET_MIME, WIDGET_URI } from "./widget.ts";
 
 export type Deps = {
   /** A fresh pipeline context for one tool call. */
@@ -17,6 +18,7 @@ export const INSTRUCTIONS = [
   "ContactFlow finds work email addresses for named people at companies, with the source of each company's email format.",
   "Read the user's paste yourself (LinkedIn results, team pages, notes) and pass structured names to find_emails, at most 3 companies per call; call it again (in parallel is fine) for more companies.",
   "Emails are built from each company's email format. Only verified 'yes' or 'format proven' means a mailbox check confirmed it; present everything else as likely, not confirmed, and never invent addresses.",
+  "When all find_emails calls are done, call show_results once with every person and company together to show the results table.",
   "Never pass linkedin.com URLs as domains. ContactFlow does not open LinkedIn or login-walled pages.",
 ].join(" ");
 
@@ -34,7 +36,7 @@ const findEmails: Tool<Deps> = {
   title: "Find work emails",
   description:
     `Find work email addresses for named people at up to ${MCP_LIMITS.companiesPerCall} companies per call (max ${MCP_LIMITS.peoplePerCall} people), or find the people in given roles at a company. ` +
-    "Each person gets up to 3 ranked emails, the company's email format with its source, and whether a mailbox check confirmed it. Takes 10–60 seconds.",
+    "Each person gets up to 3 ranked emails, the company's email format with its source, and whether a mailbox check confirmed it (checks run by default). Takes 10–60 seconds. Afterwards, call show_results to show them.",
   inputSchema: {
     type: "object",
     properties: {
@@ -68,12 +70,13 @@ const findEmails: Tool<Deps> = {
         },
       },
       looking_for: str('Optional: who the user wants, e.g. "partners, not clerks". Others are skipped before anything is spent.'),
-      verify: { type: "boolean", description: "Check one mailbox per company to prove its format (small extra cost). Only when the user asks for verified emails." },
+      verify: { type: "boolean", description: "Check one mailbox per company to prove its format. On by default; set false only if the user asks for no checks. Companies already proven are free." },
       include_guesses: { type: "boolean", description: "Also return common-format guesses with no source. Default false." },
     },
     additionalProperties: false,
   },
   annotations: { ...READ_ONLY, title: "Find work emails" },
+  _meta: { "openai/toolInvocation/invoking": "Finding work emails…", "openai/toolInvocation/invoked": "Found work emails" },
   async run(args, deps) {
     const people = Array.isArray(args.people) ? args.people : [];
     const companies = Array.isArray(args.companies) ? args.companies : [];
@@ -87,7 +90,9 @@ const findEmails: Tool<Deps> = {
     });
     if (!parsed.ok) return err(`Invalid input: ${parsed.errors.join("; ")}`);
     const { extract, refs } = toExtract(parsed.value);
-    const ctx = deps.ctx({ verify: args.verify === true, roleFilter: parsed.value.options?.looking_for });
+    // Mailbox checks on by default in chat: about $0.0025 per new company, and a proven format is
+    // remembered for everyone, so repeat lookups cost nothing.
+    const ctx = deps.ctx({ verify: args.verify !== false, roleFilter: parsed.value.options?.looking_for });
     const result = await runPipeline(extract, ctx);
     const res = toEnrichResponse(result, parsed.value.options, refs);
     return ok(summarize(res), res as unknown as Record<string, unknown>);
@@ -125,6 +130,7 @@ const getEmailFormat: Tool<Deps> = {
     additionalProperties: false,
   },
   annotations: { ...READ_ONLY, title: "Get a company's email format" },
+  _meta: { "openai/toolInvocation/invoking": "Looking up the email format…", "openai/toolInvocation/invoked": "Found the email format" },
   async run(args, deps) {
     const name = clip(args.company);
     const given = clip(args.domain);
@@ -143,4 +149,55 @@ const getEmailFormat: Tool<Deps> = {
   },
 };
 
-export const TOOLS: Tool<Deps>[] = [findEmails, getEmailFormat];
+// ── show_results (render tool: owns the results view, no lookups) ─────────────
+
+const SHOW_LIMIT = 200;
+const obj = (v: unknown): Record<string, any> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, any>) : {});
+const list = (v: unknown) => (Array.isArray(v) ? v : []);
+
+/** Keep only the fields the view shows, as plain strings and numbers (input comes from the model). */
+export function cleanResults(args: Record<string, unknown>) {
+  const s = (v: unknown, n = 200) => (typeof v === "string" ? v.slice(0, n) : undefined);
+  const pattern = (p: any) => ({ format: s(p?.format, 40), confidence: Number.isFinite(Number(p?.confidence)) ? Number(p.confidence) : undefined, confidence_basis: s(p?.confidence_basis, 60), source: s(p?.source, 60), source_url: s(p?.source_url, 300)?.match(/^https?:\/\//) ? s(p.source_url, 300) : undefined });
+  const people = list(args.people).slice(0, SHOW_LIMIT).map((x) => {
+    const p = obj(x);
+    return {
+      first: s(p.first), middle: s(p.middle), last: s(p.last), title: s(p.title), company: s(p.company) ?? "",
+      emails: list(p.emails).slice(0, 3).map((e) => ({ address: s(obj(e).address, 120) })).filter((e) => e.address?.includes("@")),
+      verified: s(p.verified, 40) ?? "not checked", note: s(p.note, 300), flag: s(p.flag, 200),
+    };
+  });
+  const companies = list(args.companies).slice(0, 50).map((x) => {
+    const c = obj(x);
+    return { name: s(c.name) ?? "", domain: s(c.domain, 120), patterns: list(c.patterns).slice(0, 1).map(pattern), verification: s(c.verification, 60), note: s(c.note, 300) };
+  });
+  return { people, companies };
+}
+
+const showResults: Tool<Deps> = {
+  name: "show_results",
+  title: "Show email results",
+  description:
+    "Show the ContactFlow results table to the user. Call find_emails first (as many times as needed), then call this once with all " +
+    "people and companies from those results, unchanged. Does no lookups.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      people: { type: "array", maxItems: SHOW_LIMIT, description: "The people arrays from find_emails, combined", items: { type: "object" } },
+      companies: { type: "array", maxItems: 50, description: "The companies arrays from find_emails, combined", items: { type: "object" } },
+    },
+    required: ["people"],
+    additionalProperties: false,
+  },
+  annotations: { readOnlyHint: true, openWorldHint: false, destructiveHint: false, title: "Show email results" },
+  _meta: { ui: { resourceUri: WIDGET_URI }, "openai/outputTemplate": WIDGET_URI, "openai/toolInvocation/invoking": "Preparing your table…", "openai/toolInvocation/invoked": "Here are your results" },
+  async run(args) {
+    const data = cleanResults(args);
+    const withEmail = data.people.filter((p) => p.emails.length).length;
+    return ok(`Showing ${data.people.length} people (${withEmail} with an email) in the ContactFlow table.`, data);
+  },
+};
+
+export const TOOLS: Tool<Deps>[] = [findEmails, getEmailFormat, showResults];
+
+export const RESOURCES: Resource[] = [{ uri: WIDGET_URI, name: "ContactFlow results", mimeType: WIDGET_MIME, text: WIDGET_HTML, _meta: WIDGET_META }];

@@ -748,7 +748,7 @@ var BLOCKED_FETCH_DOMAINS = [
   "x.com",
   "twitter.com"
 ];
-var isUnder = (host, list) => list.some((d) => host === d || host.endsWith(`.${d}`));
+var isUnder = (host, list2) => list2.some((d) => host === d || host.endsWith(`.${d}`));
 function normalizeDomain(input) {
   if (!input) return null;
   let s2 = input.trim().toLowerCase();
@@ -2407,7 +2407,7 @@ var PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26"];
 var RPC = { parse: -32700, invalid: -32600, method: -32601, params: -32602, internal: -32603 };
 var reply = (id, result) => ({ jsonrpc: "2.0", id: id ?? null, result });
 var fail2 = (id, code, message) => ({ jsonrpc: "2.0", id: id ?? null, error: { code, message } });
-async function handleMessage(msg, tools, deps, instructions) {
+async function handleMessage(msg, tools, deps, instructions, resources = []) {
   if (!msg || typeof msg !== "object" || typeof msg.method !== "string") return fail2(msg?.id, RPC.invalid, "invalid request");
   const isNotification = msg.id === void 0;
   if (isNotification) return void 0;
@@ -2416,7 +2416,7 @@ async function handleMessage(msg, tools, deps, instructions) {
       const asked = String(msg.params?.protocolVersion ?? "");
       return reply(msg.id, {
         protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
-        capabilities: { tools: { listChanged: false } },
+        capabilities: { tools: { listChanged: false }, ...resources.length ? { resources: { listChanged: false } } : {} },
         serverInfo: SERVER_INFO,
         instructions
       });
@@ -2425,8 +2425,17 @@ async function handleMessage(msg, tools, deps, instructions) {
       return reply(msg.id, {});
     case "tools/list":
       return reply(msg.id, {
-        tools: tools.map(({ name, title, description, inputSchema, annotations }) => ({ name, title, description, inputSchema, ...annotations ? { annotations } : {} }))
+        tools: tools.map(({ name, title, description, inputSchema, annotations, _meta }) => ({ name, title, description, inputSchema, ...annotations ? { annotations } : {}, ..._meta ? { _meta } : {} }))
       });
+    case "resources/list":
+      return reply(msg.id, { resources: resources.map(({ uri, name, mimeType, _meta }) => ({ uri, name, mimeType, ..._meta ? { _meta } : {} })) });
+    case "resources/templates/list":
+      return reply(msg.id, { resourceTemplates: [] });
+    case "resources/read": {
+      const r = resources.find((x) => x.uri === msg.params?.uri);
+      if (!r) return fail2(msg.id, RPC.params, `unknown resource: ${String(msg.params?.uri)}`);
+      return reply(msg.id, { contents: [{ uri: r.uri, mimeType: r.mimeType, text: r.text, ...r._meta ? { _meta: r._meta } : {} }] });
+    }
     case "tools/call": {
       const tool = tools.find((t) => t.name === msg.params?.name);
       if (!tool) return fail2(msg.id, RPC.params, `unknown tool: ${String(msg.params?.name)}`);
@@ -2443,19 +2452,147 @@ async function handleMessage(msg, tools, deps, instructions) {
       return fail2(msg.id, RPC.method, `method not found: ${msg.method}`);
   }
 }
-async function handleBody(body, tools, deps, instructions) {
+async function handleBody(body, tools, deps, instructions, resources = []) {
   if (Array.isArray(body)) {
-    const out = (await Promise.all(body.map((m) => handleMessage(m, tools, deps, instructions)))).filter(Boolean);
+    const out = (await Promise.all(body.map((m) => handleMessage(m, tools, deps, instructions, resources)))).filter(Boolean);
     return out.length ? out : void 0;
   }
-  return handleMessage(body, tools, deps, instructions);
+  return handleMessage(body, tools, deps, instructions, resources);
 }
+
+// packages/mcp/src/widget.ts
+var WIDGET_URI = "ui://contactflow/results-v1.html";
+var WIDGET_MIME = "text/html;profile=mcp-app";
+var ICON = `<svg viewBox="0 0 64 64" width="22" height="22" aria-hidden="true"><defs><linearGradient id="t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#30353C"/><stop offset=".55" stop-color="#17191D"/><stop offset="1" stop-color="#0C0D10"/></linearGradient><radialGradient id="g" cx=".33" cy=".28" r=".85"><stop offset="0" stop-color="#5BE6BA"/><stop offset=".55" stop-color="#14A97D"/><stop offset="1" stop-color="#087453"/></radialGradient></defs><rect width="64" height="64" rx="15" fill="url(#t)"/><path d="M44 18 Q20 18 20 32 Q20 46 44 46" fill="none" stroke="#F6F5F2" stroke-width="7" stroke-linecap="round"/><circle cx="20" cy="32" r="6.5" fill="#F6F5F2"/><circle cx="44" cy="46" r="8.5" fill="url(#g)"/></svg>`;
+var CSS = `
+:root{--ink:#15171A;--muted:#6b6f76;--line:#e7e5e0;--bg:#fff;--soft:#f6f5f2;--green:#12A87C;--mint:#e3f6ef;--deep:#0b6b4f;--amber:#9a6200;--amberbg:#fdf3e1;--red:#b42318;--redbg:#fdecea}
+@media (prefers-color-scheme:dark){:root{--ink:#ececea;--muted:#a0a3a8;--line:#30333a;--bg:#1b1d21;--soft:#23262b;--mint:#12382d;--deep:#5be6ba;--amberbg:#3a2c12;--amber:#f2c26b;--redbg:#3b1d1b;--red:#f59e93}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 "Geist","Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{padding:14px 14px 12px}
+.top{display:flex;align-items:center;gap:8px;margin-bottom:10px}.brand{font-weight:500;letter-spacing:-.03em}.brand b{color:var(--green)}
+.sum{margin-left:auto;color:var(--muted);font-size:12px}
+.co{border:1px solid var(--line);border-radius:14px;margin-top:10px;overflow:hidden}
+.cohead{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:10px 12px;background:var(--soft)}
+.coname{font-weight:600}.dom{color:var(--muted);font-family:"Geist Mono",ui-monospace,monospace;font-size:12px}
+.pill{display:inline-block;border-radius:999px;padding:2px 8px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.ok{background:var(--mint);color:var(--deep)}.warn{background:var(--amberbg);color:var(--amber)}.bad{background:var(--redbg);color:var(--red)}.neutral{background:var(--soft);color:var(--muted);border:1px solid var(--line)}
+.fmt{font-family:"Geist Mono",ui-monospace,monospace;font-size:12px}
+a{color:inherit}.src{color:var(--muted);font-size:12px}
+.row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:9px 12px;border-top:1px solid var(--line)}
+.row>.pill{align-self:start;justify-self:end}
+.who{font-weight:500}.title{color:var(--muted);font-size:12.5px}
+.email{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.addr{font-family:"Geist Mono",ui-monospace,monospace;font-size:13px;word-break:break-all}
+.backup{color:var(--muted);font-family:"Geist Mono",ui-monospace,monospace;font-size:11.5px}
+.note{grid-column:1/-1;color:var(--muted);font-size:12px}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:9px;padding:4px 9px;font-size:12px}
+button:hover{background:var(--soft)}.copy{padding:1px 7px;font-size:11px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.actions .primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.foot{margin-top:10px;color:var(--muted);font-size:11.5px}
+.empty{color:var(--muted);padding:18px 4px}
+`;
+var JS = `
+const $ = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = String(text); return e; };
+const VERIFIED = {
+  "yes": ["ok", "\u2713 verified"], "format proven": ["ok", "\u2713 format proven"], "accept-all server": ["warn", "\u25CE accept-all"],
+  "no (bounced)": ["bad", "\u2717 bounced"], "risky": ["warn", "~ risky"], "from your paste": ["neutral", "from paste"], "demo": ["neutral", "demo"], "not checked": ["neutral", "not checked"],
+};
+const COVER = { "format proven": ["ok", "\u2713 format proven"], "accept-all server": ["warn", "\u25CE accepts any address"], "all checked addresses bounced": ["bad", "\u2717 checks bounced"], "check unclear": ["neutral", "? check unclear"], "verifier unavailable": ["neutral", "verifier unavailable"] };
+const arr = (v) => (Array.isArray(v) ? v : []);
+const str = (v) => (typeof v === "string" ? v : "");
+let data = null;
+
+async function copy(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = document.createElement("textarea"); t.value = text; document.body.appendChild(t); t.select(); try { document.execCommand("copy"); } catch {} t.remove(); }
+  if (btn) { const was = btn.textContent; btn.textContent = "Copied"; setTimeout(() => (btn.textContent = was), 1200); }
+}
+const firstEmail = (p) => str(arr(p.emails)[0]?.address);
+const name = (p) => [str(p.first), str(p.middle), str(p.last)].filter(Boolean).join(" ") || "(no name)";
+
+function render(d) {
+  data = d || {};
+  const root = document.getElementById("root"); root.textContent = "";
+  const wrap = $("div", "wrap"); root.appendChild(wrap);
+  const people = arr(data.people), companies = arr(data.companies);
+  const top = $("div", "top"); top.insertAdjacentHTML("beforeend", ${JSON.stringify(ICON)});
+  const brand = $("span", "brand", "contact"); brand.appendChild($("b", null, "flow")); top.appendChild(brand);
+  const withEmail = people.filter(firstEmail).length;
+  const proven = people.filter((p) => p.verified === "yes" || p.verified === "format proven").length;
+  top.appendChild($("span", "sum", people.length + " people \xB7 " + withEmail + " with email" + (proven ? " \xB7 " + proven + " verified" : "")));
+  wrap.appendChild(top);
+  if (!people.length && !companies.length) { wrap.appendChild($("div", "empty", "No results yet.")); return; }
+
+  const names = companies.length ? companies.map((c) => str(c.name)) : [...new Set(people.map((p) => str(p.company)))];
+  for (const coName of names) {
+    const co = companies.find((c) => str(c.name) === coName) || { name: coName };
+    const box = $("div", "co"); const head = $("div", "cohead");
+    head.appendChild($("span", "coname", coName || "Company"));
+    if (str(co.domain)) head.appendChild($("span", "dom", co.domain));
+    const f = arr(co.patterns)[0];
+    if (f) {
+      head.appendChild($("span", "pill neutral fmt", str(f.format) + "@ \xB7 " + Math.round((Number(f.confidence) || 0) * 100) + "%"));
+      const src = $("span", "src");
+      const label = str(f.source) || str(f.confidence_basis);
+      if (str(f.source_url).startsWith("http")) { const a = $("a", null, label || "source"); a.href = f.source_url; a.target = "_blank"; a.rel = "noopener"; src.appendChild(a); }
+      else src.textContent = label;
+      head.appendChild(src);
+    }
+    const cv = COVER[str(co.verification)]; if (cv) head.appendChild($("span", "pill " + cv[0], cv[1]));
+    box.appendChild(head);
+    for (const p of people.filter((x) => str(x.company) === coName)) {
+      const row = $("div", "row");
+      const left = $("div"); left.appendChild($("div", "who", name(p))); if (str(p.title)) left.appendChild($("div", "title", p.title));
+      row.appendChild(left);
+      const v = VERIFIED[str(p.verified)] || VERIFIED["not checked"]; row.appendChild($("span", "pill " + v[0], v[1]));
+      const em = $("div", "email"); const e = firstEmail(p);
+      if (e) {
+        em.appendChild($("span", "addr", e));
+        const b = $("button", "copy", "Copy"); b.onclick = () => copy(e, b); em.appendChild(b);
+        const rest = arr(p.emails).slice(1).map((x) => str(x.address)).filter(Boolean);
+        if (rest.length) em.appendChild($("span", "backup", "or " + rest.join(", ")));
+      } else em.appendChild($("span", "title", "No email" + (str(p.note) ? " \u2014 " + p.note : "")));
+      row.appendChild(em);
+      if (str(p.flag)) row.appendChild($("div", "note", "\u26A0 " + p.flag));
+      box.appendChild(row);
+    }
+    if (str(co.note) && !people.some((x) => str(x.company) === coName)) box.appendChild($("div", "row note", co.note));
+    wrap.appendChild(box);
+  }
+
+  const actions = $("div", "actions");
+  const all = $("button", "primary", "Copy all emails");
+  all.onclick = () => copy(people.map(firstEmail).filter(Boolean).join("\\n"), all);
+  const table = $("button", null, "Copy as table");
+  table.onclick = () => copy(["Name\\tTitle\\tCompany\\tEmail\\tVerified", ...people.map((p) => [name(p), str(p.title), str(p.company), firstEmail(p), str(p.verified)].join("\\t"))].join("\\n"), table);
+  actions.appendChild(all); actions.appendChild(table); wrap.appendChild(actions);
+  wrap.appendChild($("div", "foot", "Only \u2713 verified or \u2713 format proven were confirmed by a mailbox check. Others follow the company's sourced format."));
+}
+
+window.addEventListener("message", (event) => {
+  if (event.source !== window.parent) return;
+  const m = event.data; if (!m || m.jsonrpc !== "2.0") return;
+  if (m.method === "ui/notifications/tool-result") render(m.params && m.params.structuredContent);
+}, { passive: true });
+// Hosts that expose the result directly (ChatGPT compatibility alias).
+if (window.openai && window.openai.toolOutput) render(window.openai.toolOutput);
+`;
+var WIDGET_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono&display=swap" rel="stylesheet">
+<style>${CSS}</style></head><body><div id="root"><div class="wrap"><div class="empty">Loading results\u2026</div></div></div><script>${JS}</script></body></html>`;
+var WIDGET_META = {
+  ui: {
+    prefersBorder: true,
+    csp: { connectDomains: [], resourceDomains: ["https://fonts.googleapis.com", "https://fonts.gstatic.com"] }
+  }
+};
 
 // packages/mcp/src/tools.ts
 var INSTRUCTIONS = [
   "ContactFlow finds work email addresses for named people at companies, with the source of each company's email format.",
   "Read the user's paste yourself (LinkedIn results, team pages, notes) and pass structured names to find_emails, at most 3 companies per call; call it again (in parallel is fine) for more companies.",
   "Emails are built from each company's email format. Only verified 'yes' or 'format proven' means a mailbox check confirmed it; present everything else as likely, not confirmed, and never invent addresses.",
+  "When all find_emails calls are done, call show_results once with every person and company together to show the results table.",
   "Never pass linkedin.com URLs as domains. ContactFlow does not open LinkedIn or login-walled pages."
 ].join(" ");
 var str3 = (description) => ({ type: "string", description });
@@ -2467,7 +2604,7 @@ var READ_ONLY = { readOnlyHint: true, openWorldHint: true, destructiveHint: fals
 var findEmails = {
   name: "find_emails",
   title: "Find work emails",
-  description: `Find work email addresses for named people at up to ${MCP_LIMITS.companiesPerCall} companies per call (max ${MCP_LIMITS.peoplePerCall} people), or find the people in given roles at a company. Each person gets up to 3 ranked emails, the company's email format with its source, and whether a mailbox check confirmed it. Takes 10\u201360 seconds.`,
+  description: `Find work email addresses for named people at up to ${MCP_LIMITS.companiesPerCall} companies per call (max ${MCP_LIMITS.peoplePerCall} people), or find the people in given roles at a company. Each person gets up to 3 ranked emails, the company's email format with its source, and whether a mailbox check confirmed it (checks run by default). Takes 10\u201360 seconds. Afterwards, call show_results to show them.`,
   inputSchema: {
     type: "object",
     properties: {
@@ -2501,12 +2638,13 @@ var findEmails = {
         }
       },
       looking_for: str3('Optional: who the user wants, e.g. "partners, not clerks". Others are skipped before anything is spent.'),
-      verify: { type: "boolean", description: "Check one mailbox per company to prove its format (small extra cost). Only when the user asks for verified emails." },
+      verify: { type: "boolean", description: "Check one mailbox per company to prove its format. On by default; set false only if the user asks for no checks. Companies already proven are free." },
       include_guesses: { type: "boolean", description: "Also return common-format guesses with no source. Default false." }
     },
     additionalProperties: false
   },
   annotations: { ...READ_ONLY, title: "Find work emails" },
+  _meta: { "openai/toolInvocation/invoking": "Finding work emails\u2026", "openai/toolInvocation/invoked": "Found work emails" },
   async run(args, deps) {
     const people = Array.isArray(args.people) ? args.people : [];
     const companies = Array.isArray(args.companies) ? args.companies : [];
@@ -2520,7 +2658,7 @@ var findEmails = {
     });
     if (!parsed.ok) return err(`Invalid input: ${parsed.errors.join("; ")}`);
     const { extract, refs } = toExtract(parsed.value);
-    const ctx = deps.ctx({ verify: args.verify === true, roleFilter: parsed.value.options?.looking_for });
+    const ctx = deps.ctx({ verify: args.verify !== false, roleFilter: parsed.value.options?.looking_for });
     const result = await runPipeline(extract, ctx);
     const res = toEnrichResponse(result, parsed.value.options, refs);
     return ok(summarize(res), res);
@@ -2553,6 +2691,7 @@ var getEmailFormat = {
     additionalProperties: false
   },
   annotations: { ...READ_ONLY, title: "Get a company's email format" },
+  _meta: { "openai/toolInvocation/invoking": "Looking up the email format\u2026", "openai/toolInvocation/invoked": "Found the email format" },
   async run(args, deps) {
     const name = clip2(args.company);
     const given = clip2(args.domain);
@@ -2570,7 +2709,55 @@ var getEmailFormat = {
     return ok(`${label} (${co.domain}): ${data.formats.map((f) => `${f.format}@${co.domain} ${pct(f.confidence)} (${f.confidence_basis}${f.source ? `, ${f.source}` : ""})`).join(" \xB7 ")}.${mx}${unsure}`, data);
   }
 };
-var TOOLS2 = [findEmails, getEmailFormat];
+var SHOW_LIMIT = 200;
+var obj = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : {};
+var list = (v) => Array.isArray(v) ? v : [];
+function cleanResults(args) {
+  const s2 = (v, n = 200) => typeof v === "string" ? v.slice(0, n) : void 0;
+  const pattern = (p) => ({ format: s2(p?.format, 40), confidence: Number.isFinite(Number(p?.confidence)) ? Number(p.confidence) : void 0, confidence_basis: s2(p?.confidence_basis, 60), source: s2(p?.source, 60), source_url: s2(p?.source_url, 300)?.match(/^https?:\/\//) ? s2(p.source_url, 300) : void 0 });
+  const people = list(args.people).slice(0, SHOW_LIMIT).map((x) => {
+    const p = obj(x);
+    return {
+      first: s2(p.first),
+      middle: s2(p.middle),
+      last: s2(p.last),
+      title: s2(p.title),
+      company: s2(p.company) ?? "",
+      emails: list(p.emails).slice(0, 3).map((e) => ({ address: s2(obj(e).address, 120) })).filter((e) => e.address?.includes("@")),
+      verified: s2(p.verified, 40) ?? "not checked",
+      note: s2(p.note, 300),
+      flag: s2(p.flag, 200)
+    };
+  });
+  const companies = list(args.companies).slice(0, 50).map((x) => {
+    const c = obj(x);
+    return { name: s2(c.name) ?? "", domain: s2(c.domain, 120), patterns: list(c.patterns).slice(0, 1).map(pattern), verification: s2(c.verification, 60), note: s2(c.note, 300) };
+  });
+  return { people, companies };
+}
+var showResults = {
+  name: "show_results",
+  title: "Show email results",
+  description: "Show the ContactFlow results table to the user. Call find_emails first (as many times as needed), then call this once with all people and companies from those results, unchanged. Does no lookups.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      people: { type: "array", maxItems: SHOW_LIMIT, description: "The people arrays from find_emails, combined", items: { type: "object" } },
+      companies: { type: "array", maxItems: 50, description: "The companies arrays from find_emails, combined", items: { type: "object" } }
+    },
+    required: ["people"],
+    additionalProperties: false
+  },
+  annotations: { readOnlyHint: true, openWorldHint: false, destructiveHint: false, title: "Show email results" },
+  _meta: { ui: { resourceUri: WIDGET_URI }, "openai/outputTemplate": WIDGET_URI, "openai/toolInvocation/invoking": "Preparing your table\u2026", "openai/toolInvocation/invoked": "Here are your results" },
+  async run(args) {
+    const data = cleanResults(args);
+    const withEmail = data.people.filter((p) => p.emails.length).length;
+    return ok(`Showing ${data.people.length} people (${withEmail} with an email) in the ContactFlow table.`, data);
+  }
+};
+var TOOLS2 = [findEmails, getEmailFormat, showResults];
+var RESOURCES = [{ uri: WIDGET_URI, name: "ContactFlow results", mimeType: WIDGET_MIME, text: WIDGET_HTML, _meta: WIDGET_META }];
 
 // packages/mcp/src/http.ts
 var CORS = {
@@ -2627,7 +2814,7 @@ async function handleHttp(req, env2, deps = edgeDeps(env2)) {
   } catch {
     return json({ jsonrpc: "2.0", id: null, error: { code: RPC.parse, message: "invalid JSON" } }, 400);
   }
-  const out = await handleBody(body, TOOLS2, deps, INSTRUCTIONS);
+  const out = await handleBody(body, TOOLS2, deps, INSTRUCTIONS, RESOURCES);
   return out === void 0 ? new Response(null, { status: 202, headers: CORS }) : json(out);
 }
 

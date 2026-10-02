@@ -14,6 +14,10 @@ OAuth replaces that with the login later.
 |---|---|---|
 | `find_emails` | "Find emails for these people" (or "…for the partners at these firms"). Up to 3 companies / 25 people per call → up to 3 ranked emails each, the company's format with its source, and a `verified` label. `verify: true` checks one mailbox per company. | Same as the website (remembered formats are free) |
 | `get_email_format` | "What's the email format at Acme?" Company name and/or domain → up to 3 formats with sources. | One search, then remembered |
+| `show_results` | Shows the results as a ContactFlow table in the chat (MCP Apps view `ui://contactflow/results-v1.html`): company cards with format + source, verified pills, Copy / Copy all / Copy as table. ChatGPT calls it once after all `find_emails` calls. | Free, no lookups |
+
+Mailbox checks run by default in `find_emails` (`verify: false` turns them off): about $0.0025 per
+new company, and a proven format is remembered for everyone.
 
 Everything else runs underneath and stays invisible to ChatGPT: finding the domain, the evidence
 engine, the cache, website reading, the rescue step and mailbox checks. Not exposed, and not added

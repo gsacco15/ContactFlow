@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { Ctx, MailboxChecker } from "@cf/core";
 import { mockCtx, toolResponse } from "../../core/test/helpers.ts";
 import { handleHttp } from "../src/http.ts";
-import { TOOLS, type Deps } from "../src/tools.ts";
+import { TOOLS, cleanResults, type Deps } from "../src/tools.ts";
+import { WIDGET_MIME, WIDGET_URI } from "../src/widget.ts";
 // @ts-expect-error plain .mjs build script
 import { OUT, bundle } from "../../../scripts/build-mcp.mjs";
 
@@ -34,20 +35,38 @@ describe("MCP protocol", () => {
   const { deps } = setup({});
   const E = env({ CF_MCP_KEY: "secret" });
 
-  it("handshake: answers in the client's protocol version and lists the two goal tools", async () => {
+  it("handshake: answers in the client's protocol version and lists the goal tools and the results view", async () => {
     const init = await (await handleHttp(rpc({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } }), E, deps)).json();
     expect(init.result).toMatchObject({ protocolVersion: "2025-06-18", serverInfo: { name: "contactflow" }, capabilities: { tools: {} } });
     expect(init.result.instructions).toMatch(/never invent/);
     const list = await (await handleHttp(rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" }), E, deps)).json();
-    expect(list.result.tools.map((t: any) => t.name)).toEqual(["find_emails", "get_email_format"]);
+    expect(list.result.tools.map((t: any) => t.name)).toEqual(["find_emails", "get_email_format", "show_results"]);
     for (const t of list.result.tools) expect(t).toMatchObject({ inputSchema: { type: "object" }, annotations: { readOnlyHint: true } });
+  });
+
+  it("results view: show_results links the UI resource, which resources/read serves as an MCP App", async () => {
+    const init = await (await handleHttp(rpc({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }), E, deps)).json();
+    expect(init.result.capabilities.resources).toBeDefined();
+    const list = await (await handleHttp(rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" }), E, deps)).json();
+    const show = list.result.tools.find((t: any) => t.name === "show_results");
+    expect(show._meta).toMatchObject({ ui: { resourceUri: WIDGET_URI }, "openai/outputTemplate": WIDGET_URI });
+    // Data tools don't carry the template (the view renders once, from show_results).
+    expect(list.result.tools.find((t: any) => t.name === "find_emails")._meta.ui).toBeUndefined();
+    const res = await (await handleHttp(rpc({ jsonrpc: "2.0", id: 3, method: "resources/list" }), E, deps)).json();
+    expect(res.result.resources).toEqual([expect.objectContaining({ uri: WIDGET_URI, mimeType: WIDGET_MIME })]);
+    const read = await (await handleHttp(rpc({ jsonrpc: "2.0", id: 4, method: "resources/read", params: { uri: WIDGET_URI } }), E, deps)).json();
+    const html = read.result.contents[0];
+    expect(html).toMatchObject({ uri: WIDGET_URI, mimeType: "text/html;profile=mcp-app" });
+    expect(html.text).toContain("ui/notifications/tool-result");
+    expect(html.text).not.toMatch(/innerHTML/); // results are untrusted: text only
+    expect(html._meta.ui.csp.connectDomains).toEqual([]);
   });
 
   it("notifications get 202 with no body; batches; unknown methods are JSON-RPC errors", async () => {
     expect((await handleHttp(rpc({ jsonrpc: "2.0", method: "notifications/initialized" }), E, deps)).status).toBe(202);
     const batch = await (await handleHttp(rpc([{ jsonrpc: "2.0", id: 1, method: "ping" }, { jsonrpc: "2.0", method: "notifications/x" }]), E, deps)).json();
     expect(batch).toEqual([{ jsonrpc: "2.0", id: 1, result: {} }]);
-    const bad = await (await handleHttp(rpc({ jsonrpc: "2.0", id: 3, method: "resources/list" }), E, deps)).json();
+    const bad = await (await handleHttp(rpc({ jsonrpc: "2.0", id: 3, method: "prompts/list" }), E, deps)).json();
     expect(bad.error.code).toBe(-32601);
   });
 
@@ -80,6 +99,27 @@ describe("tools", () => {
     expect(seen[0].verify).toBe(true);
     expect(r.structuredContent.companies[0].verification).toBe("format proven");
     expect(r.structuredContent.people[0].verified).toBe("yes");
+  });
+
+  it("find_emails checks mailboxes by default; verify:false turns it off", async () => {
+    const { deps, seen } = setup({ discover_pattern: flast });
+    await call(deps, "find_emails", { people: [{ first: "Jane", last: "Doe", company: "Acme", domain: "acme.com" }] });
+    await call(deps, "find_emails", { people: [{ first: "Jane", last: "Doe", company: "Acme", domain: "acme.com" }], verify: false });
+    expect(seen.map((o) => o.verify)).toEqual([true, false]);
+  });
+
+  it("show_results keeps only displayable fields: no lookups, bad links and non-addresses dropped", async () => {
+    const { deps, calls } = setup({});
+    const r = await call(deps, "show_results", {
+      people: [{ first: "Jane", last: "Doe", company: "Acme", emails: [{ address: "jdoe@acme.com" }, { address: "<img src=x>" }], verified: "yes", extra: "x" }],
+      companies: [{ name: "Acme", domain: "acme.com", patterns: [{ format: "flast", confidence: 0.8, source: "RocketReach", source_url: "javascript:alert(1)" }], verification: "format proven" }],
+    });
+    expect(calls).toHaveLength(0);
+    expect(r.structuredContent.people[0]).toMatchObject({ first: "Jane", emails: [{ address: "jdoe@acme.com" }], verified: "yes" });
+    expect(r.structuredContent.people[0].extra).toBeUndefined();
+    expect(r.structuredContent.companies[0].patterns[0].source_url).toBeUndefined();
+    expect(r.content[0].text).toMatch(/Showing 1 people \(1 with an email\)/);
+    expect(cleanResults({}).people).toEqual([]);
   });
 
   it("find_emails: more than 3 companies is refused before anything is spent", async () => {
