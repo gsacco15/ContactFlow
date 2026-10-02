@@ -26,8 +26,10 @@ What we're building, in order. Updated as each item lands. `[x]` done · `[~]` i
    - [x] Evidence kinds, weights, half-life, scorer, "strong enough to skip the search" rule
    - [x] Pipeline hooks: `off` (now) · `shadow` (record, change nothing) · `on` (strong evidence skips the search) · `?evidence=shadow` to try in one browser
    - [x] Ready for verification, sending logs, benchmark outcomes and user corrections (builders exist)
-   - [ ] **Decide:** switch to `shadow` so it starts collecting (no visible change, a few extra database rows per new firm)
-5. [ ] **Verification button (switched off)** — Verify per row / all; checks 1–2 people per firm and re-ranks the rest; writes into the evidence engine. Stand-in provider until we pick one (MillionVerifier or ZeroBounce). Pro accounts later.
+   - [x] Each source counts once (no echo from re-searching the same page)
+   - [x] **Switched to `shadow`** — collecting from normal use, results unchanged
+   - [ ] Switch to `on` only after the benchmark shows strong verdicts are right (`pnpm bench --evidence on`)
+5. [~] **Verification button (switched off)** — Verify per row / all; checks 1–2 people per firm and re-ranks the rest; writes into the evidence engine. Stand-in provider until we pick one (MillionVerifier or ZeroBounce). Pro accounts later.
 6. [ ] **API → MCP → ChatGPT app** — `/v1/enrich` with API keys, MCP tools (`enrich_contacts`, `find_domain`, `get_format`, later `verify`), results widget inside ChatGPT.
 
 ## Later / ideas

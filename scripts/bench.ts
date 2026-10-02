@@ -3,12 +3,12 @@
 //   pnpm bench --mock                       free practice run on bench/sample.csv (fake AI answers)
 //   pnpm bench bench/data/sends.csv         real run against the deployed edge function (costs money)
 //
-// Options: --limit N · --budget USD (default 5) · --site on|shadow|off · --give-domain · --use-cache
+// Options: --limit N · --budget USD (default 5) · --site on|shadow|off · --evidence on|shadow|off · --give-domain · --use-cache
 // Answer keys hold real addresses: keep them in bench/data/ (git-ignored). Reports go to
 // bench/results/ — the .md is aggregates only; the .json has per-row detail for debugging.
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import {
-  ClaudeDecisions, DEFAULT_BUDGET, MxVerifier, estimateCost, formatReport, memoryCache, parseAnswerKey, parseEnrichRequest, runPipeline,
+  ClaudeDecisions, DEFAULT_BUDGET, MxVerifier, estimateCost, formatReport, memoryCache, memoryEvidence, parseAnswerKey, parseEnrichRequest, runPipeline,
   scoreBench, toBenchRequest, toEnrichResponse, toExtract, type BenchReport, type BenchRow, type Ctx, type DecisionProvider, type LlmRequest,
   type LlmResponse, type RunResult, type UsageEvent,
 } from "@cf/core";
@@ -21,7 +21,7 @@ const opt = (name: string) => {
   const i = argv.indexOf(`--${name}`);
   return i >= 0 ? argv[i + 1] : undefined;
 };
-const optArgs = new Set(["limit", "budget", "site", "out"].flatMap((n) => {
+const optArgs = new Set(["limit", "budget", "site", "evidence", "out"].flatMap((n) => {
   const i = argv.indexOf(`--${n}`);
   return i >= 0 ? [i, i + 1] : [];
 }));
@@ -32,6 +32,10 @@ const budget = Number(opt("budget") ?? 5);
 const site = opt("site") as "on" | "shadow" | "off" | undefined;
 const outDir = opt("out") ?? "bench/results";
 if (site && !["on", "shadow", "off"].includes(site)) throw new Error("--site must be on, shadow or off");
+// Default off in the benchmark so runs don't write into the shared evidence store; --evidence on
+// reads (and adds to) it, to test whether strong verdicts are right.
+const evidenceMode = (opt("evidence") ?? "off") as "on" | "shadow" | "off";
+if (!["on", "shadow", "off"].includes(evidenceMode)) throw new Error("--evidence must be on, shadow or off");
 
 // ── answer key ──
 const key = parseAnswerKey(readFileSync(file, "utf8"));
@@ -47,7 +51,7 @@ const onUsage = (u: UsageEvent) => usage.push(u);
 const spent = () => usage.reduce((n, u) => n + estimateCost(u), 0);
 let ctx: Ctx;
 if (mock) {
-  ctx = { llm: mockLlm, cache: memoryCache(), decisions: noDecisions(), budget: { ...DEFAULT_BUDGET }, options: { siteMode: site }, onUsage };
+  ctx = { llm: mockLlm, cache: memoryCache(), decisions: noDecisions(), evidence: memoryEvidence(), budget: { ...DEFAULT_BUDGET }, options: { siteMode: site, evidenceMode }, onUsage };
 } else {
   const url = process.env.CF_EDGE_URL ?? process.env.VITE_EDGE_URL;
   if (!url) throw new Error("Set CF_EDGE_URL to the deployed pipeline function URL (or use --mock)");
@@ -60,8 +64,9 @@ if (mock) {
     decisions: new ClaudeDecisions({ llm, onUsage }),
     verifier: new MxVerifier(client.mx),
     site: client.site,
+    evidence: client.evidence,
     budget: { ...DEFAULT_BUDGET },
-    options: { siteMode: site },
+    options: { siteMode: site, evidenceMode },
     onUsage,
   };
 }
@@ -101,6 +106,7 @@ console.log("\n");
 // ── score + report ──
 const settings: Record<string, string> = {};
 if (site) settings.site = site;
+if (evidenceMode !== "off") settings.evidence = evidenceMode;
 if (flag("give-domain")) settings.domains = "given";
 if (flag("use-cache")) settings.cache = "shared";
 const response = toEnrichResponse(merged, { include_guesses: true, max_emails: 3 }, refs);

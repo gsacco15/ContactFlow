@@ -117,7 +117,7 @@ export const API_LIMITS = { people: 200, companies: 50, textChars: 50_000, field
  * Evidence engine. "off": nothing recorded or read. "shadow": record evidence from every lookup,
  * change nothing. "on": strong evidence for a domain skips the paid format search.
  */
-export const EVIDENCE_MODE: "off" | "shadow" | "on" = "off";
+export const EVIDENCE_MODE: "off" | "shadow" | "on" = "shadow";
 /** How much one piece of evidence counts. Explicit weights, not calibrated probabilities — the
  * benchmark is what tunes them. Contradicting kinds subtract. */
 export const EVIDENCE_WEIGHTS = {

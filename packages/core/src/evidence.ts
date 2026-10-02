@@ -133,8 +133,21 @@ export function scoreEvidence(domain: string, rows: Evidence[], at = Date.now())
   const catch_all = mine.some((r) => r.kind === "verifier_catchall" && decay(r.observed_at, at) > 0.5);
   const mxRow = mine.find((r) => r.kind === "mx_ok" || r.kind === "mx_none");
 
+  // Each source counts once: the same page seen on every re-search is one fact, not many
+  // (rows are newest first, so the newest sighting is kept). Events without a source —
+  // a mailbox check, a delivery — are separate observations and all count.
+  const seen = new Set<string>();
+  const counted = mine.filter((r) => {
+    const src = r.source_url ?? r.source_name;
+    if (!src) return true;
+    const key = `${r.kind}|${r.template}|${src}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
   const by = new Map<Template, TemplateScore & { bestSource: number }>();
-  for (const r of mine) {
+  for (const r of counted) {
     if (!r.template || r.outcome === "neutral") continue;
     // On a catch-all domain a delivery or "valid" check says nothing about the format.
     if (catch_all && (r.kind === "delivered" || r.kind === "verifier_valid")) continue;

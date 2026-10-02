@@ -21,6 +21,16 @@ describe("scoreEvidence", () => {
     expect(patternFromEvidence(v)).toMatchObject({ template: "{f}{last}", from_evidence: true, source_url: "https://acme.com/team" });
   });
 
+  it("the same source seen on every re-search counts once (no echo)", () => {
+    const rr = (daysAgo: number) => ev("search_stated", "{f}{last}", { strength: 0.95, source_url: "https://rocketreach.co/acme", observed_at: at(daysAgo) });
+    const v = scoreEvidence("acme.com", [rr(0), rr(30), rr(60), rr(90), rr(120)], NOW);
+    expect(v.best?.score).toBeCloseTo(0.4 * 0.95); // newest only
+    expect(v.strong).toBe(false);
+    // …but separate events without a source (two mailbox checks) both count
+    const two = scoreEvidence("acme.com", [ev("verifier_valid", "{f}{last}"), ev("verifier_valid", "{f}{last}")], NOW);
+    expect(two.best?.score).toBeCloseTo(2);
+  });
+
   it("one search snippet alone is not strong", () => {
     const v = scoreEvidence("acme.com", [ev("search_stated", "{first}.{last}", { strength: 1 })], NOW);
     expect(v.strong).toBe(false);
@@ -97,9 +107,10 @@ describe("in the pipeline", () => {
   const extract = toolResponse("extract_contacts", { mode: "people", companies: [{ name: "Acme", website: "acme.com" }], people: [{ first: "Jane", last: "Doe", company: "Acme" }], urls: [], notes: "" });
   const search = toolResponse("report_patterns", { patterns: [{ template: "{first}.{last}", confidence: 0.8, source_url: "https://rocketreach.co/acme", stated: true }] });
 
-  it("off (default): nothing recorded, nothing read", async () => {
+  it("off: nothing recorded, nothing read", async () => {
     const store = memoryEvidence();
     const { ctx } = mockCtx({ classify_extract: extract, discover_pattern: search }, { evidence: store });
+    ctx.options = { evidenceMode: "off" };
     await runPipeline("x", ctx);
     expect(store.rows).toEqual([]);
   });

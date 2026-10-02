@@ -63,8 +63,9 @@ more rows of the same kind.
   `?evidence=shadow` in the URL tries it in one browser.
 
 **Turning it on.**
-1. Set `EVIDENCE_MODE = "shadow"` → evidence accumulates from normal use (no behaviour change).
-2. After a few weeks, check `cf_domain_evidence` and run the benchmark with and without it.
+1. ✓ `EVIDENCE_MODE = "shadow"` (since Oct 2026) → evidence accumulates from normal use (no
+   behaviour change). Each source counts once in scoring, so re-searching a firm can't inflate it.
+2. After a few weeks, check `cf_domain_evidence` and run `pnpm bench` with and without `--evidence on`.
 3. If strong verdicts are right as often as the benchmark says they should be → `"on"`.
 4. Tune `EVIDENCE_WEIGHTS` from benchmark results (e.g. if RocketReach-stated formats are right
    70% of the time, lower `search_stated`).
