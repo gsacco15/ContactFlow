@@ -282,6 +282,7 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
             </Pill>
           )}
           <PatternInfo top={top} pattern={pattern} co={co} />
+          {co?.verify_unclear && <Unclear />}
           <Why text={[co?.pattern_conflict && `sources disagree: ${co.pattern_conflict}`, c.note, co?.rescue_note, c.error].filter(Boolean).join(" · ")} />
           {(c.status === "skipped" || (failed && co)) && (
             <div className="flex gap-1">
@@ -316,6 +317,7 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
         )}
         <PatternInfo top={top} pattern={pattern} co={co} />
         {co?.pattern_conflict && <div className="mt-1 text-xs text-amber-700">⚠ sources disagree: {co.pattern_conflict}</div>}
+        {co?.verify_unclear && <div className="mt-1"><Unclear /></div>}
         {c.note && <div className="mt-1 max-w-56 text-xs text-stone-500">{c.note}</div>}
         {co?.rescue_note && <div className="mt-1 max-w-56 text-xs text-stone-500" title={co.rescue_note}>{c.rescued ? "rescued: " : ""}{co.rescue_note}</div>}
       </td>
@@ -408,6 +410,15 @@ function Why({ text }: { text: string }) {
 function shortTime(iso: string) {
   const d = new Date(iso);
   return d.toDateString() === new Date().toDateString() ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+/** Verification ran but the firm's mail server wouldn't say which addresses exist. */
+function Unclear() {
+  return (
+    <Pill tone="stone" title="A mailbox check ran, but this company's mail server doesn't reveal which addresses exist (common at large companies). The email is still built from the sourced format.">
+      ? check unclear
+    </Pill>
+  );
 }
 
 /** Checks made by the stand-in (no provider key yet): fake answers, shown greyed out. */

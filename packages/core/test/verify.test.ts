@@ -70,6 +70,14 @@ describe("verification", () => {
     expect(res.contacts.find((c) => c.first === "Priya")!.candidates.every((x) => x.verify_status === "invalid")).toBe(true);
   });
 
+  it("no clear answer (server hides mailboxes): the firm is flagged as unclear, emails unchanged", async () => {
+    const box: MailboxChecker = { name: "test", real: true, check: async (emails) => Object.fromEntries(emails.map((e) => [e, "unverified" as const])) };
+    const res = await runPipeline("x", setup({ discover_pattern: firstLast }, box, "auto").ctx);
+    expect(res.companies[0].verify_unclear).toBe(true);
+    expect(res.companies[0].format_verified).toBeUndefined();
+    expect(res.contacts.find((c) => c.first === "Jo")!.primary_email).toBe("jo.li@acme.com");
+  });
+
   it("catch-all: one check, then every row is marked accept-all", async () => {
     const box = mailbox({ "priya.natarajan@acme.com": "catch_all" });
     const res = await runPipeline("x", setup({ discover_pattern: firstLast }, box, "auto").ctx);

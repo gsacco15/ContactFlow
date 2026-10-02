@@ -48,6 +48,7 @@ export type Company = {
   format_verified?: Template; // a mailbox check proved this format at this company
   catch_all?: boolean; // the mail server accepts any address: checks can't prove a format here
   verified_by?: string; // who checked: a provider name, "demo"/"mock" (fake answers) or "earlier check"
+  verify_unclear?: boolean; // checks ran but the server gave no clear answer (it hides which addresses exist)
 };
 
 export type VerifyStatus = "valid" | "risky" | "invalid" | "catch_all" | "unverified";
