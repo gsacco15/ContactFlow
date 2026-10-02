@@ -1,3 +1,4 @@
+import { THIRD_PARTY_MAX_CONFIDENCE } from "./config.ts";
 import { TEMPLATES } from "./schemas.ts";
 import type { Pattern, Template } from "./types.ts";
 
@@ -55,6 +56,36 @@ export function cleanUrl(u: unknown): string | undefined {
  * keep evidence at the domain, dedupe by template, sort, cap at 3.
  */
 export function validatePatterns(raw: unknown, domain?: string): Pattern[] {
+  return validateRaw(raw, domain).map((p) => capThirdParty(p, domain));
+}
+
+/** Short display name for where a format came from ("RocketReach", "their site", "acme.com"). */
+export function sourceName(url: string | undefined, domain?: string): string | undefined {
+  if (!url) return undefined;
+  let host: string;
+  try {
+    host = new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return undefined;
+  }
+  if (domain && (host === domain || host.endsWith(`.${domain}`))) return "their site";
+  const known: Record<string, string> = {
+    "rocketreach.co": "RocketReach", "contactout.com": "ContactOut", "signalhire.com": "SignalHire", "hunter.io": "Hunter",
+    "leadiq.com": "LeadIQ", "apollo.io": "Apollo", "zoominfo.com": "ZoomInfo", "lusha.com": "Lusha", "clearbit.com": "Clearbit",
+    "snov.io": "Snov.io", "voilanorbert.com": "VoilaNorbert", "emailformat.com": "EmailFormat", "prospeo.io": "Prospeo",
+  };
+  for (const [h, n] of Object.entries(known)) if (host === h || host.endsWith(`.${h}`)) return n;
+  return host;
+}
+
+/** Third-party sources never exceed THIRD_PARTY_MAX_CONFIDENCE; the firm's own site, the paste and the site reader can. */
+export function capThirdParty(p: Pattern, domain?: string): Pattern {
+  if (p.from_paste || p.from_site || p.confidence <= THIRD_PARTY_MAX_CONFIDENCE) return p;
+  if (sourceName(p.source_url, domain) === "their site") return p;
+  return { ...p, confidence: THIRD_PARTY_MAX_CONFIDENCE };
+}
+
+function validateRaw(raw: unknown, domain?: string): Pattern[] {
   if (!Array.isArray(raw)) return [];
   const byTemplate = new Map<string, Pattern>();
   for (const p of raw) {

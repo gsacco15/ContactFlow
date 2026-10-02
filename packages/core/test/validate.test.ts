@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isAggregatorDomain, isBlockedUrl, normalizeDomain, validatePatterns } from "../src/index.ts";
+import { isAggregatorDomain, isBlockedUrl, normalizeDomain, validatePatterns, sourceName } from "../src/index.ts";
 
 describe("normalizeDomain", () => {
   it.each([
@@ -41,10 +41,28 @@ describe("validatePatterns", () => {
       "acme.com",
     );
     expect(out).toEqual([
-      { template: "{first}.{last}", confidence: 1, source_url: "https://rocketreach.co/x" },
+      { template: "{first}.{last}", confidence: 0.95, source_url: "https://rocketreach.co/x" }, // clamped to 1, then the third-party cap
       { template: "{first}", confidence: 0.3 },
       { template: "{f}{last}", confidence: 0.2, evidence: ["jdoe@acme.com"] },
     ]);
   });
   it("non-arrays give []", () => expect(validatePatterns("first.last")).toEqual([]));
+});
+
+describe("third-party confidence cap", () => {
+  it("RocketReach's 100% shows as 95%; the firm's own site keeps 100%", () => {
+    const [rr] = validatePatterns([{ template: "{f}{last}", confidence: 1, source_url: "https://rocketreach.co/acme-email-format", stated: true }], "acme.com");
+    expect(rr.confidence).toBe(0.95);
+    const [own] = validatePatterns([{ template: "{f}{last}", confidence: 1, source_url: "https://www.acme.com/team" }], "acme.com");
+    expect(own.confidence).toBe(1);
+    expect(validatePatterns([{ template: "{first}", confidence: 0.86, source_url: "https://rocketreach.co/x" }], "acme.com")[0].confidence).toBe(0.86);
+  });
+
+  it("names the source", () => {
+    expect(sourceName("https://rocketreach.co/x", "acme.com")).toBe("RocketReach");
+    expect(sourceName("https://www.contactout.com/x", "acme.com")).toBe("ContactOut");
+    expect(sourceName("https://acme.com/team", "acme.com")).toBe("their site");
+    expect(sourceName("https://blog.example.org/post", "acme.com")).toBe("blog.example.org");
+    expect(sourceName(undefined)).toBeUndefined();
+  });
 });

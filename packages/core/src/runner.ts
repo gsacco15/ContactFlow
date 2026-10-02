@@ -6,7 +6,7 @@ import { findPeople } from "./stages/findPeople.ts";
 import { callLlm, findCall } from "./stages/util.ts";
 import { generateCandidates } from "./candidates.ts";
 import { normalizeName, slug } from "./normalize.ts";
-import { cleanUrl, isAggregatorDomain, isBlockedUrl, normalizeDomain, validatePatterns } from "./validate.ts";
+import { capThirdParty, cleanUrl, isAggregatorDomain, isBlockedUrl, normalizeDomain, validatePatterns } from "./validate.ts";
 import { pMap } from "./pmap.ts";
 import { LOW_DOMAIN_CONFIDENCE, NO_FORMAT_CACHE_DAYS, SITE_READ_MODE } from "./config.ts";
 import { siteFormat } from "./site.ts";
@@ -200,7 +200,7 @@ export async function enrichCompany(co: Company, ctx: Ctx, people: Contact[] = [
       shadowed.add(domain);
       void fromSite().then((site) => logShadow(site, cached.patterns[0]));
     }
-    co.patterns = cached.patterns;
+    co.patterns = cached.patterns.map((p) => capThirdParty(p, domain)); // remembered before the cap existed
     co.mx_ok = cached.mx_ok;
     co.fetched_at = cached.fetched_at;
     return;

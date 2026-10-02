@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { patternLabel, visibleCandidates, type Candidate, type Company, type Contact } from "@cf/core";
+import { patternLabel, sourceName, visibleCandidates, type Candidate, type Company, type Contact } from "@cf/core";
 import { FitBadge } from "./FitBadge.tsx";
 import { LOW_DOMAIN_CONFIDENCE } from "../config.ts";
 import type { Pipeline } from "../usePipeline.ts";
@@ -288,6 +288,10 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
                 ) : pattern.from_site ? (
                   <a href={pattern.source_url} target="_blank" rel="noreferrer noopener" title={`Real addresses on the company's own website: ${(pattern.evidence ?? []).join(", ")}`}>
                     <Pill tone="green">from their site</Pill>
+                  </a>
+                ) : sourceName(pattern.source_url, co?.domain) ? (
+                  <a href={pattern.source_url} target="_blank" rel="noreferrer noopener" title="Where the format was read from" className="text-xs text-stone-500 underline decoration-stone-300 underline-offset-2 hover:text-stone-900">
+                    {sourceName(pattern.source_url, co?.domain)} ↗
                   </a>
                 ) : (
                   <LinkIcon href={pattern.source_url} title="Where the format was read from" />

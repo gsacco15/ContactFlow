@@ -66,6 +66,9 @@ export const SITE_READ_MODE: "off" | "shadow" | "on" = "shadow";
 /** Pages read per company, and the confidence a site-proven format gets (1 name-matched address / 2+ agreeing). */
 export const SITE_MAX_PAGES = 6;
 export const SITE_CONFIDENCE = { single: 0.85, multiple: 0.95 };
+/** Highest confidence a third-party page (RocketReach, ContactOut…) can give a format. Their "100%"
+ * often rests on 2–3 addresses; only the firm's own site, the paste or verification go higher. */
+export const THIRD_PARTY_MAX_CONFIDENCE = 0.95;
 
 /** Days a "searched, no format found" result is remembered (so repeats don't pay again). */
 export const NO_FORMAT_CACHE_DAYS = 7;
