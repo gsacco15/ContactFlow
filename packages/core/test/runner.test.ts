@@ -233,6 +233,37 @@ describe("runPipeline", () => {
     expect(JSON.stringify(calls)).not.toContain("linkedin.com/company");
   });
 
+  describe("people found on the company site", () => {
+    const zuber = () =>
+      mockCtx({
+        classify_extract: toolResponse("extract_contacts", { mode: "companies", companies: [{ name: "Zuber Lawler", website: "zuberlawler.com" }], people: [], urls: [], notes: "" }),
+        discover_pattern: firstLast(),
+        find_people: toolResponse("extract_contacts", {
+          mode: "people",
+          companies: [],
+          people: [{ first: "Tom", last: "Zuber", title: "Managing Partner" }, { first: "Giorgia", last: "Giordani", title: "Law Clerk" }],
+          urls: [],
+          notes: "",
+        }),
+      });
+
+    it("are judged, not keyword-matched, against Looking for", async () => {
+      const { ctx } = zuber();
+      ctx.options = { roleFilter: "legal people" };
+      ctx.decisions = { ...ctx.decisions, name: "jev", scoreMany: async (items) => items.map((t) => ({ p: /Clerk/.test(t) ? 0.1 : 0.9 })) };
+      const res = await runPipeline("Zuber Lawler zuberlawler.com", ctx);
+      expect(res.contacts.map((c) => [c.last, c.status])).toEqual([["Zuber", "ok"], ["Giordani", "skipped"]]);
+    });
+
+    it("are kept when the judge is unavailable", async () => {
+      const { ctx } = zuber();
+      ctx.options = { roleFilter: "legal people" };
+      ctx.decisions = { ...ctx.decisions, scoreMany: async () => { throw new Error("down"); } };
+      const res = await runPipeline("Zuber Lawler zuberlawler.com", ctx);
+      expect(res.contacts.map((c) => c.status)).toEqual(["ok", "ok"]);
+    });
+  });
+
   it("rerunCompany bypasses the cache", async () => {
     const { ctx, calls } = mockCtx({
       resolve_domain: toolResponse("report_domain", { domain: "xco.com", confidence: 1, source_url: null, alternatives: [] }),

@@ -81,7 +81,7 @@ export async function runPipeline(input: string | ExtractResult, ctx: Ctx, hooks
 
     if (!own.length && roleFilter && co.domain && co.mx_ok !== false) {
       const found = await findPeople(co, roleFilter, ctx);
-      if (found.ok && found.data) own.push(...found.data.people.slice(0, Math.max(0, ctx.budget.maxContacts - contacts.length)));
+      if (found.ok && found.data) own.push(...(await judgeFound(found.data.people.slice(0, Math.max(0, ctx.budget.maxContacts - contacts.length)), co, ctx)));
       else if (!found.ok) co.error = `find_people: ${found.error}`;
     }
 
@@ -269,6 +269,21 @@ function isActive(c: Contact, ctx: Ctx): boolean {
   if (c.flag) return false;
   if (ctx.options?.skipIrrelevant === false) return !c.drop;
   return relevance(c, ctx.options?.roleFilter) !== false;
+}
+
+/**
+ * People we looked up ourselves were searched for "Looking for", so judge them like pasted people
+ * (a team page lists everyone) — and if the judge is unavailable, keep them rather than fall back
+ * to keyword matching, which would drop people the search just found for that very description.
+ */
+async function judgeFound(found: Contact[], co: Company, ctx: Ctx): Promise<Contact[]> {
+  const want = ctx.options?.roleFilter?.trim();
+  if (!want || !found.length) return found;
+  await judgeFit(found, want, ctx.decisions, () => co.name).catch(() => {});
+  for (const c of found) {
+    if (c.fit?.for !== want) c.fit = { p: 1, tier: "yes", by: "search", for: want, reason: "found by searching for this" };
+  }
+  return found;
 }
 
 function markSkipped(c: Contact, ctx?: Ctx): Contact {
@@ -460,7 +475,7 @@ export async function rerunCompany(co: Company, contacts: Contact[], ctx: Ctx, h
   const roleFilter = ctx.options?.roleFilter?.trim() || co.role_hint;
   if (!contacts.length && roleFilter && co.domain && co.mx_ok !== false) {
     const found = await findPeople(co, roleFilter, fresh);
-    if (found.ok && found.data) contacts.push(...found.data.people);
+    if (found.ok && found.data) contacts.push(...(await judgeFound(found.data.people, co, ctx)));
     else if (!found.ok) co.error = `find_people: ${found.error}`;
     hooks.onCompany?.(co);
   }

@@ -11,9 +11,9 @@ export function FitBadge({ c, want, onChange }: { c: Contact; want: string; onCh
   const override = c.keep ? "kept by you" : c.drop ? "dropped by you" : "";
   const icon = verdict === false ? "✗" : judged?.tier === "maybe" && !c.keep ? "?" : verdict === true ? "✓" : "?";
   const tone = icon === "✓" ? "text-emerald-700 bg-emerald-50" : icon === "✗" ? "text-stone-500 bg-stone-100" : "text-amber-700 bg-amber-50";
-  const pct = judged ? `${Math.round(judged.p * 100)}%` : "";
+  const pct = judged && judged.by !== "search" ? `${Math.round(judged.p * 100)}%` : "";
   const title = [
-    judged ? `${judged.by === "jev" ? "Jev" : "Claude"}: ${pct} relevant${judged.reason ? ` — ${judged.reason}` : ""}` : verdict === undefined ? "Not judged (no title, or judge unavailable) — kept" : "Keyword match",
+    judged?.by === "search" ? "Found by searching for “Looking for” — kept" : judged ? `${judged.by === "jev" ? "Jev" : "Claude"}: ${pct} relevant${judged.reason ? ` — ${judged.reason}` : ""}` : verdict === undefined ? "Not judged (no title, or judge unavailable) — kept" : "Keyword match",
     override,
     onChange ? "Click to change: keep → drop → automatic" : "",
   ]
