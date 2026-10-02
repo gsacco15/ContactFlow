@@ -9,13 +9,25 @@ export function Input({ p }: { p: Pipeline }) {
 
   return (
     <section className="space-y-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm" aria-label="Input">
+      <div className="relative">
       <textarea
         value={state.input}
         onChange={(e) => dispatch({ type: "input", input: e.target.value })}
         placeholder="Paste names, companies, team pages, LinkedIn results, URLs — anything."
         aria-label="Paste input"
-        className="h-44 w-full resize-y rounded-lg border border-stone-200 bg-stone-50/60 p-3 font-mono text-[13px] leading-relaxed placeholder:font-sans placeholder:text-stone-400 outline-none transition focus:border-stone-400 focus:bg-white focus:ring-4 focus:ring-stone-100"
+        className="h-44 w-full resize-y rounded-lg border border-stone-200 bg-stone-50/60 p-3 pr-16 font-mono text-[13px] leading-relaxed placeholder:font-sans placeholder:text-stone-400 outline-none transition focus:border-stone-400 focus:bg-white focus:ring-4 focus:ring-stone-100"
       />
+      {state.input && !busy && (
+        <button
+          type="button"
+          onClick={() => dispatch({ type: "input", input: "" })}
+          title="Empties the paste box. Your list below stays."
+          className="absolute top-2 right-2 rounded-md bg-white/80 px-2 py-0.5 text-xs text-stone-500 shadow-sm ring-1 ring-stone-200 hover:text-stone-900"
+        >
+          Clear
+        </button>
+      )}
+      </div>
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex min-w-72 flex-1 items-center gap-2 text-sm">
           <span className="whitespace-nowrap font-medium text-stone-700">Looking for</span>
@@ -67,9 +79,9 @@ export function Input({ p }: { p: Pipeline }) {
           </Button>
         )}
         <select
-          className="ml-auto hidden rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm text-stone-600 hover:border-stone-300 sm:block"
+          className="ml-auto min-w-0 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm text-stone-600 hover:border-stone-300"
           value=""
-          aria-label="Load a sample"
+          aria-label="Load an example"
           onChange={(e) => {
             const s = SAMPLES[Number(e.target.value)];
             if (!s) return;
@@ -77,16 +89,13 @@ export function Input({ p }: { p: Pipeline }) {
             dispatch({ type: "role", roleFilter: s.roles ?? "" });
           }}
         >
-          <option value="">Try a sample…</option>
+          <option value="">Examples…</option>
           {SAMPLES.map((s, i) => (
             <option key={s.label} value={i}>
               {s.label}
             </option>
           ))}
         </select>
-        <Button variant="ghost" className="ml-auto sm:ml-0" onClick={() => dispatch({ type: "input", input: "" })} disabled={busy || !state.input} title="Empties the paste box. Your list below stays.">
-          Clear
-        </Button>
       </div>
     </section>
   );
