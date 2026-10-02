@@ -1,5 +1,4 @@
 import { FIT_THRESHOLDS, LOW_DOMAIN_CONFIDENCE, MIN_SOURCED_CONFIDENCE } from "@cf/core";
-import { BUDGET } from "../config.ts";
 import { FlowDiagram } from "./FlowDiagram.tsx";
 
 type Step = { title: string; body: string; tag?: string };
@@ -46,41 +45,34 @@ export function HowItWorks({ onBack }: { onBack: () => void }) {
       </div>
 
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-stone-500">The flow</h3>
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-stone-500">At a glance</h3>
         <ol className="flex flex-wrap gap-2 lg:flex-nowrap">
           {FLOW.flatMap((s, i) => [i > 0 && <Arrow key={`a${i}`} />, <Box key={s.title} s={s} n={i + 1} />])}
         </ol>
-        <div className="flex flex-wrap gap-2 lg:flex-nowrap">
-          <div className="flex-1 rounded-xl border border-dashed border-amber-300 bg-amber-50/60 p-3 text-xs leading-relaxed text-amber-900">
-            <span className="font-semibold">If a row fails</span> (no domain, no sourced format): a rescue agent tries once per company — a different domain, the firm’s own site,
-            another source — in at most {BUDGET.maxRescueCalls} steps, then gives up with a reason.
-          </div>
-          <div className="flex-1 rounded-xl border border-dashed border-stone-300 bg-white p-3 text-xs leading-relaxed text-stone-600">
-            <span className="font-semibold text-stone-800">No names in your paste?</span> With “Looking for” filled in, it reads the company’s public team page to find people.
-            Costs more (≈ $0.10–0.50 per company). It never opens LinkedIn.
-          </div>
-        </div>
       </section>
 
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-stone-500">Step by step, with every branch</h3>
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-stone-500">Every branch</h3>
         <FlowDiagram />
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="space-y-3">
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-stone-500">Good to know</h3>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {[
           ["Sourced vs. backup", `An email is “sourced” when a page states the company’s format with at least ${pct(MIN_SOURCED_CONFIDENCE)} confidence, or it came from your paste. Anything else is a backup guess — hidden and left out of exports unless you include them.`],
           ["≈ 72% vs. 72%", "A plain percentage was stated by the source. ≈ means we estimated it from what the search found. Hover any pill for its source."],
           ["Domains", `If we’re less than ${pct(LOW_DOMAIN_CONFIDENCE)} sure a domain is the company’s, no emails are made for it — a wrong domain is worse than none.`],
           ["Looking for", `Plain words work for any industry (“partners, firm admins; not paralegals”). ✓ ${pct(FIT_THRESHOLDS.yes)}+ relevant, ✗ under ${pct(FIT_THRESHOLDS.no)}, ? in between. Click a badge to keep or drop someone.`],
           ["Your list", "Every run becomes a search card. Tick cards to show or hide them, rename them, and export whatever is ticked. People found twice appear once and aren’t looked up again."],
-          ["Cost & privacy", "Shown live at the bottom. Email formats are cached for 30 days so repeat companies are nearly free. Names stay in your browser; only formats are stored on the server."],
+          ["Cost & privacy", "Shown live at the bottom. A company with names pasted costs a few cents; finding people on its site costs more (≈ $0.10–0.50). Email formats are cached for 30 days so repeat companies are nearly free. Names stay in your browser; only formats are stored on the server."],
         ].map(([t, b]) => (
           <div key={t} className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
             <h4 className="mb-1 font-semibold">{t}</h4>
             <p className="text-sm leading-relaxed text-stone-600">{b}</p>
           </div>
         ))}
+        </div>
       </section>
 
       <p className="text-xs text-stone-500">
