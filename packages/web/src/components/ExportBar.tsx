@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toCsv, toTable, toTsv } from "@cf/core";
 import type { Pipeline } from "../usePipeline.ts";
 import { searchNames, tableRows } from "../state.ts";
@@ -12,6 +12,23 @@ export function ExportBar({ p }: { p: Pipeline }) {
   const { state } = p;
   const [copied, setCopied] = useState(false);
   const [showSession, setShowSession] = useState(false);
+  const [tapped, setTapped] = useState(false);
+  const [peek, setPeek] = useState(false);
+  // Phones: every 8 s, show the session total for ~2.5 s (a colour change, no flashing), until the user taps.
+  useEffect(() => {
+    if (tapped || !state.usage.cost) return;
+    let off: ReturnType<typeof setTimeout> | undefined;
+    const t = setInterval(() => {
+      setPeek(true);
+      off = setTimeout(() => setPeek(false), 2500);
+    }, 8000);
+    return () => {
+      clearInterval(t);
+      if (off) clearTimeout(off);
+      setPeek(false);
+    };
+  }, [tapped, !!state.usage.cost]);
+  const session = showSession || peek;
   const { filters } = state;
   // Export exactly what the table shows: ticked searches, same filters, guesses only when switched on.
   const contacts = tableRows(state).filter((c) => c.status !== "pending");
@@ -44,15 +61,21 @@ export function ExportBar({ p }: { p: Pipeline }) {
         <PushMenu table={() => toTable(contacts, state.companies, opts)} disabled={!contacts.length} />
         <button
           type="button"
-          onClick={() => setShowSession(!showSession)}
+          onClick={() => {
+            setTapped(true);
+            setPeek(false);
+            setShowSession(!session);
+          }}
           className="ml-auto rounded-md px-1.5 py-1 text-right font-mono text-xs leading-tight text-stone-600 active:bg-stone-100 sm:hidden"
           title="Tap to switch between this paste and the whole session"
           data-testid="cost-mobile"
         >
-          <span className="block text-[10px]" style={showSession ? { color: ACCENT } : { color: "#a8a29e" }}>
-            {showSession ? "session" : "this paste"}
+          <span className="block text-[10px] transition-colors duration-700" style={{ color: session ? ACCENT : "#a8a29e" }}>
+            {session ? "session" : "this paste"}
           </span>
-          <span style={showSession ? { color: ACCENT, fontWeight: 600 } : undefined}>≈ ${(showSession ? state.usage.cost : state.pasteUsage?.cost ?? 0).toFixed(2)}</span>
+          <span className="transition-colors duration-700" style={{ color: session ? ACCENT : undefined, fontWeight: session ? 600 : undefined }}>
+            ≈ ${(session ? state.usage.cost : state.pasteUsage?.cost ?? 0).toFixed(2)}
+          </span>
         </button>
         <span className="ml-auto hidden font-mono text-xs text-stone-600 sm:inline" title="Estimated from list prices. “This paste” resets when you paste something new; “session” resets on Clear." data-testid="cost">
           <span title={`This paste: ${state.pasteUsage?.searches ?? 0} searches, ${fmtTokens(state.pasteUsage?.tokens ?? 0)} tokens`}>
