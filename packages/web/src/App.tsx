@@ -7,14 +7,18 @@ import { ExportBar } from "./components/ExportBar.tsx";
 import { Banner } from "./components/ui.tsx";
 import { HowItWorks } from "./components/HowItWorks.tsx";
 import { Logo } from "./components/Logo.tsx";
+import { Privacy, SUPPORT_EMAIL, Terms } from "./components/Legal.tsx";
+
+type Page = "app" | "how" | "privacy" | "terms";
+const PAGES: Page[] = ["how", "privacy", "terms"];
 
 export default function App() {
   const p = usePipeline();
   const { state } = p;
-  const [page, setPage] = useState<"app" | "how">(() => (location.hash === "#how" ? "how" : "app"));
-  const go = (to: "app" | "how") => {
+  const [page, setPage] = useState<Page>(() => PAGES.find((x) => location.hash === `#${x}`) ?? "app");
+  const go = (to: Page) => {
     setPage(to);
-    history.replaceState(null, "", to === "how" ? "#how" : location.pathname);
+    history.replaceState(null, "", to === "app" ? location.pathname : `#${to}`);
     scrollTo(0, 0);
   };
 
@@ -27,9 +31,9 @@ export default function App() {
               <Logo />
             </button>
           </h1>
-          <p className="hidden text-sm text-stone-500 sm:block">Paste anything → ranked email guesses with sources.</p>
-          <button onClick={() => go(page === "how" ? "app" : "how")} className="ml-auto text-xs text-stone-400 hover:text-stone-700">
-            {page === "how" ? "Back to app" : "How it works"}
+          <p className="hidden text-sm text-stone-500 sm:block">Paste a page. Get sourced emails.</p>
+          <button onClick={() => go(page === "app" ? "how" : "app")} className="ml-auto text-xs text-stone-400 hover:text-stone-700">
+            {page === "app" ? "How it works" : "Back to app"}
           </button>
           <span className="flex items-center gap-1.5 text-xs text-stone-500" title={p.configured ? `Connected · relevance by ${state.judge === "jev" ? "Jev" : "Claude"}` : "Not connected"}>
             <span className={`size-1.5 rounded-full ${p.configured ? "bg-emerald-500" : "bg-stone-300"}`} />
@@ -37,9 +41,9 @@ export default function App() {
           </span>
         </div>
       </header>
-      {page === "how" ? (
+      {page !== "app" ? (
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8">
-          <HowItWorks onBack={() => go("app")} />
+          {page === "how" ? <HowItWorks onBack={() => go("app")} /> : page === "privacy" ? <Privacy /> : <Terms />}
         </main>
       ) : (
       <main className="mx-auto w-full max-w-7xl flex-1 space-y-5 px-4 py-5">
@@ -60,6 +64,15 @@ export default function App() {
       </main>
       )}
       {page === "app" && <ExportBar p={p} />}
+      <footer className="border-t border-stone-200 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-5 gap-y-1 px-4 py-4 text-xs text-stone-400">
+          <button className="hover:text-stone-700" onClick={() => go("privacy")}>Privacy</button>
+          <button className="hover:text-stone-700" onClick={() => go("terms")}>Terms</button>
+          <a className="hover:text-stone-700" href={`mailto:${SUPPORT_EMAIL}`}>Support</a>
+          <a className="hover:text-stone-700" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
+          <span className="ml-auto">© 2026 JobPaper</span>
+        </div>
+      </footer>
     </div>
   );
 }
