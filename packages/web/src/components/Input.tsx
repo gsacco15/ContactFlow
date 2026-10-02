@@ -53,6 +53,12 @@ export function Input({ p }: { p: Pipeline }) {
           <input type="checkbox" checked={state.usePasteEvidence !== false} onChange={(e) => dispatch({ type: "paste_evidence", on: e.target.checked })} />
           Use emails &amp; formats found in my paste
         </label>
+        {p.verifyMode !== "off" && (
+          <label className="flex items-center gap-1.5 text-sm text-stone-600" title="Checks one address per firm with a mailbox test (about $0.004 each). A valid result proves the format for everyone at that firm; firms proven before cost nothing.">
+            <input type="checkbox" checked={!!state.verify} onChange={(e) => dispatch({ type: "verify", on: e.target.checked })} />
+            Verify emails
+          </label>
+        )}
       </div>
       <div className="flex items-center gap-2 border-t border-stone-100 pt-3">
         {state.running ? (

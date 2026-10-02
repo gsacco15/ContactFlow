@@ -52,7 +52,8 @@ export function usePipeline() {
         searches: u.web_search_requests,
         cost: estimateCost(u),
       });
-    const verifyMode = verifyModeNow();
+    // "Verify emails" ticked → checks run during the search (if verification is enabled at all).
+    const verifyMode = verifyModeNow() !== "off" && state.verify ? "auto" : "off";
     return {
       llm,
       cache: layeredCache(localCache, client.cache),

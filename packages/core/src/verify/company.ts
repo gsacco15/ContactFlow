@@ -53,6 +53,7 @@ export async function verifyCompany(
     if (v.catch_all) return markCatchAll(co, contacts, out);
     if (v.strong && v.best?.kinds.includes("verifier_valid")) {
       out.verified = v.best.template;
+      co.verified_by = "earlier check";
       await prove(co, contacts, v.best.template, rebuild, out);
       return out;
     }
@@ -87,6 +88,7 @@ export async function verifyCompany(
     }
     if (status === "invalid") invalid.push(template);
   }
+  if (out.checks) co.verified_by = ctx.mailbox!.name;
   ctx.onUsage?.({ stage: "verify", model: `verifier:${ctx.mailbox!.name}`, input_tokens: 0, output_tokens: 0, web_search_requests: 0, web_fetch_requests: 0, verifications: out.checks });
 
   if (out.catch_all) return markCatchAll(co, contacts, out);

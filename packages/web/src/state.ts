@@ -25,6 +25,7 @@ export type State = {
   nicknames: boolean;
   usePasteEvidence: boolean; // use emails / stated formats found in the paste
   skipIrrelevant: boolean; // skip people judged not relevant before any search
+  verify?: boolean; // run mailbox checks during the search (one per firm)
   judge?: string; // decision provider in use: "jev" or "claude"
   judging: boolean;
   extracted?: ExtractResult; // after Parse; edits write back here before Run
@@ -49,6 +50,7 @@ export type Action =
   | { type: "input"; input: string }
   | { type: "role"; roleFilter: string }
   | { type: "nicknames"; on: boolean }
+  | { type: "verify"; on: boolean }
   | { type: "paste_evidence"; on: boolean }
   | { type: "skip_irrelevant"; on: boolean }
   | { type: "judge"; name: string }
@@ -134,6 +136,8 @@ export function reducer(s: State, a: Action): State {
       return { ...s, roleFilter: a.roleFilter };
     case "nicknames":
       return { ...s, nicknames: a.on };
+    case "verify":
+      return { ...s, verify: a.on };
     case "paste_evidence":
       return { ...s, usePasteEvidence: a.on };
     case "skip_irrelevant":

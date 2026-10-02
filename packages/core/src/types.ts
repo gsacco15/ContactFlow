@@ -47,6 +47,7 @@ export type Company = {
   skipped?: string; // why the company was not looked up (no people, only flagged people)
   format_verified?: Template; // a mailbox check proved this format at this company
   catch_all?: boolean; // the mail server accepts any address: checks can't prove a format here
+  verified_by?: string; // who checked: a provider name, "demo"/"mock" (fake answers) or "earlier check"
 };
 
 export type VerifyStatus = "valid" | "risky" | "invalid" | "catch_all" | "unverified";

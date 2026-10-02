@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { toCsv, toTable, toTsv } from "@cf/core";
 import type { Pipeline } from "../usePipeline.ts";
-import { firmsToVerify, searchNames, tableRows } from "../state.ts";
-import { PRICE_PER_VERIFY, VERIFY_LIMITS } from "@cf/core";
+import { searchNames, tableRows } from "../state.ts";
 import { PushMenu } from "./PushMenu.tsx";
 import { ACCENT } from "./Logo.tsx";
 import { Button } from "./ui.tsx";
@@ -66,7 +65,6 @@ export function ExportBar({ p }: { p: Pipeline }) {
         </Button>
         <span className="hidden text-xs text-stone-500 sm:inline">{contacts.length} rows{state.searches.length > 1 ? ` from ${state.searches.filter((x) => !x.hidden).length} of ${state.searches.length} searches` : ""} · {filters.includeGuesses ? "incl. backup guesses" : "sourced emails only"}</span>
         <PushMenu table={() => toTable(contacts, state.companies, opts)} disabled={!contacts.length} />
-        {p.verifyMode !== "off" && <VerifyAll p={p} />}
         <button
           type="button"
           onClick={() => {
@@ -93,32 +91,5 @@ export function ExportBar({ p }: { p: Pipeline }) {
         </span>
       </div>
     </footer>
-  );
-}
-
-/** "✓ Verify N firms · ≈ $X": one mailbox check per firm in the ticked searches (up to 3 if the first fails). */
-function VerifyAll({ p }: { p: Pipeline }) {
-  const firms = firmsToVerify(p.state).length;
-  const low = firms * PRICE_PER_VERIFY;
-  const high = firms * VERIFY_LIMITS.perCompany * PRICE_PER_VERIFY;
-  const money = (n: number) => `$${n < 0.1 ? n.toFixed(3) : n.toFixed(2)}`;
-  return (
-    <Button
-      onClick={() => p.verify()}
-      disabled={!firms || p.state.running || !p.configured}
-      className="whitespace-nowrap"
-      title={firms ? `One check per firm in your ticked searches (up to ${VERIFY_LIMITS.perCompany} if the first address bounces): about ${money(low)}–${money(high)}. A valid result proves the format for everyone at that firm.` : "Nothing left to verify in your ticked searches"}
-    >
-      {firms ? (
-        <>
-          ✓<span className="hidden sm:inline"> Verify {firms} {firms === 1 ? "firm" : "firms"} · ≈ {money(low)}</span>
-          <span className="sm:hidden"> {firms}</span>
-        </>
-      ) : (
-        <>
-          ✓<span className="hidden sm:inline"> All verified</span>
-        </>
-      )}
-    </Button>
   );
 }

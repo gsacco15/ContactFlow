@@ -158,7 +158,7 @@ export function ResultsTable({ p }: { p: Pipeline }) {
         <span className="sm:border-l sm:border-stone-300 sm:pl-4" title="Common formats with no source behind them. Off = they are hidden here and left out of Copy/CSV.">
           {toggle("includeGuesses")}
         </span>
-        {p.verifyDemo && (
+        {Object.values(state.companies).some((c) => isDemo(c)) && (
           <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-200" title="No verification provider is set up yet, so checks return made-up answers. They are never saved.">
             Demo checks — fake results
           </span>
@@ -273,7 +273,7 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
           {shown.length > 0 ? (
             <div className="space-y-0.5">
               {shown.map((cand) => (
-                <Email key={cand.email} cand={cand} />
+                <Email key={cand.email} cand={cand} demo={isDemo(co)} />
               ))}
             </div>
           ) : (
@@ -283,9 +283,8 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
           )}
           <PatternInfo top={top} pattern={pattern} co={co} />
           <Why text={[co?.pattern_conflict && `sources disagree: ${co.pattern_conflict}`, c.note, co?.rescue_note, c.error].filter(Boolean).join(" · ")} />
-          {(c.status === "skipped" || (failed && co) || canVerify(c, co, p)) && (
+          {(c.status === "skipped" || (failed && co)) && (
             <div className="flex gap-1">
-              {canVerify(c, co, p) && <VerifyButton id={c.id} p={p} />}
               {c.status === "skipped" && (
                 <Button variant="ghost" className="!px-1.5 !py-0.5 text-xs" disabled={p.state.running || !p.configured} onClick={() => p.include(c.id)}>
                   Include
@@ -322,7 +321,7 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
       </td>
       {[0, 1, 2].map((i) => (
         <td key={i} className="hidden px-3 py-2 sm:table-cell">
-          <Email cand={shown[i]} />
+          <Email cand={shown[i]} demo={isDemo(co)} />
         </td>
       ))}
       <td className="hidden px-3 py-2 sm:table-cell">
@@ -341,7 +340,6 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
               Retry
             </Button>
           )}
-          {canVerify(c, co, p) && <VerifyButton id={c.id} p={p} />}
           {co?.catch_all && <Pill tone="amber" title="This company's mail server accepts any address, so a mailbox check can't prove which one is right.">accept-all server</Pill>}
         </div>
       </td>
@@ -358,13 +356,15 @@ function PatternInfo({ top, pattern, co }: { top?: Candidate; pattern?: Pattern;
           {pattern ? (
             <>
               <Pill
-                tone={pattern.confidence >= 0.6 ? "green" : pattern.confidence >= 0.3 ? "amber" : "red"}
+                tone={pattern.verified && isDemo(co) ? "stone" : pattern.confidence >= 0.6 ? "green" : pattern.confidence >= 0.3 ? "amber" : "red"}
                 title={pattern.verified ? "Proven by a mailbox check at this company" : pattern.from_evidence ? "Proven by earlier lookups" : pattern.from_paste ? "Confidence from your paste" : pattern.from_site ? "Proven by real addresses on the company's website" : pattern.stated ? "Percentage stated by the source" : "Estimated from search snippets — no percentage was stated"}
               >
                 {pattern.verified || pattern.from_evidence || pattern.from_site || pattern.from_paste ? "" : pattern.stated ? "" : "≈"}
                 {Math.round(pattern.confidence * 100)}%
               </Pill>
-              {pattern.verified ? (
+              {pattern.verified && isDemo(co) ? (
+                <Pill tone="stone" title="Demo answer — no verification provider is set up yet. Not a real check.">demo ✓</Pill>
+              ) : pattern.verified ? (
                 <Pill tone="green" title="A mailbox check at this company confirmed an address in this format">✓ verified here</Pill>
               ) : pattern.from_evidence ? (
                 <Pill tone="green" title="Proven by earlier lookups (website addresses, checks) — no search needed this time">proven before</Pill>
@@ -410,27 +410,13 @@ function shortTime(iso: string) {
   return d.toDateString() === new Date().toDateString() ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
-/** A row can be checked when verification is enabled and it has emails that aren't from the paste or already settled. */
-function canVerify(c: Contact, co: Company | undefined, p: Pipeline) {
-  return (
-    p.verifyMode !== "off" && !!co?.domain && !co.catch_all && (c.status === "ok" || c.status === "no_pattern") &&
-    !c.candidates.some((x) => x.verify_status === "valid") &&
-    c.candidates.some((x) => x.basis !== "seen" && (!x.verify_status || x.verify_status === "unverified"))
-  );
-}
+/** Checks made by the stand-in (no provider key yet): fake answers, shown greyed out. */
+const isDemo = (co?: Company) => co?.verified_by === "demo" || co?.verified_by === "mock";
 
-function VerifyButton({ id, p }: { id: string; p: Pipeline }) {
-  return (
-    <Button variant="ghost" className="!px-1.5 !py-0.5 text-xs" disabled={p.state.running || !p.configured} onClick={() => p.verify(id)} title="Check this person's emails with a mailbox check (stops at the first valid one)">
-      ✓ Verify
-    </Button>
-  );
-}
-
-function Email({ cand }: { cand?: Candidate }) {
+function Email({ cand, demo }: { cand?: Candidate; demo?: boolean }) {
   const [copied, setCopied] = useState(false);
   if (!cand) return <span className="text-stone-300">—</span>;
-  const valid = cand.verify_status === "valid";
+  const valid = cand.verify_status === "valid" && !demo;
   const guess = cand.basis === "guess";
   return (
     <button
@@ -442,11 +428,14 @@ function Email({ cand }: { cand?: Candidate }) {
         setTimeout(() => setCopied(false), 1200);
       }}
     >
-      <span className={cand.verify_status === "invalid" ? "text-red-600 line-through" : guess ? "italic text-stone-400" : ""}>{cand.email}</span>
+      <span className={cand.verify_status === "invalid" && !demo ? "text-red-600 line-through" : guess ? "italic text-stone-400" : ""}>{cand.email}</span>
+      {demo && cand.verify_status && cand.verify_status !== "unverified" && (
+        <span className="text-[10px] text-stone-400" title="Demo answer — not a real check">demo {cand.verify_status === "valid" ? "✓" : cand.verify_status === "invalid" ? "✗" : "◎"}</span>
+      )}
       {guess && <span className="text-[10px] text-stone-400">backup</span>}
       {valid && <span className="text-emerald-600" aria-label="verified" title="Mailbox exists">✓</span>}
-      {cand.verify_status === "risky" && <span className="text-[10px] text-amber-600" title="The provider flagged this address as risky">~ risky</span>}
-      {cand.verify_status === "catch_all" && <span className="text-[10px] text-stone-400" title="The server accepts any address — can't be proven">◎</span>}
+      {!demo && cand.verify_status === "risky" && <span className="text-[10px] text-amber-600" title="The provider flagged this address as risky">~ risky</span>}
+      {!demo && cand.verify_status === "catch_all" && <span className="text-[10px] text-stone-400" title="The server accepts any address — can't be proven">◎</span>}
       {copied && <span className="text-[10px] text-stone-500">copied</span>}
     </button>
   );
