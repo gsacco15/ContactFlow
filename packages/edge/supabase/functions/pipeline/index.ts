@@ -5,7 +5,7 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { STAGES, type StageName } from "./_core/schemas.ts";
 import { BUNDLED_PROMPTS } from "./_core/prompts.ts";
 import {
-  CACHE_KEY, DOMAIN, FETCH_BLOCKED_DOMAINS, HttpError, JEV_URL, extractEmails, pickLinks, robotsAllows, sameSite, sitemapLinks, type SiteEmail, RateLimiter, addUsage, buildParams, corsHeaders, mxFromDoh, mxFromRecords,
+  CACHE_KEY, DOMAIN, FETCH_BLOCKED_DOMAINS, HttpError, JEV_URL, bioLinks, extractEmails, pickLinks, slugName, robotsAllows, sameSite, sitemapLinks, type SiteEmail, RateLimiter, addUsage, buildParams, corsHeaders, mxFromDoh, mxFromRecords,
   parseBody, parseJevBatch, readContent, zeroUsage, type Env, type LlmBody,
 } from "./lib.ts";
 
@@ -211,7 +211,7 @@ async function getText(url: string, ms = 5000): Promise<{ ok: boolean; url: stri
   }
 }
 
-async function readSite(domain: string, maxPages: number) {
+async function readSite(domain: string, maxPages: number, bioPages: number) {
   if (FETCH_BLOCKED_DOMAINS.some((b) => sameSite(domain, b))) return { emails: [], pages: [], note: "blocked domain" };
   let home = await getText(`https://${domain}/`);
   if (!home.ok) home = await getText(`https://www.${domain}/`);
@@ -231,6 +231,7 @@ async function readSite(domain: string, maxPages: number) {
   const queue = [...new Set([...pickLinks(home.text, home.url, domain), ...(sitemap.ok ? sitemapLinks(sitemap.text, domain) : [])])];
   for (const fallback of ["/contact", "/about", "/team"]) if (queue.length < 3) queue.push(origin + fallback);
 
+  const bios: string[] = [];
   for (const url of queue) {
     if (pages.length >= maxPages) break;
     if (!allowed(url)) continue;
@@ -238,6 +239,16 @@ async function readSite(domain: string, maxPages: number) {
     if (!page.ok || !sameSite(new URL(page.url).hostname, domain)) continue;
     pages.push(page.url);
     add(extractEmails(page.text, domain, page.url));
+    for (const b of bioLinks(page.text, page.url, domain, bioPages)) if (!bios.includes(b) && !pages.includes(b)) bios.push(b);
+  }
+  // Bio pages, a few in parallel: the address is usually there, and the URL names the person.
+  const picked = bios.filter(allowed).slice(0, bioPages);
+  const read = await Promise.all(picked.map((u) => getText(u)));
+  for (const page of read) {
+    if (!page.ok || !sameSite(new URL(page.url).hostname, domain)) continue;
+    pages.push(page.url);
+    const who = slugName(page.url);
+    add(extractEmails(page.text, domain, page.url).map((e) => (who ? { ...e, context: `${who} · ${e.context}` } : e)));
   }
   return { emails: [...emails.values()].slice(0, 60), pages };
 }
@@ -278,7 +289,7 @@ Deno.serve(async (req) => {
     if (path.endsWith("/site")) {
       const domain = String(body?.domain ?? "").toLowerCase();
       if (!DOMAIN.test(domain)) throw new HttpError(400, "bad domain");
-      return json(await readSite(domain, Math.min(8, Math.max(1, Number(body?.maxPages ?? 6)))));
+      return json(await readSite(domain, Math.min(8, Math.max(1, Number(body?.maxPages ?? 6))), Math.min(6, Math.max(0, Number(body?.bioPages ?? 4)))));
     }
     if (path.endsWith("/shadow")) {
       // Site-reading trial log: domain-level formats and counts only — never names or addresses.

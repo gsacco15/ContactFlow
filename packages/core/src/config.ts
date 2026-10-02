@@ -65,6 +65,8 @@ export const GENERIC_LOCAL_PARTS = [
 export const SITE_READ_MODE: "off" | "shadow" | "on" = "shadow";
 /** Pages read per company, and the confidence a site-proven format gets (1 name-matched address / 2+ agreeing). */
 export const SITE_MAX_PAGES = 6;
+/** Bio pages (/attorneys/jane-doe) read on top of SITE_MAX_PAGES — where firms usually print addresses. */
+export const SITE_BIO_PAGES = 4;
 export const SITE_CONFIDENCE = { single: 0.85, multiple: 0.95 };
 /** Highest confidence a third-party page (RocketReach, ContactOut…) can give a format. Their "100%"
  * often rests on 2–3 addresses; only the firm's own site, the paste or verification go higher. */

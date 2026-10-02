@@ -44,3 +44,16 @@ describe("siteFormat", () => {
     expect(siteFormat(read(["sm@acme.com", "Sandy Morris"]), "acme.com", []).pattern).toBeUndefined(); // initials alone: not proven
   });
 });
+
+describe("bio pages", () => {
+  it("two bio pages whose URL names the person prove the format, with nobody in the paste", () => {
+    const read: SiteRead = {
+      pages: ["https://acme.com/attorneys/kate-sedey", "https://acme.com/attorneys/jon-pratt"],
+      emails: [
+        { email: "ksedey@acme.com", context: "Kate Sedey · Email ksedey@acme.com T 314 555 0100", page: "https://acme.com/attorneys/kate-sedey" },
+        { email: "jpratt@acme.com", context: "Jon Pratt · Email jpratt@acme.com", page: "https://acme.com/attorneys/jon-pratt" },
+      ],
+    };
+    expect(siteFormat(read, "acme.com", []).pattern).toMatchObject({ template: "{f}{last}", from_site: true });
+  });
+});

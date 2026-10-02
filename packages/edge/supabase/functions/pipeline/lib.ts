@@ -248,6 +248,43 @@ export function pickLinks(html: string, pageUrl: string, domain: string, max = 8
   return out.sort((a, b) => b.score - a.score).slice(0, max).map((x) => x.url);
 }
 
+/** Folders that hold one page per person ("/attorneys/jane-doe", "/our-team/jane-doe/"). */
+const BIO_DIRS = /\/(attorneys?|lawyers?|people|team|our-?team|staff|professionals|partners|bios?|profiles?|members|directory|leadership|advisors|doctors|physicians|providers|agents|brokers)\/([a-z][a-z'-]*-[a-z][a-z'-]*(?:-[a-z][a-z'-]*){0,2})\/?$/i;
+
+/**
+ * Links on a team/people page that go to one person's bio ("/attorneys/jane-doe"). Law firms often
+ * print an address only on the bio page. The slug must look like a name (2–4 hyphenated words).
+ */
+export function bioLinks(html: string, pageUrl: string, domain: string, max = 4): string[] {
+  const out: string[] = [];
+  for (const m of html.matchAll(/<a\b[^>]*href\s*=\s*["']([^"'#]+)["']/gi)) {
+    let u: URL;
+    try {
+      u = new URL(m[1].trim(), pageUrl);
+    } catch {
+      continue;
+    }
+    if (!/^https?:$/.test(u.protocol) || !sameSite(u.hostname, domain) || SKIP_EXT.test(u.pathname) || !BIO_DIRS.test(u.pathname)) continue;
+    const key = u.origin + u.pathname.replace(/\/+$/, "");
+    if (!out.includes(key)) out.push(key);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+/** "…/attorneys/jane-q-doe" → "Jane Q Doe" (the person a bio page is about). */
+export function slugName(url: string): string | undefined {
+  let path: string;
+  try {
+    path = new URL(url).pathname;
+  } catch {
+    return undefined;
+  }
+  const m = BIO_DIRS.exec(path.replace(/\/+$/, "") + "/");
+  if (!m) return undefined;
+  return m[2].split("-").filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
+}
+
 /** Page URLs from a sitemap.xml that look like team/contact/bio pages. */
 export function sitemapLinks(xml: string, domain: string, max = 8): string[] {
   const urls = [...xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map((m) => m[1]);

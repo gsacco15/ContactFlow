@@ -1,4 +1,5 @@
 // HTTP client for the `pipeline` edge function. No React; also used by scripts/smoke.ts.
+import { SITE_BIO_PAGES, SITE_MAX_PAGES } from "@cf/core";
 import type { Cache, JevRequest, JevResponse, LlmRequest, LlmResponse, SiteRead, SiteShadowRow } from "@cf/core";
 
 export type EdgeOptions = {
@@ -45,7 +46,7 @@ export function edgeClient(o: EdgeOptions) {
     llm: (req: LlmRequest, signal?: AbortSignal) => post<LlmResponse>("llm", req, signal),
     mx: async (domain: string) => (await post<{ ok: boolean }>("mx", { domain })).ok,
     /** The company's own public pages, read by the edge function (no AI, no cost). */
-    site: (domain: string) => post<SiteRead>("site", { domain }),
+    site: (domain: string) => post<SiteRead>("site", { domain, maxPages: SITE_MAX_PAGES, bioPages: SITE_BIO_PAGES }),
     /** Site-reading trial log (domain-level only). */
     shadow: async (row: SiteShadowRow) => void (await post("shadow", row)),
     /** TypeSafe Jev batch, proxied by the edge function (which holds the key). */

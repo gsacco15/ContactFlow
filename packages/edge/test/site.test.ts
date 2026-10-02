@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractEmails, pickLinks, robotsAllows, sameSite, sitemapLinks } from "../supabase/functions/pipeline/lib.ts";
+import { bioLinks, extractEmails, pickLinks, slugName, robotsAllows, sameSite, sitemapLinks } from "../supabase/functions/pipeline/lib.ts";
 
 const HOME = `<html><body><nav>
   <a href="/our-team">Our Team</a> <a href="/about-us">About</a> <a href="https://acme.com/contact">Contact us</a>
@@ -45,5 +45,36 @@ describe("site reading helpers", () => {
 
   it("extractEmails survives a malformed mailto escape", () => {
     expect(extractEmails('<a href="mailto:bad%E0%A4%A@acme.com">x</a> ok@acme.com', "acme.com", "p").map((e) => e.email)).toContain("ok@acme.com");
+  });
+});
+
+describe("bio pages", () => {
+  const TEAM = `<ul>
+    <li><a href="/attorneys/kate-sedey/">Kate Sedey</a></li>
+    <li><a href="https://www.acme.com/attorneys/jane-q-doe">Jane Q. Doe</a></li>
+    <li><a href="/attorneys/">All attorneys</a></li>
+    <li><a href="/attorneys/kate-sedey">Kate again</a></li>
+    <li><a href="/practice-areas/employment-law">Employment law</a></li>
+    <li><a href="/team/bio.pdf">PDF</a></li>
+    <li><a href="https://other.com/attorneys/sam-lee">Elsewhere</a></li>
+    <li><a href="/people/sam-lee?ref=nav">Sam Lee</a></li>
+  </ul>`;
+
+  it("finds one-person pages under people folders, same site only, no duplicates", () => {
+    expect(bioLinks(TEAM, "https://acme.com/attorneys", "acme.com")).toEqual([
+      "https://acme.com/attorneys/kate-sedey",
+      "https://www.acme.com/attorneys/jane-q-doe",
+      "https://acme.com/people/sam-lee",
+    ]);
+  });
+
+  it("caps how many it returns", () => {
+    expect(bioLinks(TEAM, "https://acme.com/attorneys", "acme.com", 1)).toHaveLength(1);
+  });
+
+  it("names the person from the URL", () => {
+    expect(slugName("https://acme.com/attorneys/kate-sedey")).toBe("Kate Sedey");
+    expect(slugName("https://acme.com/our-team/jane-q-doe/")).toBe("Jane Q Doe");
+    expect(slugName("https://acme.com/practice-areas/employment-law")).toBeUndefined();
   });
 });
