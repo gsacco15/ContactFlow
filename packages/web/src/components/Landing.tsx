@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { ACCENT, Logo, Mark } from "./Logo.tsx";
+import { ACCENT, AppIcon, Logo, Mark } from "./Logo.tsx";
 import { SUPPORT_EMAIL } from "./Legal.tsx";
 import { SAMPLES } from "../samples.ts";
 
@@ -340,7 +340,7 @@ function Receipt() {
       <div className="rotate-[-1.5deg] rounded-[28px] bg-white p-6 shadow-[0_40px_80px_-30px_rgba(0,0,0,.7)]">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold tracking-[0.14em] text-stone-400 uppercase">Why this email</span>
-          <Mark size={24} />
+          <AppIcon size={26} />
         </div>
         <div className="mt-4 font-data text-[15px] break-words sm:text-lg">ocastellano@harborpine.com</div>
         <dl className="mt-5 space-y-3 text-sm">

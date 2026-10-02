@@ -2,10 +2,10 @@
 
 | Asset | File | Notes |
 |---|---|---|
-| Logo | `package/assets/logo.png` | 512×512, transparent corners. Rendered from `packages/web/public/favicon.svg`. |
+| Logo | `package/assets/logo.png` | 512×512, transparent corners. Rendered from `packages/web/public/logo.svg` (the main logo, "B": soft light and shadow on the flat mark). |
 | Composer icon | `package/assets/icon.png` | Same mark, 512×512. |
-| Vector source | `packages/web/public/favicon.svg` | The mark: a flow line from a person (cream dot) to a delivered email (green dot). |
-| Share image | `packages/web/public/og-v2.png` | 1200×630; handy as a portal screenshot backdrop. |
+| Vector source | `packages/web/public/logo.svg` | The mark: a flow line from a person (cream dot) to a delivered email (green dot). Same art in `favicon.svg` and the site's `AppIcon` component. |
+| Share image | `packages/web/public/og-v3.png` | 1200×630; handy as a portal screenshot backdrop. |
 
 ## Colours
 
