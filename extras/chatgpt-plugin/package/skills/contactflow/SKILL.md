@@ -10,6 +10,13 @@ ContactFlow finds work emails and tells you how sure to be about each one. Two t
 - `find_emails` — names and companies in, emails out.
 - `get_email_format` — "how does Acme write its emails?"
 
+## If the tools aren't available
+
+If `find_emails` isn't in your tools, the ContactFlow app isn't connected in this chat. Don't look
+for emails another way (web search, guessing from patterns): tell the user to connect it — in
+ChatGPT, Settings → Apps → ContactFlow (Developer mode), or pick ContactFlow from the + menu in
+this chat — and stop there.
+
 ## Reading what the user pasted
 
 Read the paste yourself and pull out, for each person: first name, last name, title, current company,
