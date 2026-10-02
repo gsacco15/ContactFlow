@@ -20,7 +20,8 @@ function Searches({ p }: { p: Pipeline }) {
   const { state, dispatch } = p;
   const hidden = state.searches.some((x) => x.hidden);
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="space-y-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
       {[...state.searches].reverse().map((x) => {
         const { people, ok } = searchStats(state, x.id);
         const running = state.activeSearch === x.id;
@@ -28,15 +29,17 @@ function Searches({ p }: { p: Pipeline }) {
         return (
           <div
             key={x.id}
-            className={`flex items-center gap-2 rounded-lg border border-l-4 px-2.5 py-1.5 text-sm shadow-sm transition hover:shadow ${x.hidden ? "border-stone-200 bg-stone-50 text-stone-400" : "border-stone-300 bg-white"}`}
+            className={`flex min-w-0 items-center gap-2 rounded-lg border border-l-4 px-2.5 py-1.5 text-sm shadow-sm transition hover:shadow ${x.hidden ? "border-stone-200 bg-stone-50 text-stone-400" : "border-stone-300 bg-white"}`}
             style={{ borderLeftColor: x.hidden ? undefined : color }}
           >
             <input type="checkbox" aria-label={`Show ${x.label}`} checked={!x.hidden} onChange={(e) => dispatch({ type: "search_toggle", id: x.id, hidden: !e.target.checked || undefined })} />
-            <button type="button" className="text-left" title="Show only this search" onClick={() => dispatch({ type: "search_only", id: x.id })}>
-              <span className="font-medium">{x.label}</span>
-              {x.want && <span className="text-stone-500"> · {x.want}</span>}
-              <span className="block text-xs text-stone-400">
-                {running ? "running…" : `${people} people · ${ok} with email`} · ${x.cost.toFixed(2)} · {searchTime(x.at)}
+            <button type="button" className="min-w-0 flex-1 text-left" title={`${x.label}${x.want ? ` · ${x.want}` : ""} — click to show only this search`} onClick={() => dispatch({ type: "search_only", id: x.id })}>
+              <span className="block truncate">
+                <span className="font-medium">{x.label}</span>
+                {x.want && <span className="text-stone-500"> · {x.want}</span>}
+              </span>
+              <span className="block truncate text-xs text-stone-400">
+                {running ? "running…" : `${people} ${people === 1 ? "person" : "people"} · ${ok} with email`} · ${x.cost.toFixed(2)} · <span title={searchTime(x.at)}>{shortTime(x.at)}</span>
               </span>
             </button>
             <button
@@ -64,6 +67,7 @@ function Searches({ p }: { p: Pipeline }) {
           </div>
         );
       })}
+      </div>
       {state.searches.length > 1 && (
         <span className="flex gap-1 text-xs">
           <Button variant="ghost" className="!px-1.5 !py-0.5 text-xs" disabled={!hidden} onClick={() => dispatch({ type: "search_all", hidden: false })}>
@@ -398,6 +402,12 @@ function Why({ text }: { text: string }) {
       </summary>
     </details>
   );
+}
+
+/** Card time: just the time for today's searches, just the date for older ones. */
+function shortTime(iso: string) {
+  const d = new Date(iso);
+  return d.toDateString() === new Date().toDateString() ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 /** A row can be checked when verification is enabled and it has emails that aren't from the paste or already settled. */
