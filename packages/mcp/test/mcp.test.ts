@@ -34,12 +34,12 @@ describe("MCP protocol", () => {
   const { deps } = setup({});
   const E = env({ CF_MCP_KEY: "secret" });
 
-  it("handshake: answers in the client's protocol version and lists the four tools", async () => {
+  it("handshake: answers in the client's protocol version and lists the two goal tools", async () => {
     const init = await (await handleHttp(rpc({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } }), E, deps)).json();
     expect(init.result).toMatchObject({ protocolVersion: "2025-06-18", serverInfo: { name: "contactflow" }, capabilities: { tools: {} } });
     expect(init.result.instructions).toMatch(/never invent/);
     const list = await (await handleHttp(rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" }), E, deps)).json();
-    expect(list.result.tools.map((t: any) => t.name)).toEqual(["find_emails", "find_domain", "get_email_format", "build_emails"]);
+    expect(list.result.tools.map((t: any) => t.name)).toEqual(["find_emails", "get_email_format"]);
     for (const t of list.result.tools) expect(t).toMatchObject({ inputSchema: { type: "object" }, annotations: { readOnlyHint: true } });
   });
 
@@ -96,15 +96,6 @@ describe("tools", () => {
     expect(r.content[0].text).toMatch(/people\[0\]\.company: required/);
   });
 
-  it("find_domain: searches once, then answers from the cache", async () => {
-    const { deps, calls } = setup({ resolve_domain: acmeDomain });
-    const a = await call(deps, "find_domain", { company: "Acme" });
-    const b = await call(deps, "find_domain", { company: "Acme" });
-    expect(a.structuredContent).toMatchObject({ domain: "acme.com", confidence: 0.9 });
-    expect(b.structuredContent.domain).toBe("acme.com");
-    expect(calls.filter((c) => c.stage === "resolve_domain")).toHaveLength(1);
-  });
-
   it("get_email_format: formats with sources; refuses linkedin.com", async () => {
     const { deps } = setup({ discover_pattern: flast });
     const r = await call(deps, "get_email_format", { domain: "https://www.acme.com/team" });
@@ -112,13 +103,14 @@ describe("tools", () => {
     expect((await call(deps, "get_email_format", { domain: "linkedin.com" })).isError).toBe(true);
   });
 
-  it("build_emails: free, accepts labels or templates, says when a name part is missing", async () => {
-    const { deps, calls } = setup({});
-    const r = await call(deps, "build_emails", { domain: "acme.com", format: "first.last", people: [{ first: "Jane", last: "Doe" }, { first: "Jo", last: "" }] });
-    expect(r.structuredContent.people).toEqual([{ first: "Jane", last: "Doe", email: "jane.doe@acme.com" }, { first: "Jo", last: "", email: null }]);
-    expect((await call(deps, "build_emails", { domain: "acme.com", format: "{f}{last}", people: [{ first: "Jane", last: "Doe" }] })).structuredContent.people[0].email).toBe("jdoe@acme.com");
-    expect((await call(deps, "build_emails", { domain: "acme.com", format: "nonsense", people: [] })).isError).toBe(true);
-    expect(calls).toHaveLength(0);
+  it("get_email_format by company name: finds the domain itself, then the format; cached after", async () => {
+    const { deps, calls } = setup({ resolve_domain: acmeDomain, discover_pattern: flast });
+    const r = await call(deps, "get_email_format", { company: "Acme" });
+    expect(r.structuredContent).toMatchObject({ company: "Acme", domain: "acme.com", formats: [{ format: "flast" }] });
+    expect(r.content[0].text).toContain("flast@acme.com 80%");
+    await call(deps, "get_email_format", { company: "Acme" });
+    expect(calls.filter((c) => c.stage === "resolve_domain")).toHaveLength(1);
+    expect((await call(deps, "get_email_format", {})).isError).toBe(true);
   });
 
   it("tool descriptions stay within what the server enforces", () => {

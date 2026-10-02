@@ -1,10 +1,10 @@
-// The tools ContactFlow exposes to ChatGPT / Claude (v2 build sheet §1b). The host model reads the
-// paste itself and calls these with structured names, so our own reading step (classify_extract)
-// never runs here. Same stages, caches, evidence and verification as the website.
+// The tools ContactFlow exposes to ChatGPT / Claude: one per user goal, not one per internal stage.
+// The host model reads the paste itself and calls these with structured names, so our reading step
+// (classify_extract) never runs here. Domains, caches, the evidence engine, site reading, rescue and
+// verification all run underneath, as on the website; the host never needs to know how.
 import {
-  LOW_DOMAIN_CONFIDENCE, MCP_LIMITS, TEMPLATES, enrichCompany, generateCandidates, normalizeDomain, normalizeName, parseEnrichRequest,
-  patternLabel, resolveDomain, runPipeline, slug, toEnrichPattern, toEnrichResponse, toExtract,
-  type Company, type Ctx, type EnrichResponse, type Pattern, type Template,
+  LOW_DOMAIN_CONFIDENCE, MCP_LIMITS, enrichCompany, normalizeDomain, parseEnrichRequest, runPipeline, slug, toEnrichPattern, toEnrichResponse, toExtract,
+  type Company, type Ctx, type EnrichResponse,
 } from "@cf/core";
 import type { Tool, ToolResult } from "./protocol.ts";
 
@@ -33,9 +33,8 @@ const findEmails: Tool<Deps> = {
   name: "find_emails",
   title: "Find work emails",
   description:
-    `Find work emails for named people at up to ${MCP_LIMITS.companiesPerCall} companies per call (max ${MCP_LIMITS.peoplePerCall} people). ` +
-    "Looks up each company's domain and email format (with its source), builds up to 3 ranked emails per person, and optionally checks a mailbox to prove the format. " +
-    "Pass companies with roles instead of people to find people on the company's own team page. Takes 10–60 seconds.",
+    `Find work email addresses for named people at up to ${MCP_LIMITS.companiesPerCall} companies per call (max ${MCP_LIMITS.peoplePerCall} people), or find the people in given roles at a company. ` +
+    "Each person gets up to 3 ranked emails, the company's email format with its source, and whether a mailbox check confirmed it. Takes 10–60 seconds.",
   inputSchema: {
     type: "object",
     properties: {
@@ -114,100 +113,34 @@ export function summarize(res: EnrichResponse): string {
   return lines.join("\n");
 }
 
-// ── find_domain ──────────────────────────────────────────────────────────────
-
-const findDomain: Tool<Deps> = {
-  name: "find_domain",
-  title: "Find a company's domain",
-  description: "Find a company's official website / email domain, with the source and a confidence. Use a hint (industry, city, parent company) when the name is ambiguous.",
-  inputSchema: {
-    type: "object",
-    properties: { company: str("Company name"), hint: str("Optional: industry, city, parent company or a person's title there") },
-    required: ["company"],
-    additionalProperties: false,
-  },
-  annotations: { ...READ_ONLY, title: "Find a company's domain" },
-  async run(args, deps) {
-    const name = clip(args.company);
-    if (!name) return err("company is required");
-    const ctx = deps.ctx();
-    const key = `company:${slug(name)}`;
-    const cached = (await ctx.cache.get(key).catch(() => undefined)) as { domain?: string; domain_confidence?: number; domain_source_url?: string } | undefined;
-    let data: { domain: string | null; confidence: number; source_url: string | null; alternatives: string[] };
-    if (cached?.domain) data = { domain: cached.domain, confidence: cached.domain_confidence ?? 0.5, source_url: cached.domain_source_url ?? null, alternatives: [] };
-    else {
-      const d = await resolveDomain({ name, hint: clip(args.hint) || undefined }, ctx, { maxSearches: 2 });
-      if (!d.ok || !d.data) return err(`Domain lookup failed: ${d.error ?? "no answer"}`);
-      data = { domain: d.data.domain, confidence: d.data.confidence, source_url: d.data.source_url ?? null, alternatives: d.data.alternatives ?? [] };
-      if (data.domain) await ctx.cache.set(key, { domain: data.domain, domain_confidence: data.confidence, domain_source_url: data.source_url ?? undefined }, ctx.budget.cacheTtlDays).catch(() => {});
-    }
-    if (!data.domain) return ok(`No domain found for ${name}.`, { company: name, ...data });
-    const unsure = data.confidence < LOW_DOMAIN_CONFIDENCE ? " — low confidence, ask the user to confirm" : "";
-    return ok(`${name}: ${data.domain} (${pct(data.confidence)}${data.source_url ? `, source ${data.source_url}` : ""})${unsure}${data.alternatives.length ? ` · alternatives: ${data.alternatives.join(", ")}` : ""}`, { company: name, ...data });
-  },
-};
-
 // ── get_email_format ─────────────────────────────────────────────────────────
 
 const getEmailFormat: Tool<Deps> = {
   name: "get_email_format",
   title: "Get a company's email format",
-  description: "How a domain writes its email addresses (first.last, flast…): up to 3 formats with confidence and the source that states each one, and whether the domain receives mail.",
-  inputSchema: { type: "object", properties: { domain: str("Bare domain, e.g. acme.com") }, required: ["domain"], additionalProperties: false },
-  annotations: { ...READ_ONLY, title: "Get a company's email format" },
-  async run(args, deps) {
-    const domain = normalizeDomain(clip(args.domain));
-    if (!domain || /(^|\.)linkedin\.com$/.test(domain)) return err("Give a company's own domain, e.g. acme.com");
-    const ctx = deps.ctx();
-    const co: Company = { id: slug(domain), name: domain, website: domain, patterns: [] };
-    await enrichCompany(co, ctx, []);
-    const formats = co.patterns.map((p) => toEnrichPattern(p, domain));
-    const data = { domain, accepts_mail: co.mx_ok ?? null, formats };
-    if (!formats.length) return ok(`No sourced email format found for ${domain}${co.error ? ` (${co.error})` : ""}.`, data);
-    const mx = co.mx_ok === false ? " ⚠ this domain has no mail servers (MX)." : "";
-    return ok(`${domain}: ${formats.map((f) => `${f.format} ${pct(f.confidence)} (${f.confidence_basis}${f.source ? `, ${f.source}` : ""})`).join(" · ")}${mx}`, data);
-  },
-};
-
-// ── build_emails (free, no lookups) ──────────────────────────────────────────
-
-const LABELS = TEMPLATES.map((t) => patternLabel(t)).join(", ");
-
-const buildEmails: Tool<Deps> = {
-  name: "build_emails",
-  title: "Build emails from a known format",
-  description: `Free and instant: apply a known email format to names at a domain. Formats: ${LABELS}. Use get_email_format first if the format isn't known.`,
+  description: "How a company writes its email addresses (e.g. first.last@acme.com): up to 3 formats, each with a confidence and the source that states it. Give the company name, its domain, or both.",
   inputSchema: {
     type: "object",
-    properties: {
-      domain: str("Bare domain, e.g. acme.com"),
-      format: str(`One of: ${LABELS}`),
-      people: {
-        type: "array",
-        maxItems: 200,
-        items: { type: "object", properties: { first: str("Given name"), last: str("Family name"), middle: str("Middle name or initial") }, required: ["first", "last"], additionalProperties: false },
-      },
-    },
-    required: ["domain", "format", "people"],
+    properties: { company: str("Company name"), domain: str("Company domain if known, e.g. acme.com") },
     additionalProperties: false,
   },
-  annotations: { readOnlyHint: true, openWorldHint: false, destructiveHint: false, title: "Build emails from a known format" },
-  async run(args) {
-    const domain = normalizeDomain(clip(args.domain));
-    if (!domain) return err("domain is required, e.g. acme.com");
-    const f = clip(args.format).toLowerCase();
-    const template = TEMPLATES.find((t) => t === f || patternLabel(t) === f) as Template | undefined;
-    if (!template) return err(`Unknown format "${f}". Use one of: ${LABELS}`);
-    const people = (Array.isArray(args.people) ? args.people : []).slice(0, 200);
-    const pattern: Pattern = { template, confidence: 1 };
-    const rows = people.map((p: any) => {
-      const name = normalizeName([clip(p?.first), clip(p?.middle), clip(p?.last)].filter(Boolean).join(" "));
-      const email = generateCandidates(name, domain, [pattern])[0];
-      return { first: clip(p?.first), last: clip(p?.last), email: email?.pattern === template ? email.email : null };
-    });
-    const text = rows.map((r) => `${r.first} ${r.last}: ${r.email ?? `can't build (${patternLabel(template)} needs a part of the name that's missing)`}`).join("\n");
-    return ok(`${text}\n\nBuilt from ${patternLabel(template)}@${domain}; not checked.`, { domain, format: patternLabel(template), people: rows });
+  annotations: { ...READ_ONLY, title: "Get a company's email format" },
+  async run(args, deps) {
+    const name = clip(args.company);
+    const given = clip(args.domain);
+    const domain = given ? normalizeDomain(given) : null;
+    if (given && (!domain || /(^|\.)linkedin\.com$/.test(domain))) return err("Give the company's own domain, e.g. acme.com, or just its name.");
+    if (!name && !domain) return err("Give a company name or domain.");
+    const co: Company = { id: slug(name || domain!), name: name || domain!, website: domain ?? undefined, patterns: [] };
+    await enrichCompany(co, deps.ctx(), []);
+    const label = name || co.domain || domain!;
+    const data = { company: label, domain: co.domain ?? null, formats: co.patterns.map((p) => toEnrichPattern(p, co.domain)) };
+    if (!co.domain) return ok(`Couldn't find ${label}'s domain. Ask the user for the company website.`, data);
+    const unsure = !domain && (co.domain_confidence ?? 1) < LOW_DOMAIN_CONFIDENCE ? ` Not sure ${co.domain} is the right company — confirm with the user.` : "";
+    if (!data.formats.length) return ok(`${label} (${co.domain}): no sourced email format found.${unsure}`, data);
+    const mx = co.mx_ok === false ? ` ${co.domain} doesn't receive email.` : "";
+    return ok(`${label} (${co.domain}): ${data.formats.map((f) => `${f.format}@${co.domain} ${pct(f.confidence)} (${f.confidence_basis}${f.source ? `, ${f.source}` : ""})`).join(" · ")}.${mx}${unsure}`, data);
   },
 };
 
-export const TOOLS: Tool<Deps>[] = [findEmails, findDomain, getEmailFormat, buildEmails];
+export const TOOLS: Tool<Deps>[] = [findEmails, getEmailFormat];

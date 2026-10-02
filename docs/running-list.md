@@ -44,7 +44,7 @@ What we're building, in order. Updated as each item lands. `[x]` done · `[~]` i
    - [x] CSV `verified` column next to email 1: yes · format proven · no (bounced) · accept-all server · risky · not checked · demo
    - [ ] Then: "Only verified" filter · pro-account gate
 6. [~] **API → MCP → ChatGPT app** — see `docs/mcp.md`
-   - [x] MCP server (Vercel Function `/api/mcp`, private key in the URL): `find_emails`, `find_domain`, `get_email_format`, `build_emails`
+   - [x] MCP server (Vercel Function `/api/mcp`, private key in the URL), two goal tools: `find_emails`, `get_email_format` (evidence engine & co. hidden underneath)
    - [ ] **You:** add `CF_MCP_KEY` in Vercel, then connect in ChatGPT developer mode
    - [ ] First real test in ChatGPT
    - [ ] Later: results widget · OAuth + own domain + listing · `/v1/enrich` REST API with keys

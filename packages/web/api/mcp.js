@@ -2467,7 +2467,7 @@ var READ_ONLY = { readOnlyHint: true, openWorldHint: true, destructiveHint: fals
 var findEmails = {
   name: "find_emails",
   title: "Find work emails",
-  description: `Find work emails for named people at up to ${MCP_LIMITS.companiesPerCall} companies per call (max ${MCP_LIMITS.peoplePerCall} people). Looks up each company's domain and email format (with its source), builds up to 3 ranked emails per person, and optionally checks a mailbox to prove the format. Pass companies with roles instead of people to find people on the company's own team page. Takes 10\u201360 seconds.`,
+  description: `Find work email addresses for named people at up to ${MCP_LIMITS.companiesPerCall} companies per call (max ${MCP_LIMITS.peoplePerCall} people), or find the people in given roles at a company. Each person gets up to 3 ranked emails, the company's email format with its source, and whether a mailbox check confirmed it. Takes 10\u201360 seconds.`,
   inputSchema: {
     type: "object",
     properties: {
@@ -2543,96 +2543,34 @@ function summarize(res) {
   lines.push("", "Only [verified: yes] or [verified: format proven] were confirmed by a mailbox check; the rest are likely addresses from the company's sourced format.");
   return lines.join("\n");
 }
-var findDomain = {
-  name: "find_domain",
-  title: "Find a company's domain",
-  description: "Find a company's official website / email domain, with the source and a confidence. Use a hint (industry, city, parent company) when the name is ambiguous.",
-  inputSchema: {
-    type: "object",
-    properties: { company: str3("Company name"), hint: str3("Optional: industry, city, parent company or a person's title there") },
-    required: ["company"],
-    additionalProperties: false
-  },
-  annotations: { ...READ_ONLY, title: "Find a company's domain" },
-  async run(args, deps) {
-    const name = clip2(args.company);
-    if (!name) return err("company is required");
-    const ctx = deps.ctx();
-    const key = `company:${slug(name)}`;
-    const cached = await ctx.cache.get(key).catch(() => void 0);
-    let data;
-    if (cached?.domain) data = { domain: cached.domain, confidence: cached.domain_confidence ?? 0.5, source_url: cached.domain_source_url ?? null, alternatives: [] };
-    else {
-      const d = await resolveDomain({ name, hint: clip2(args.hint) || void 0 }, ctx, { maxSearches: 2 });
-      if (!d.ok || !d.data) return err(`Domain lookup failed: ${d.error ?? "no answer"}`);
-      data = { domain: d.data.domain, confidence: d.data.confidence, source_url: d.data.source_url ?? null, alternatives: d.data.alternatives ?? [] };
-      if (data.domain) await ctx.cache.set(key, { domain: data.domain, domain_confidence: data.confidence, domain_source_url: data.source_url ?? void 0 }, ctx.budget.cacheTtlDays).catch(() => {
-      });
-    }
-    if (!data.domain) return ok(`No domain found for ${name}.`, { company: name, ...data });
-    const unsure = data.confidence < LOW_DOMAIN_CONFIDENCE ? " \u2014 low confidence, ask the user to confirm" : "";
-    return ok(`${name}: ${data.domain} (${pct(data.confidence)}${data.source_url ? `, source ${data.source_url}` : ""})${unsure}${data.alternatives.length ? ` \xB7 alternatives: ${data.alternatives.join(", ")}` : ""}`, { company: name, ...data });
-  }
-};
 var getEmailFormat = {
   name: "get_email_format",
   title: "Get a company's email format",
-  description: "How a domain writes its email addresses (first.last, flast\u2026): up to 3 formats with confidence and the source that states each one, and whether the domain receives mail.",
-  inputSchema: { type: "object", properties: { domain: str3("Bare domain, e.g. acme.com") }, required: ["domain"], additionalProperties: false },
-  annotations: { ...READ_ONLY, title: "Get a company's email format" },
-  async run(args, deps) {
-    const domain = normalizeDomain(clip2(args.domain));
-    if (!domain || /(^|\.)linkedin\.com$/.test(domain)) return err("Give a company's own domain, e.g. acme.com");
-    const ctx = deps.ctx();
-    const co = { id: slug(domain), name: domain, website: domain, patterns: [] };
-    await enrichCompany(co, ctx, []);
-    const formats = co.patterns.map((p) => toEnrichPattern(p, domain));
-    const data = { domain, accepts_mail: co.mx_ok ?? null, formats };
-    if (!formats.length) return ok(`No sourced email format found for ${domain}${co.error ? ` (${co.error})` : ""}.`, data);
-    const mx = co.mx_ok === false ? " \u26A0 this domain has no mail servers (MX)." : "";
-    return ok(`${domain}: ${formats.map((f) => `${f.format} ${pct(f.confidence)} (${f.confidence_basis}${f.source ? `, ${f.source}` : ""})`).join(" \xB7 ")}${mx}`, data);
-  }
-};
-var LABELS = TEMPLATES.map((t) => patternLabel(t)).join(", ");
-var buildEmails = {
-  name: "build_emails",
-  title: "Build emails from a known format",
-  description: `Free and instant: apply a known email format to names at a domain. Formats: ${LABELS}. Use get_email_format first if the format isn't known.`,
+  description: "How a company writes its email addresses (e.g. first.last@acme.com): up to 3 formats, each with a confidence and the source that states it. Give the company name, its domain, or both.",
   inputSchema: {
     type: "object",
-    properties: {
-      domain: str3("Bare domain, e.g. acme.com"),
-      format: str3(`One of: ${LABELS}`),
-      people: {
-        type: "array",
-        maxItems: 200,
-        items: { type: "object", properties: { first: str3("Given name"), last: str3("Family name"), middle: str3("Middle name or initial") }, required: ["first", "last"], additionalProperties: false }
-      }
-    },
-    required: ["domain", "format", "people"],
+    properties: { company: str3("Company name"), domain: str3("Company domain if known, e.g. acme.com") },
     additionalProperties: false
   },
-  annotations: { readOnlyHint: true, openWorldHint: false, destructiveHint: false, title: "Build emails from a known format" },
-  async run(args) {
-    const domain = normalizeDomain(clip2(args.domain));
-    if (!domain) return err("domain is required, e.g. acme.com");
-    const f = clip2(args.format).toLowerCase();
-    const template = TEMPLATES.find((t) => t === f || patternLabel(t) === f);
-    if (!template) return err(`Unknown format "${f}". Use one of: ${LABELS}`);
-    const people = (Array.isArray(args.people) ? args.people : []).slice(0, 200);
-    const pattern = { template, confidence: 1 };
-    const rows = people.map((p) => {
-      const name = normalizeName([clip2(p?.first), clip2(p?.middle), clip2(p?.last)].filter(Boolean).join(" "));
-      const email = generateCandidates(name, domain, [pattern])[0];
-      return { first: clip2(p?.first), last: clip2(p?.last), email: email?.pattern === template ? email.email : null };
-    });
-    const text = rows.map((r) => `${r.first} ${r.last}: ${r.email ?? `can't build (${patternLabel(template)} needs a part of the name that's missing)`}`).join("\n");
-    return ok(`${text}
-
-Built from ${patternLabel(template)}@${domain}; not checked.`, { domain, format: patternLabel(template), people: rows });
+  annotations: { ...READ_ONLY, title: "Get a company's email format" },
+  async run(args, deps) {
+    const name = clip2(args.company);
+    const given = clip2(args.domain);
+    const domain = given ? normalizeDomain(given) : null;
+    if (given && (!domain || /(^|\.)linkedin\.com$/.test(domain))) return err("Give the company's own domain, e.g. acme.com, or just its name.");
+    if (!name && !domain) return err("Give a company name or domain.");
+    const co = { id: slug(name || domain), name: name || domain, website: domain ?? void 0, patterns: [] };
+    await enrichCompany(co, deps.ctx(), []);
+    const label = name || co.domain || domain;
+    const data = { company: label, domain: co.domain ?? null, formats: co.patterns.map((p) => toEnrichPattern(p, co.domain)) };
+    if (!co.domain) return ok(`Couldn't find ${label}'s domain. Ask the user for the company website.`, data);
+    const unsure = !domain && (co.domain_confidence ?? 1) < LOW_DOMAIN_CONFIDENCE ? ` Not sure ${co.domain} is the right company \u2014 confirm with the user.` : "";
+    if (!data.formats.length) return ok(`${label} (${co.domain}): no sourced email format found.${unsure}`, data);
+    const mx = co.mx_ok === false ? ` ${co.domain} doesn't receive email.` : "";
+    return ok(`${label} (${co.domain}): ${data.formats.map((f) => `${f.format}@${co.domain} ${pct(f.confidence)} (${f.confidence_basis}${f.source ? `, ${f.source}` : ""})`).join(" \xB7 ")}.${mx}${unsure}`, data);
   }
 };
-var TOOLS2 = [findEmails, findDomain, getEmailFormat, buildEmails];
+var TOOLS2 = [findEmails, getEmailFormat];
 
 // packages/mcp/src/http.ts
 var CORS = {

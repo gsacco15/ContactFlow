@@ -158,18 +158,21 @@ is a table with emails and sources. Same cache as the website.
 **Why it's light.** The host model orchestrates, so each tool is a short call (seconds) — no job
 queue, no server-side runs (unlike item 8's REST API).
 
-**Tools (MCP, remote over HTTP).**
+**Tools (MCP, remote over HTTP) — one per user goal, not one per internal stage** (as built, see
+`docs/mcp.md`):
 
-| Tool | Does | Backed by |
+| Tool | User goal | Backed by |
 |---|---|---|
-| `find_domain(company, hint?)` | Official domain + source URL + confidence | `resolveDomain` + `company:` cache |
-| `find_email_format(domain)` | Up to 3 formats, confidence (stated or estimated), source URLs | `discoverPattern` + `domain:` cache |
-| `build_emails(first, last, middle?, domain, formats)` | Up to 3 ranked emails with basis | `candidates.ts` (pure, free) |
-| `check_domain(domain)` | Accepts mail? (MX) | `/mx` logic |
-| `verify_email(email)` *(after item 1)* | valid / risky / catch-all / invalid | item 1's `/verify` |
+| `find_emails(people[] / companies[]+roles, looking_for?, verify?)` | "Find emails for these people" | `toExtract` → `runPipeline` → `toEnrichResponse` |
+| `get_email_format(company?, domain?)` | "What's the email format at Acme?" | `enrichCompany` (domain, cache, evidence, site, search) |
 
-Tool descriptions tell the model: sourced beats guess; never present a guess as confirmed; never
-fetch LinkedIn (the server refuses anyway).
+Domain lookup, MX, evidence, rescue and verification stay underneath — the host model never needs to
+know how. Earlier drafts listed primitives (`find_domain`, `build_emails`, `check_domain`,
+`verify_email`); dropped, since they mirror the internal API rather than a user goal. Add a tool only
+when it's built and maps to something a user asks for.
+
+Tool descriptions tell the model: never present an unverified email as confirmed; never invent
+addresses; never pass LinkedIn (the server refuses anyway).
 
 **Build.**
 - New Supabase function `mcp` (Deno) using the MCP TypeScript SDK; imports core stages directly
