@@ -70,7 +70,7 @@ export default function App() {
           <button className="hover:text-stone-700" onClick={() => go("terms")}>Terms</button>
           <a className="hover:text-stone-700" href={`mailto:${SUPPORT_EMAIL}`}>Support</a>
           <a className="hover:text-stone-700" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
-          <span className="ml-auto">© 2026 JobPaper</span>
+          <span className="ml-auto">© 2026 ContactFlow</span>
         </div>
       </footer>
     </div>
