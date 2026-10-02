@@ -3,8 +3,8 @@ import { BUDGET } from "../config.ts";
 // A real flowchart of what one run does, drawn to match the pipeline's actual branches.
 // Spine on the left (the happy path), side branches on the right.
 
-type Kind = "you" | "claude" | "jev" | "search" | "free" | "end";
-const KIND: Record<Kind, { color: string; label: string }> = {
+export type Kind = "you" | "claude" | "jev" | "search" | "free" | "end";
+export const KIND: Record<Kind, { color: string; label: string }> = {
   you: { color: "#57534e", label: "You" },
   claude: { color: "#7c3aed", label: "Claude" },
   jev: { color: "#0284c7", label: "Jev" },

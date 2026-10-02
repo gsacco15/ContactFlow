@@ -1,17 +1,17 @@
 import { FIT_THRESHOLDS, LOW_DOMAIN_CONFIDENCE, MIN_SOURCED_CONFIDENCE } from "@cf/core";
-import { FlowDiagram } from "./FlowDiagram.tsx";
+import { FlowDiagram, KIND, type Kind } from "./FlowDiagram.tsx";
 
-type Step = { title: string; body: string; tag?: string };
+type Step = { title: string; body: string; tag?: string; kind: Kind };
 
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
 const FLOW: Step[] = [
-  { title: "Paste", body: "Team page, LinkedIn results, a list of firms, notes, URLs — anything.", tag: "you" },
-  { title: "Read", body: "Pulls out people, titles and companies. Emails or formats in your paste are used directly.", tag: "Claude" },
-  { title: "Judge", body: "Scores each person against “Looking for”. Not relevant → skipped, nothing spent.", tag: "Jev" },
-  { title: "Domain", body: "Finds each company’s real website (skipped when you pasted it).", tag: "web search" },
-  { title: "Email format", body: "Looks for a source that states how the company writes emails, e.g. flast@.", tag: "web search" },
-  { title: "Emails", body: "Builds up to 3 emails per person from the format, then checks the domain accepts mail.", tag: "no cost" },
+  { title: "Paste", body: "Team page, LinkedIn results, a list of firms, notes, URLs — anything.", tag: "you", kind: "you" },
+  { title: "Read", body: "Pulls out people, titles and companies. Emails or formats in your paste are used directly.", tag: "Claude", kind: "claude" },
+  { title: "Judge", body: "Scores each person against “Looking for”. Not relevant → skipped, nothing spent.", tag: "Jev", kind: "jev" },
+  { title: "Domain", body: "Finds each company’s real website (skipped when you pasted it).", tag: "web search", kind: "search" },
+  { title: "Email format", body: "Looks for a source that states how the company writes emails, e.g. flast@.", tag: "web search", kind: "search" },
+  { title: "Emails", body: "Builds up to 3 emails per person from the format, then checks the domain accepts mail.", tag: "no cost", kind: "free" },
 ];
 
 function Box({ s, n }: { s: Step; n: number }) {
@@ -22,7 +22,15 @@ function Box({ s, n }: { s: Step; n: number }) {
         <span className="truncate font-semibold">{s.title}</span>
       </div>
       <p className="text-xs leading-relaxed text-stone-600">{s.body}</p>
-      {s.tag && <span className="mt-auto self-start whitespace-nowrap rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-500">{s.tag}</span>}
+      {s.tag && (
+        <span
+          className="mt-auto inline-flex items-center gap-1.5 self-start whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold"
+          style={{ color: KIND[s.kind].color, background: `${KIND[s.kind].color}14`, boxShadow: `inset 0 0 0 1px ${KIND[s.kind].color}33` }}
+        >
+          <span className="size-1.5 rounded-full" style={{ background: KIND[s.kind].color }} />
+          {s.tag}
+        </span>
+      )}
     </li>
   );
 }
