@@ -31,7 +31,7 @@ export default function App() {
               <Logo />
             </button>
           </h1>
-          <p className="hidden text-sm text-stone-500 sm:block">Paste a page. Get sourced emails.</p>
+          <p className="hidden text-sm text-stone-500 sm:block">Paste anything → emails you can trust.</p>
           <button onClick={() => go(page === "app" ? "how" : "app")} className="ml-auto text-xs text-stone-400 hover:text-stone-700">
             {page === "app" ? "How it works" : "Back to app"}
           </button>
