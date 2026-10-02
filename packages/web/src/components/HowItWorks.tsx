@@ -16,13 +16,13 @@ const FLOW: Step[] = [
 
 function Box({ s, n }: { s: Step; n: number }) {
   return (
-    <li className="relative flex-1 basis-40 rounded-xl border border-stone-200 bg-white p-3 shadow-sm">
-      <div className="mb-1 flex items-center gap-2">
-        <span className="grid size-5 place-items-center rounded-full bg-stone-900 text-[11px] font-semibold text-white">{n}</span>
-        <span className="font-semibold">{s.title}</span>
-        {s.tag && <span className="ml-auto rounded-full bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-stone-500">{s.tag}</span>}
+    <li className="flex min-w-0 flex-1 basis-40 flex-col gap-2 rounded-xl border border-stone-200 bg-white p-3 shadow-sm">
+      <div className="flex items-center gap-2">
+        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-stone-900 text-[11px] font-semibold text-white">{n}</span>
+        <span className="truncate font-semibold">{s.title}</span>
       </div>
       <p className="text-xs leading-relaxed text-stone-600">{s.body}</p>
+      {s.tag && <span className="mt-auto self-start whitespace-nowrap rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-500">{s.tag}</span>}
     </li>
   );
 }

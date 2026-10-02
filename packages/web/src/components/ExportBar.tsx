@@ -31,16 +31,17 @@ export function ExportBar({ p }: { p: Pipeline }) {
 
   return (
     <footer className="sticky bottom-0 z-10 border-t border-stone-200 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-4 py-2.5">
-        <Button onClick={copy} disabled={!contacts.length}>
-          {copied ? "Copied ✓" : "Copy as table"}
+      <div className="mx-auto flex max-w-7xl flex-nowrap items-center gap-2 px-4 py-2.5 sm:flex-wrap">
+        <Button onClick={copy} disabled={!contacts.length} className="whitespace-nowrap">
+          {copied ? "Copied ✓" : <>Copy<span className="hidden sm:inline"> as table</span></>}
         </Button>
-        <Button variant="primary" onClick={download} disabled={!contacts.length}>
-          Download CSV
+        <Button variant="primary" onClick={download} disabled={!contacts.length} className="whitespace-nowrap">
+          <span className="hidden sm:inline">Download </span>CSV
         </Button>
-        <span className="text-xs text-stone-500">{contacts.length} rows{state.searches.length > 1 ? ` from ${state.searches.filter((x) => !x.hidden).length} of ${state.searches.length} searches` : ""} · {filters.includeGuesses ? "incl. backup guesses" : "sourced emails only"}</span>
+        <span className="hidden text-xs text-stone-500 sm:inline">{contacts.length} rows{state.searches.length > 1 ? ` from ${state.searches.filter((x) => !x.hidden).length} of ${state.searches.length} searches` : ""} · {filters.includeGuesses ? "incl. backup guesses" : "sourced emails only"}</span>
         <PushMenu table={() => toTable(contacts, state.companies, opts)} disabled={!contacts.length} />
-        <span className="ml-auto font-mono text-xs text-stone-600" title="Estimated from list prices. “This paste” resets when you paste something new; “session” resets on Clear." data-testid="cost">
+        <span className="ml-auto font-mono text-xs text-stone-600 sm:hidden" title="Cost of this paste (session total on larger screens)">≈ ${(state.pasteUsage?.cost ?? 0).toFixed(2)}</span>
+        <span className="ml-auto hidden font-mono text-xs text-stone-600 sm:inline" title="Estimated from list prices. “This paste” resets when you paste something new; “session” resets on Clear." data-testid="cost">
           <span title={`This paste: ${state.pasteUsage?.searches ?? 0} searches, ${fmtTokens(state.pasteUsage?.tokens ?? 0)} tokens`}>
             this paste ≈ <b className="text-stone-900">${(state.pasteUsage?.cost ?? 0).toFixed(2)}</b>
           </span>

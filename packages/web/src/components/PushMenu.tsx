@@ -20,10 +20,10 @@ export function PushMenu({ table, disabled }: { table: () => string[][]; disable
   return (
     <div className="relative" ref={ref}>
       <Button onClick={() => setOpen(!open)} disabled={disabled} aria-expanded={open}>
-        Push to… <span className="text-stone-400">▾</span>
+        <span className="whitespace-nowrap">Push to…</span> <span className="text-stone-400">▾</span>
       </Button>
       {open && (
-        <div className="absolute bottom-full left-0 z-20 mb-2 w-80 space-y-3 rounded-xl border border-stone-200 bg-white p-3 text-sm shadow-lg">
+        <div className="fixed inset-x-4 bottom-20 z-20 sm:absolute sm:inset-x-auto sm:bottom-full sm:left-0 sm:mb-2 sm:w-80 space-y-3 rounded-xl border border-stone-200 bg-white p-3 text-sm shadow-lg">
           <GoogleSheets table={table} />
           <div className="flex items-center justify-between border-t border-stone-100 pt-2 text-stone-400">
             <span>HubSpot &amp; other CRMs</span>

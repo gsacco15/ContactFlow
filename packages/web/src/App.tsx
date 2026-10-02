@@ -65,11 +65,11 @@ export default function App() {
       )}
       {page === "app" && <ExportBar p={p} />}
       <footer className="border-t border-stone-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-5 gap-y-1 px-4 py-4 text-xs text-stone-400">
+        <div className="mx-auto flex max-w-7xl items-center gap-x-4 px-4 py-4 text-xs whitespace-nowrap text-stone-400 sm:gap-x-5">
           <button className="hover:text-stone-700" onClick={() => go("privacy")}>Privacy</button>
           <button className="hover:text-stone-700" onClick={() => go("terms")}>Terms</button>
           <a className="hover:text-stone-700" href={`mailto:${SUPPORT_EMAIL}`}>Support</a>
-          <a className="hover:text-stone-700" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
+          <a className="hidden hover:text-stone-700 sm:inline" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
           <span className="ml-auto">© 2026 ContactFlow</span>
         </div>
       </footer>
