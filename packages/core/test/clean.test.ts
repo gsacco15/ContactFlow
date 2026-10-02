@@ -151,4 +151,22 @@ describe("cleanPaste", () => {
     const t = cleanPaste("Ann Lee\nPartner\n\nBo Chen\nPartner\n\nCy Park\nPartner").text;
     expect(t.match(/Partner/g)).toHaveLength(3);
   });
+
+  it("a headline that is an ordinary word (Advertising, Careers, Network…) stays; footer copies go", () => {
+    const t = cleanPaste(`${PAGE}\n\nMaya Okafor • 2nd\nAdvertising\n\nLeo Brandt • 3rd+\nCareers\n\nIvy Chen • 3rd+\nNetwork\n\nAbout\nAccessibility\nCareers\nAdvertising\nMobile\nLinkedIn Corporation © 2026`).text;
+    expect(t).toMatch(/Maya Okafor\nAdvertising/);
+    expect(t).toMatch(/Leo Brandt\nCareers/);
+    expect(t).toMatch(/Ivy Chen\nNetwork/);
+    expect(t).not.toContain("Accessibility");
+    expect(t).not.toContain("Mobile");
+    expect(t.match(/Careers/g)).toHaveLength(1); // the headline, not the footer link
+  });
+
+  it("a side section without 'Show all' ends at the next real entry — nobody after it is lost", () => {
+    const t = cleanPaste(`${PAGE}\n\nPeople also viewed\nAmir Haddad • 2nd\nVP Sales at Elsewhere Inc\nConnect\n\nRosa Delgado • 3rd+\nFirm Administrator at Harbor & Pine Legal, LLC`).text;
+    expect(t).not.toContain("Amir Haddad"); // inside the section
+    expect(t).toContain("Rosa Delgado");
+    expect(t).toContain("Firm Administrator at Harbor & Pine Legal, LLC");
+  });
 });
+

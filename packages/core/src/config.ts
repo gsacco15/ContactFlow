@@ -71,7 +71,7 @@ export const SITE_CONFIDENCE = { single: 0.85, multiple: 0.95 };
 export const NO_FORMAT_CACHE_DAYS = 7;
 
 /** Strip known page clutter (universal rules + recognised-source packs) before the AI reads a paste. */
-export const CLEAN_PASTE = false;
+export const CLEAN_PASTE = true;
 
 /** Domain confidence below this is flagged red in the UI. */
 export const LOW_DOMAIN_CONFIDENCE = 0.5;

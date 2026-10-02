@@ -14,19 +14,35 @@ const UNIVERSAL_DROP = new Set([
   "accept cookies", "accept all", "reject all", "cookie settings", "manage cookies", "cookie preferences",
 ]);
 
+/**
+ * LinkedIn's own buttons and labels — phrases that are never someone's name or headline.
+ * Removed only when they are the whole line. Generic words (Home, Network, Jobs, People,
+ * About, Careers…) are deliberately not here: they could be real content.
+ */
 const LINKEDIN_DROP = new Set([
-  "home", "network", "my network", "jobs", "messaging", "notifications", "me", "for business", "search",
-  "message", "connect", "follow", "following", "view", "show all", "show more", "see all", "1st", "2nd", "3rd+",
-  "locations", "current company", "all filters", "reset", "previous", "next", "people", "posts", "about",
-  "accessibility", "help center", "privacy & terms", "ad choices", "advertising", "business services",
-  "get the linkedin app", "more", "talent solutions", "professional community policies", "careers",
-  "marketing solutions", "sales solutions", "mobile", "small business", "safety center", "questions?",
-  "visit our help center.", "manage your account and privacy", "go to your settings.", "recommendation transparency",
-  "learn more about recommended content.", "select language", "english (english)", "compose message", "page inboxes",
+  "message", "connect", "follow", "show all", "show more", "see all", "1st", "2nd", "3rd+", "all filters",
+  "my network", "messaging", "notifications", "for business", "more actions", "compose message", "page inboxes",
   "click to see affiliated inboxes", "are these results helpful?", "your feedback helps us improve search results",
-  "keyboard shortcuts", "close jump menu", "new feed updates notifications", "pending", "save", "more actions",
+  "keyboard shortcuts", "close jump menu", "new feed updates notifications", "get the linkedin app",
   "retry premium", "retry premium for $0", "try premium for $0", "retry recruiter lite for $0", "reactivate premium",
 ]);
+
+/**
+ * Footer links. Some are ordinary words a person's headline could be ("Advertising",
+ * "Careers", "Mobile"), so they are removed only inside LinkedIn's footer block, which starts
+ * at an "About" line followed shortly by "Accessibility" / "Help Center" / "Privacy & Terms".
+ */
+const LINKEDIN_FOOTER = new Set([
+  "about", "accessibility", "help center", "privacy & terms", "ad choices", "advertising", "business services",
+  "more", "talent solutions", "professional community policies", "careers", "marketing solutions",
+  "sales solutions", "mobile", "small business", "safety center", "questions?", "visit our help center.",
+  "manage your account and privacy", "go to your settings.", "recommendation transparency",
+  "learn more about recommended content.", "select language", "english (english)", "previous", "next",
+]);
+const FOOTER_START = /^(accessibility|help center|privacy & terms)$/i;
+
+/** Lines that belong to a "People also viewed" item, so a gap followed by one stays in the section. */
+const SECTION_ITEM = /^(follow|connect|message|show all)$|page logo$|^[\d,.]+k? followers$|other connections? follows? this page$|•\s*(1st|2nd|3rd\+)$/i;
 
 const LINKEDIN_DROP_RE = [
   /^\d+ (new )?(notifications?|messages?)( total| notifications)?$/i,
@@ -80,35 +96,49 @@ export function cleanPaste(input: string): CleanResult {
   // Only a recognised LinkedIn paste is touched. Anything else — notes, team pages, CSVs,
   // emails, unknown sources — goes to the model exactly as pasted.
   if (!isLinkedIn(input)) return { text: input, removedChars: 0, packs: [] };
-  const packs = ["linkedin"];
-  const li = true;
-  const out: string[] = [];
-  let skipSection = 0;
-
-  for (const raw of input.split(/\r?\n/)) {
-    let line = raw.trim();
-    const key = line.toLowerCase();
-    if (li) {
-      line = line.replace(/\s*•\s*(1st|2nd|3rd\+)\s*$/i, "").replace(/\s*\((she|he|they)\/(her|him|them|hers|his|theirs)\)/gi, "").trim();
+  const lines = input.split(/\r?\n/).map((raw) =>
+    raw.trim().replace(/\s*•\s*(1st|2nd|3rd\+)\s*$/i, "").replace(/\s*\((she|he|they)\/(her|him|them|hers|his|theirs)\)/gi, "").trim(),
+  );
+  const nextFilled = (i: number) => {
+    for (let k = i + 1; k < lines.length; k++) if (lines[k]) return lines[k];
+    return "";
+  };
+  // Footer zones: an "About" line with "Accessibility"/"Help Center"/"Privacy & Terms" within the
+  // next few lines, up to "LinkedIn Corporation ©" (or 40 lines).
+  const footer = new Array<boolean>(lines.length).fill(false);
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^about$/i.test(lines[i])) continue;
+    const near = lines.slice(i + 1, i + 8).some((l) => FOOTER_START.test(l));
+    if (!near) continue;
+    for (let k = i; k < Math.min(lines.length, i + 40); k++) {
+      footer[k] = true;
+      if (/linkedin corporation ©/i.test(lines[k])) break;
     }
+  }
+
+  const out: string[] = [];
+  let inSection = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const key = line.toLowerCase();
     if (!line) {
+      // A gap ends a side section unless the next line is clearly still part of it.
+      if (inSection && !SECTION_ITEM.test(nextFilled(i))) inSection = false;
       if (out.length && out.at(-1) !== "") out.push("");
       continue;
     }
     const keep = KEEP.test(line);
-    if (li && !keep) {
+    if (!keep) {
       if (LINKEDIN_SECTIONS.test(line)) {
-        skipSection = 30;
+        inSection = true;
         continue;
       }
-      if (skipSection > 0) {
-        skipSection--;
-        if (/^show all$/i.test(line)) skipSection = 0;
+      if (inSection) {
+        if (/^show all$/i.test(line)) inSection = false;
         continue;
       }
       if (LINKEDIN_DROP.has(key) || LINKEDIN_DROP_RE.some((r) => r.test(line))) continue;
-    }
-    if (!keep) {
+      if (footer[i] && LINKEDIN_FOOTER.has(key)) continue;
       if (NO_LETTERS.test(line)) continue;
       if (UNIVERSAL_DROP.has(key)) continue;
       if (line.length < 90 && (/^©\s?\d{4}/.test(line) || /all rights reserved\.?$/i.test(line))) continue;
@@ -121,12 +151,9 @@ export function cleanPaste(input: string): CleanResult {
 
   // The same page pasted twice: later copies of long identical runs go. Short repeats stay
   // (two people titled "Partner" are different people).
-  let text = dropRepeatedRuns(out)
+  const text = dropRepeatedRuns(out)
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-
-  // Safety cap: an unrecognised paste that would lose most of its text is left alone.
-  if (!packs.length && text.length < input.trim().length * 0.3) text = input.trim();
-  return { text, removedChars: Math.max(0, input.length - text.length), packs };
+  return { text, removedChars: Math.max(0, input.length - text.length), packs: ["linkedin"] };
 }
