@@ -5,7 +5,7 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { STAGES, type StageName } from "./_core/schemas.ts";
 import { BUNDLED_PROMPTS } from "./_core/prompts.ts";
 import {
-  CACHE_KEY, DOMAIN, HttpError, JEV_URL, RateLimiter, addUsage, buildParams, corsHeaders, mxFromDoh, mxFromRecords,
+  CACHE_KEY, DOMAIN, FETCH_BLOCKED_DOMAINS, HttpError, JEV_URL, extractEmails, pickLinks, robotsAllows, sameSite, sitemapLinks, type SiteEmail, RateLimiter, addUsage, buildParams, corsHeaders, mxFromDoh, mxFromRecords,
   parseBody, parseJevBatch, readContent, zeroUsage, type Env, type LlmBody,
 } from "./lib.ts";
 
@@ -98,6 +98,7 @@ async function logUsage(session: string, ipHash: string, stage: StageName, model
     session, ip_hash: ipHash, stage, model,
     input_tokens: u.input_tokens, output_tokens: u.output_tokens,
     searches: u.web_search_requests, fetches: u.web_fetch_requests,
+    cache_read_tokens: u.cache_read_input_tokens, cache_write_tokens: u.cache_creation_input_tokens,
   });
   if (error) console.error("cf_usage insert", error.message);
 }
@@ -178,6 +179,69 @@ async function runJev(body: any) {
   return { responses: out, usage, model: out[0]?.model ?? model };
 }
 
+// ── /site (read a company's own public pages for real addresses; no AI, no cost) ──
+
+const SITE_UA = "ContactFlowBot/1.0 (+https://contact-flow-web.vercel.app/#how)";
+const PAGE_BYTES = 1_500_000;
+
+async function getText(url: string, ms = 5000): Promise<{ ok: boolean; url: string; text: string; type: string }> {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  try {
+    const r = await fetch(url, { headers: { "user-agent": SITE_UA, accept: "text/html,application/xml;q=0.9,*/*;q=0.5" }, redirect: "follow", signal: ctl.signal });
+    const type = r.headers.get("content-type") ?? "";
+    if (!r.ok || !/html|xml|text\/plain/i.test(type)) return { ok: false, url: r.url || url, text: "", type };
+    const reader = r.body?.getReader();
+    let text = "";
+    if (reader) {
+      const dec = new TextDecoder();
+      for (let size = 0; size < PAGE_BYTES; ) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.length;
+        text += dec.decode(value, { stream: true });
+      }
+      reader.cancel().catch(() => {});
+    }
+    return { ok: true, url: r.url || url, text, type };
+  } catch {
+    return { ok: false, url, text: "", type: "" };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function readSite(domain: string, maxPages: number) {
+  if (FETCH_BLOCKED_DOMAINS.some((b) => sameSite(domain, b))) return { emails: [], pages: [], note: "blocked domain" };
+  let home = await getText(`https://${domain}/`);
+  if (!home.ok) home = await getText(`https://www.${domain}/`);
+  if (!home.ok || !sameSite(new URL(home.url).hostname, domain)) return { emails: [], pages: [], note: "homepage unavailable" };
+  if (/cf-browser-verification|challenge-platform|captcha/i.test(home.text.slice(0, 20000))) return { emails: [], pages: [], note: "bot check" };
+  const origin = new URL(home.url).origin;
+  const robots = await getText(`${origin}/robots.txt`, 3000);
+  const allowed = (u: string) => !robots.ok || robotsAllows(robots.text, new URL(u).pathname);
+  if (!allowed(home.url)) return { emails: [], pages: [], note: "robots.txt disallows" };
+
+  const emails = new Map<string, SiteEmail>();
+  const add = (list: SiteEmail[]) => list.forEach((e) => emails.has(e.email) || emails.set(e.email, e));
+  const pages = [home.url];
+  add(extractEmails(home.text, domain, home.url));
+
+  const sitemap = await getText(`${origin}/sitemap.xml`, 3000);
+  const queue = [...new Set([...pickLinks(home.text, home.url, domain), ...(sitemap.ok ? sitemapLinks(sitemap.text, domain) : [])])];
+  for (const fallback of ["/contact", "/about", "/team"]) if (queue.length < 3) queue.push(origin + fallback);
+
+  for (const url of queue) {
+    if (pages.length >= maxPages) break;
+    if (!allowed(url)) continue;
+    const page = await getText(url);
+    if (!page.ok || !sameSite(new URL(page.url).hostname, domain)) continue;
+    pages.push(page.url);
+    add(extractEmails(page.text, domain, page.url));
+  }
+  return { emails: [...emails.values()].slice(0, 60), pages };
+}
+
 // ── router ──────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -211,6 +275,31 @@ Deno.serve(async (req) => {
       return json({ ok: await hasMx(domain) });
     }
     if (path.endsWith("/cache")) return json(await cacheOp(body));
+    if (path.endsWith("/site")) {
+      const domain = String(body?.domain ?? "").toLowerCase();
+      if (!DOMAIN.test(domain)) throw new HttpError(400, "bad domain");
+      return json(await readSite(domain, Math.min(8, Math.max(1, Number(body?.maxPages ?? 6)))));
+    }
+    if (path.endsWith("/shadow")) {
+      // Site-reading trial log: domain-level formats and counts only — never names or addresses.
+      const r = body ?? {};
+      const domain = String(r.domain ?? "").toLowerCase();
+      if (!DOMAIN.test(domain)) throw new HttpError(400, "bad domain");
+      const tpl = (x: unknown) => (typeof x === "string" && /^[{}a-z._-]{3,24}$/.test(x) ? x : null);
+      if (db) {
+        const { error } = await db.from("cf_site_shadow").insert({
+          domain,
+          site_template: tpl(r.site_template),
+          site_matches: Math.max(0, Math.min(100, Number(r.site_matches) || 0)),
+          site_pages: Math.max(0, Math.min(20, Number(r.site_pages) || 0)),
+          search_template: tpl(r.search_template),
+          search_confidence: Number.isFinite(Number(r.search_confidence)) ? Number(r.search_confidence) : null,
+          agree: typeof r.agree === "boolean" ? r.agree : null,
+        });
+        if (error) console.error("cf_site_shadow insert", error.message);
+      }
+      return json({ ok: true });
+    }
     if (path.endsWith("/jev")) {
       if (!(await underDailyLimit())) return json({ error: "daily_limit" }, 429);
       const out = await runJev(body);

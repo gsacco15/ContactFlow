@@ -55,6 +55,8 @@ export function usePipeline() {
       cache: layeredCache(localCache, client.cache),
       decisions: decisionsFor(llm, onUsage),
       verifier: new MxVerifier(client.mx),
+      site: client.site,
+      shadow: client.shadow,
       budget: BUDGET,
       options: {
         roleFilter: state.roleFilter,

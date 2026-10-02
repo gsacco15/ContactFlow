@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MxVerifier, buildExtract, runPipeline, rerunCompany, type Contact, type ExtractResult } from "../src/index.ts";
+import { MxVerifier, buildExtract, memoryCache, runPipeline, rerunCompany, type Contact, type ExtractResult } from "../src/index.ts";
 import { finish, fixture, mixedNotesExtract, mockCtx, toolResponse } from "./helpers.ts";
 
 const noPatterns = toolResponse("report_patterns", { patterns: [] }, { web_search_requests: 2 });
@@ -262,6 +262,59 @@ describe("runPipeline", () => {
       const res = await runPipeline("Zuber Lawler zuberlawler.com", ctx);
       expect(res.contacts.map((c) => c.status)).toEqual(["ok", "ok"]);
     });
+  });
+
+  describe("reading the company's own site", () => {
+    const paste = () =>
+      toolResponse("extract_contacts", { mode: "people", companies: [{ name: "Acme", website: "acme.com" }], people: [{ first: "Sandy", last: "Morris", title: "Partner", company: "Acme" }, { first: "Jon", last: "Pratt", title: "Partner", company: "Acme" }], urls: [], notes: "" });
+    const site = async () => ({ pages: ["https://acme.com/", "https://acme.com/team"], emails: [{ email: "smorris@acme.com", context: "Sandy Morris Partner", page: "https://acme.com/team" }, { email: "jpratt@acme.com", context: "Jon Pratt", page: "https://acme.com/team" }] });
+
+    it("shadow: results still come from the search; the comparison is logged without names", async () => {
+      const rows: any[] = [];
+      const { ctx, calls } = mockCtx({ classify_extract: paste(), discover_pattern: firstLast() }, { site, shadow: async (r) => void rows.push(r) });
+      ctx.options = { siteMode: "shadow" };
+      const res = await runPipeline("x", ctx);
+      expect(res.contacts.map((c) => c.primary_email)).toEqual(["sandy.morris@acme.com", "jon.pratt@acme.com"]);
+      expect(calls.filter((c) => c.stage === "discover_pattern")).toHaveLength(1);
+      expect(rows).toEqual([{ domain: "acme.com", site_template: "{f}{last}", site_matches: 2, site_pages: 2, search_template: "{first}.{last}", search_confidence: 0.8, agree: false }]);
+      expect(JSON.stringify(rows)).not.toMatch(/morris|pratt|sandy/i);
+    });
+
+    it("on: a proven site format skips the paid search and is labelled as from their site", async () => {
+      const { ctx, calls } = mockCtx({ classify_extract: paste() }, { site });
+      ctx.options = { siteMode: "on" };
+      const res = await runPipeline("x", ctx);
+      expect(calls.some((c) => c.stage === "discover_pattern")).toBe(false);
+      expect(res.contacts.map((c) => c.primary_email)).toEqual(["smorris@acme.com", "jpratt@acme.com"]);
+      expect(res.companies[0].patterns[0]).toMatchObject({ template: "{f}{last}", from_site: true, confidence: 0.95 });
+    });
+
+    it("on: nothing proven, or the site read fails → normal search", async () => {
+      for (const s of [async () => ({ pages: ["https://acme.com/"], emails: [] }), async () => Promise.reject(new Error("timeout"))]) {
+        const { ctx, calls } = mockCtx({ classify_extract: paste(), discover_pattern: firstLast() }, { site: s as any });
+        ctx.options = { siteMode: "on" };
+        const res = await runPipeline("x", ctx);
+        expect(calls.filter((c) => c.stage === "discover_pattern")).toHaveLength(1);
+        expect(res.contacts[0].primary_email).toBe("sandy.morris@acme.com");
+      }
+    });
+  });
+
+  it("a 'no format found' search is remembered for 7 days, a found one for 30", async () => {
+    let now = 0;
+    const cache = memoryCache(() => now);
+    const run = async (handler: any) => {
+      const { ctx, calls } = mockCtx({ classify_extract: toolResponse("extract_contacts", { ...mixedNotesExtract, companies: [mixedNotesExtract.companies[0]] }), discover_pattern: handler, rescue_agent: finish({ gave_up: true }) }, { cache });
+      await runPipeline("x", ctx);
+      return calls.filter((c) => c.stage === "discover_pattern").length;
+    };
+    expect(await run(noPatterns)).toBe(1);
+    now = 6 * 86_400_000;
+    expect(await run(noPatterns)).toBe(0); // still remembered
+    now = 8 * 86_400_000;
+    expect(await run(firstLast())).toBe(1); // expired → searched again, found
+    now = 30 * 86_400_000;
+    expect(await run(firstLast())).toBe(0); // found formats keep 30 days
   });
 
   it("rerunCompany bypasses the cache", async () => {

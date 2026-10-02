@@ -8,7 +8,8 @@ import { generateCandidates } from "./candidates.ts";
 import { normalizeName, slug } from "./normalize.ts";
 import { cleanUrl, isAggregatorDomain, isBlockedUrl, normalizeDomain, validatePatterns } from "./validate.ts";
 import { pMap } from "./pmap.ts";
-import { LOW_DOMAIN_CONFIDENCE } from "./config.ts";
+import { LOW_DOMAIN_CONFIDENCE, NO_FORMAT_CACHE_DAYS, SITE_READ_MODE } from "./config.ts";
+import { siteFormat } from "./site.ts";
 import { judgeFit, relevance } from "./fit.ts";
 import { cleanEmail, domainFromPaste, mergePatterns, pastePatterns } from "./paste.ts";
 import { needsMiddle } from "./candidates.ts";
@@ -174,15 +175,51 @@ export async function enrichCompany(co: Company, ctx: Ctx, people: Contact[] = [
     return;
   }
   const maxSearches = Math.max(1, Math.min(2, ctx.budget.maxSearchesPerCompany - used));
-  const p = await discoverPattern(co.domain, ctx, { maxSearches });
+  // The company's own website (free, no AI). "on": a proven format skips the paid search.
+  // "shadow": read alongside the search and log whether they agree; results come from the search.
+  const domain = co.domain;
+  const mode = ctx.site ? (ctx.options?.siteMode ?? SITE_READ_MODE) : "off";
+  const fromSite = async () => {
+    try {
+      const read = await ctx.site!(domain);
+      return { read, verdict: siteFormat(read, domain, people) };
+    } catch {
+      return undefined;
+    }
+  };
+  let p: Awaited<ReturnType<typeof discoverPattern>> | undefined;
+  let shadow: Awaited<ReturnType<typeof fromSite>>;
+  if (mode === "on") {
+    const site = await fromSite();
+    if (site?.verdict.pattern) p = { ok: true, data: { patterns: [site.verdict.pattern] }, confidence: site.verdict.pattern.confidence, sources: [site.verdict.pattern.source_url!], tokens_used: 0, searches_used: 0 };
+  }
+  if (!p) [p, shadow] = await Promise.all([discoverPattern(domain, ctx, { maxSearches }), mode === "shadow" ? fromSite() : undefined]);
+  if (shadow) {
+    const top = p.ok ? p.data?.patterns[0] : undefined;
+    const site = shadow.verdict.template ?? null;
+    await ctx
+      .shadow?.({
+        domain,
+        site_template: site,
+        site_matches: shadow.verdict.matches,
+        site_pages: shadow.read.pages.length,
+        search_template: top?.template ?? null,
+        search_confidence: top?.confidence ?? null,
+        agree: site && top ? site === top.template : null,
+      })
+      .catch(() => {});
+  }
   if (p.ok && p.data) co.patterns = p.data.patterns;
   else co.error = `discover_pattern: ${p.error}`;
   co.mx_ok = ctx.verifier?.domainLive ? await ctx.verifier.domainLive(co.domain) : undefined;
   co.fetched_at = new Date().toISOString();
+  // Only a search that finished cleanly is remembered (errors never are). "Searched, nothing
+  // found" is kept for a shorter time so a newly published format is picked up soon.
+  const keep = co.patterns.length ? ttl : Math.min(ttl, NO_FORMAT_CACHE_DAYS);
   if (p.ok && co.mx_ok !== undefined) {
-    await ctx.cache.set(`domain:${co.domain}`, { patterns: co.patterns, mx_ok: co.mx_ok, fetched_at: co.fetched_at } satisfies DomainCache, ttl);
+    await ctx.cache.set(`domain:${co.domain}`, { patterns: co.patterns, mx_ok: co.mx_ok, fetched_at: co.fetched_at } satisfies DomainCache, keep);
   } else if (p.ok && !ctx.verifier) {
-    await ctx.cache.set(`domain:${co.domain}`, { patterns: co.patterns, fetched_at: co.fetched_at } satisfies DomainCache, ttl);
+    await ctx.cache.set(`domain:${co.domain}`, { patterns: co.patterns, fetched_at: co.fetched_at } satisfies DomainCache, keep);
   }
 }
 

@@ -14,6 +14,7 @@ export type Pattern = {
   from_paste?: boolean; // read from the user's own paste, not a search
   quote?: string; // the pasted sentence or example it came from
   stated?: boolean; // the source itself states the format/percentage (vs. the model estimating it)
+  from_site?: boolean; // proven from real addresses on the company's own website
 };
 
 export type StatedFormat = { quote: string; template?: Template; example_email?: string; example_name?: string };
@@ -123,10 +124,12 @@ export type LlmRequest = {
 };
 
 export type LlmUsage = {
-  input_tokens: number;
+  input_tokens: number; // uncached input (full price)
   output_tokens: number;
   web_search_requests: number;
   web_fetch_requests: number;
+  cache_read_input_tokens?: number; // served from the prompt cache (~0.1× price)
+  cache_creation_input_tokens?: number; // written to the prompt cache (~1.25× price)
 };
 
 export type LlmResponse = {
@@ -169,6 +172,8 @@ export type RunOptions = {
   skipIrrelevant?: boolean;
   /** Ignore cached company lookups (used by Retry). */
   bypassCache?: boolean;
+  /** Override SITE_READ_MODE (config) for this run. */
+  siteMode?: "off" | "shadow" | "on";
 };
 
 export type Ctx = {
@@ -180,6 +185,20 @@ export type Ctx = {
   options?: RunOptions;
   onUsage?: (u: UsageEvent) => void;
   signal?: AbortSignal;
+  /** Read the company's own public pages for addresses (edge /site). Free; no AI. */
+  site?: (domain: string) => Promise<import("./site.ts").SiteRead>;
+  /** Record a site-vs-search comparison during the shadow trial (domain-level, no names). */
+  shadow?: (row: SiteShadowRow) => Promise<void>;
+};
+
+export type SiteShadowRow = {
+  domain: string;
+  site_template: string | null;
+  site_matches: number;
+  site_pages: number;
+  search_template: string | null;
+  search_confidence: number | null;
+  agree: boolean | null;
 };
 
 export type RunResult = {

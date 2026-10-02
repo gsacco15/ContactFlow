@@ -278,13 +278,17 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
               <>
                 <Pill
                   tone={pattern.confidence >= 0.6 ? "green" : pattern.confidence >= 0.3 ? "amber" : "red"}
-                  title={pattern.from_paste ? "Confidence from your paste" : pattern.stated ? "Percentage stated by the source" : "Estimated from search snippets — no percentage was stated"}
+                  title={pattern.from_paste ? "Confidence from your paste" : pattern.from_site ? "Proven by real addresses on the company's website" : pattern.stated ? "Percentage stated by the source" : "Estimated from search snippets — no percentage was stated"}
                 >
-                  {pattern.stated === false || (!pattern.stated && !pattern.from_paste) ? "≈" : ""}
+                  {pattern.stated === false && !pattern.from_site ? "≈" : !pattern.stated && !pattern.from_paste && !pattern.from_site ? "≈" : ""}
                   {Math.round(pattern.confidence * 100)}%
                 </Pill>
                 {pattern.from_paste ? (
                   <Pill tone="blue" title={pattern.quote ? `From your paste: “${pattern.quote}”` : "From your paste"}>from paste</Pill>
+                ) : pattern.from_site ? (
+                  <a href={pattern.source_url} target="_blank" rel="noreferrer noopener" title={`Real addresses on the company's own website: ${(pattern.evidence ?? []).join(", ")}`}>
+                    <Pill tone="green">from their site</Pill>
+                  </a>
                 ) : (
                   <LinkIcon href={pattern.source_url} title="Where the format was read from" />
                 )}

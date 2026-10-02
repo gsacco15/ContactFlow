@@ -15,3 +15,6 @@ export { type CrmAdapter, type CrmRecord, toCrmRecords } from "./crm/index.ts";
 export { memoryCache } from "./cache.ts";
 export { pMap } from "./pmap.ts";
 export { matchesRoles, parseRoles } from "./roles.ts";
+export { cleanPaste, type CleanResult } from "./clean.ts";
+export { siteFormat, type SiteEmail, type SiteRead, type SiteVerdict } from "./site.ts";
+export type { SiteShadowRow } from "./types.ts";

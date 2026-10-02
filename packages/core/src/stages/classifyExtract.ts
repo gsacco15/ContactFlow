@@ -4,6 +4,8 @@ import { cleanDisplayName, slug } from "../normalize.ts";
 import { cleanUrl, isTemplate, normalizeDomain } from "../validate.ts";
 import { cleanEmail, isGenericEmail } from "../paste.ts";
 import { callLlm, done, fail, findCall } from "./util.ts";
+import { cleanPaste } from "../clean.ts";
+import { CLEAN_PASTE } from "../config.ts";
 
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 
@@ -95,7 +97,9 @@ export function buildExtract(input: any, fallbackCompany?: Company): ExtractResu
 
 /** Stage 1 — classify & extract. No web calls. */
 export async function classifyExtract(text: string, ctx: Ctx): Promise<StageResult<ExtractResult>> {
-  const { res, error } = await callLlm(ctx, { stage: "classify_extract", input: text });
+  // Strip page clutter first (menus, footers, repeats); the user's paste itself is unchanged.
+  const input = CLEAN_PASTE ? cleanPaste(text).text : text;
+  const { res, error } = await callLlm(ctx, { stage: "classify_extract", input });
   if (!res) return fail(error ?? "llm error");
   const call = findCall(res, "extract_contacts");
   if (!call) return fail("model did not return extract_contacts", res);

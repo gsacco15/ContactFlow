@@ -32,7 +32,28 @@ export const GENERIC_LOCAL_PARTS = [
   "info", "contact", "hello", "admin", "office", "hr", "careers", "jobs", "support", "sales", "team", "mail",
   "inquiries", "inquiry", "intake", "reception", "billing", "marketing", "press", "media", "legal", "help",
   "noreply", "no-reply", "enquiries", "general", "service", "accounts", "law", "firm",
+  "webmaster", "postmaster", "abuse", "privacy", "security", "feedback", "enquiry", "customerservice",
+  "customercare", "customer", "partners", "partnerships", "investors", "ir", "newsletter", "events",
+  "recruiting", "talent", "bookings", "booking", "orders", "returns", "donotreply", "do-not-reply",
+  "notifications", "alerts", "news", "frontdesk", "appointments", "accounting", "finance", "payroll",
+  "operations", "ops", "it", "tech", "dev", "hire", "hiring", "work", "studio", "agency", "hq", "main",
 ];
+
+/**
+ * Reading the company's own website for real addresses (free, no AI).
+ * "off": never. "shadow": read and record agreement with the search, but results come from the
+ * search as before. "on": a proven site format is used and the paid search is skipped.
+ */
+export const SITE_READ_MODE: "off" | "shadow" | "on" = "shadow";
+/** Pages read per company, and the confidence a site-proven format gets (1 name-matched address / 2+ agreeing). */
+export const SITE_MAX_PAGES = 6;
+export const SITE_CONFIDENCE = { single: 0.85, multiple: 0.95 };
+
+/** Days a "searched, no format found" result is remembered (so repeats don't pay again). */
+export const NO_FORMAT_CACHE_DAYS = 7;
+
+/** Strip known page clutter (universal rules + recognised-source packs) before the AI reads a paste. */
+export const CLEAN_PASTE = true;
 
 /** Domain confidence below this is flagged red in the UI. */
 export const LOW_DOMAIN_CONFIDENCE = 0.5;
@@ -50,7 +71,18 @@ export const PRICES: { prefix: string; input: number; output: number }[] = [
 export const DEFAULT_PRICE = { input: 2, output: 10 };
 export const PRICE_PER_SEARCH = 0.01; // $10 per 1,000 searches
 
-export function estimateCost(u: { model?: string; input_tokens: number; output_tokens: number; web_search_requests: number }): number {
+/** Prompt-cache pricing relative to the input price: reads and 5-minute writes. */
+export const CACHE_PRICE = { read: 0.1, write: 1.25 };
+
+export function estimateCost(u: {
+  model?: string;
+  input_tokens: number;
+  output_tokens: number;
+  web_search_requests: number;
+  cache_read_input_tokens?: number;
+  cache_creation_input_tokens?: number;
+}): number {
   const p = PRICES.find((x) => u.model?.startsWith(x.prefix)) ?? DEFAULT_PRICE;
-  return (u.input_tokens * p.input + u.output_tokens * p.output) / 1e6 + u.web_search_requests * PRICE_PER_SEARCH;
+  const cached = (u.cache_read_input_tokens ?? 0) * CACHE_PRICE.read + (u.cache_creation_input_tokens ?? 0) * CACHE_PRICE.write;
+  return ((u.input_tokens + cached) * p.input + u.output_tokens * p.output) / 1e6 + u.web_search_requests * PRICE_PER_SEARCH;
 }

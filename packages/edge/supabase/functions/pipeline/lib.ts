@@ -88,16 +88,24 @@ export function buildParams(body: LlmBody, prompt: string, env: Env) {
     ? (body.messages as unknown[])
     : [{ role: "user", content: typeof body.input === "string" ? body.input : JSON.stringify(body.input) }];
 
+  // Prompt caching (CF_CACHE_STAGES, comma list; "" turns it off). The breakpoint on the system
+  // block caches tools + system; agentic stages also cache their growing history. Off by default
+  // on web-search stages: there the API also caches search results at the write premium.
+  const cacheStages = (env("CF_CACHE_STAGES") ?? "classify_extract,rescue_agent").split(",").map((x) => x.trim());
+  const cache = cacheStages.includes(body.stage);
+  const system = fillPrompt(prompt, body.vars);
+
   const params: Record<string, unknown> = {
     model,
     max_tokens: 16000,
-    system: fillPrompt(prompt, body.vars),
+    system: cache ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }] : system,
     messages,
     tools,
     // Forced tool_choice 400s on current Sonnet/Opus and would also block web search;
     // each prompt ends by naming its tool and the function nudges once if it's skipped.
     tool_choice: { type: "auto" },
   };
+  if (cache && spec.agentic) params.cache_control = { type: "ephemeral" };
   const effort = env("CF_EFFORT");
   // Haiku 4.5 rejects the effort parameter, so only models that support it get it.
   if (effort && !/haiku/.test(model)) params.output_config = { effort };
@@ -110,11 +118,21 @@ export function buildParams(body: LlmBody, prompt: string, env: Env) {
   return { params, betas, spec, model };
 }
 
-export type Usage = { input_tokens: number; output_tokens: number; web_search_requests: number; web_fetch_requests: number };
-export const zeroUsage = (): Usage => ({ input_tokens: 0, output_tokens: 0, web_search_requests: 0, web_fetch_requests: 0 });
+export type Usage = {
+  input_tokens: number; // uncached input
+  output_tokens: number;
+  web_search_requests: number;
+  web_fetch_requests: number;
+  cache_read_input_tokens: number;
+  cache_creation_input_tokens: number;
+};
+export const zeroUsage = (): Usage => ({ input_tokens: 0, output_tokens: 0, web_search_requests: 0, web_fetch_requests: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 });
 
+/** Cache reads and writes are kept apart from plain input so the cost estimate can price them. */
 export function addUsage(acc: Usage, u: any): Usage {
-  acc.input_tokens += (u?.input_tokens ?? 0) + (u?.cache_creation_input_tokens ?? 0) + (u?.cache_read_input_tokens ?? 0);
+  acc.input_tokens += u?.input_tokens ?? 0;
+  acc.cache_read_input_tokens += u?.cache_read_input_tokens ?? 0;
+  acc.cache_creation_input_tokens += u?.cache_creation_input_tokens ?? 0;
   acc.output_tokens += u?.output_tokens ?? 0;
   acc.web_search_requests += u?.server_tool_use?.web_search_requests ?? 0;
   acc.web_fetch_requests += u?.server_tool_use?.web_fetch_requests ?? 0;
@@ -193,4 +211,122 @@ export function mxFromDoh(json: any): boolean {
 
 export function mxFromRecords(records: { exchange: string }[]): boolean {
   return records.some((r) => r.exchange && r.exchange !== "." && r.exchange !== "");
+}
+
+// ── Site reading (plain HTTP, no AI): find real @domain addresses on a company's own pages ──
+
+/** Link text / path words that point at people or contact pages, in any industry. */
+const PEOPLE_WORDS = /team|people|staff|about|leadership|management|our-?firm|who-?we-?are|attorneys?|lawyers?|professionals|partners|contact|directory|bios?|experts|advisors|doctors|physicians|providers|agents|brokers|press|news|media/i;
+const SKIP_EXT = /\.(pdf|jpe?g|png|gif|svg|webp|zip|docx?|xlsx?|pptx?|mp4|mp3|css|js)(\?|$)/i;
+
+/** Hostname belongs to the company: the domain itself or a subdomain of it. */
+export function sameSite(host: string, domain: string): boolean {
+  const h = host.toLowerCase().replace(/^www\./, "");
+  return h === domain || h.endsWith(`.${domain}`);
+}
+
+/** Internal links on a page that look like team/contact pages, best first, de-duplicated. */
+export function pickLinks(html: string, pageUrl: string, domain: string, max = 8): string[] {
+  const out: { url: string; score: number }[] = [];
+  const seen = new Set<string>();
+  for (const m of html.matchAll(/<a\b[^>]*href\s*=\s*["']([^"'#]+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
+    let u: URL;
+    try {
+      u = new URL(m[1].trim(), pageUrl);
+    } catch {
+      continue;
+    }
+    if (!/^https?:$/.test(u.protocol) || !sameSite(u.hostname, domain) || SKIP_EXT.test(u.pathname)) continue;
+    const key = u.origin + u.pathname.replace(/\/+$/, "");
+    if (seen.has(key) || key === new URL(pageUrl).origin) continue;
+    const text = m[2].replace(/<[^>]+>/g, " ");
+    const score = (PEOPLE_WORDS.test(u.pathname) ? 2 : 0) + (PEOPLE_WORDS.test(text) ? 1 : 0);
+    if (!score) continue;
+    seen.add(key);
+    out.push({ url: key, score });
+  }
+  return out.sort((a, b) => b.score - a.score).slice(0, max).map((x) => x.url);
+}
+
+/** Page URLs from a sitemap.xml that look like team/contact/bio pages. */
+export function sitemapLinks(xml: string, domain: string, max = 8): string[] {
+  const urls = [...xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map((m) => m[1]);
+  return urls
+    .filter((x) => {
+      try {
+        const u = new URL(x);
+        return sameSite(u.hostname, domain) && PEOPLE_WORDS.test(u.pathname) && !SKIP_EXT.test(u.pathname);
+      } catch {
+        return false;
+      }
+    })
+    .slice(0, max);
+}
+
+/** Minimal robots.txt check for the "*" group (and ours): is this path disallowed? */
+export function robotsAllows(robots: string, path: string, agent = "contactflow"): boolean {
+  const groups: { agents: string[]; rules: { allow: boolean; path: string }[] }[] = [];
+  let cur: (typeof groups)[number] | undefined;
+  for (const raw of robots.split(/\r?\n/)) {
+    const line = raw.replace(/#.*/, "").trim();
+    const m = /^(user-agent|allow|disallow)\s*:\s*(.*)$/i.exec(line);
+    if (!m) continue;
+    const [, k, v] = m;
+    if (/user-agent/i.test(k)) {
+      if (!cur || cur.rules.length) groups.push((cur = { agents: [], rules: [] }));
+      cur.agents.push(v.toLowerCase());
+    } else if (cur) cur.rules.push({ allow: /^allow$/i.test(k), path: v });
+  }
+  const group = groups.find((g) => g.agents.some((a) => a && agent.includes(a))) ?? groups.find((g) => g.agents.includes("*"));
+  if (!group) return true;
+  let best: { allow: boolean; path: string } | undefined;
+  for (const r of group.rules) {
+    if (!r.path) continue;
+    if (path.startsWith(r.path) && (!best || r.path.length > best.path.length)) best = r;
+  }
+  return best ? best.allow : true;
+}
+
+/** Visible text of a page (enough for finding names next to addresses). */
+export function pageText(html: string): string {
+  return html
+    .replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<br\s*\/?>|<\/(p|div|li|h\d|td|tr|span|a)>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&#64;|&commat;/g, "@")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n\s*\n+/g, "\n");
+}
+
+export type SiteEmail = { email: string; context: string; page: string };
+
+/**
+ * Addresses at the company's domain on one page, with ~160 characters of surrounding text for
+ * name matching. Reads mailto: links, plain text, and "name [at] firm [dot] com" styles.
+ */
+export function extractEmails(html: string, domain: string, page: string): SiteEmail[] {
+  const text = pageText(html);
+  const deob = text
+    .replace(/\s*[\[(]\s*at\s*[\])]\s*/gi, "@")
+    .replace(/\s+at\s+(?=[a-z0-9-]+\s*[\[(]\s*dot\s*[\])])/gi, "@")
+    .replace(/\s*[\[(]\s*dot\s*[\])]\s*/gi, ".");
+  const found = new Map<string, SiteEmail>();
+  const add = (email: string, ctx: string) => {
+    const e = email.toLowerCase().replace(/^mailto:/, "").replace(/[.,;:]+$/, "");
+    const d = e.split("@")[1];
+    if (!d || !sameSite(d, domain) || found.has(e)) return;
+    found.set(e, { email: e, context: ctx.replace(/\s+/g, " ").trim().slice(0, 320), page });
+  };
+  for (const m of html.matchAll(/mailto:([^"'?\s>]+@[^"'?\s>]+)/gi)) {
+    const at = text.toLowerCase().indexOf(m[1].toLowerCase());
+    // Name for a mailto link: the text around it on the page, or the link's own markup.
+    const around = at >= 0 ? text.slice(Math.max(0, at - 160), at + m[1].length + 80) : html.slice(Math.max(0, m.index! - 300), m.index! + 200).replace(/<[^>]+>/g, " ");
+    add(decodeURIComponent(m[1]), around);
+  }
+  for (const m of deob.matchAll(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi)) {
+    add(m[0], deob.slice(Math.max(0, m.index! - 160), m.index! + m[0].length + 80));
+  }
+  return [...found.values()];
 }

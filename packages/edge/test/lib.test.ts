@@ -97,9 +97,22 @@ describe("helpers", () => {
     expect(readContent([{ type: "web_search_tool_result", content: { type: "web_search_tool_result_error", error_code: "max_uses_exceeded" } }]).sources).toEqual([]);
   });
 
-  it("addUsage sums tokens incl. cache and server tool counts", () => {
-    const u = addUsage(zeroUsage(), { input_tokens: 10, cache_read_input_tokens: 5, output_tokens: 3, server_tool_use: { web_search_requests: 2 } });
-    expect(u).toEqual({ input_tokens: 15, output_tokens: 3, web_search_requests: 2, web_fetch_requests: 0 });
+  it("addUsage keeps cache reads/writes apart from plain input, plus server tool counts", () => {
+    const u = addUsage(zeroUsage(), { input_tokens: 10, cache_read_input_tokens: 5, cache_creation_input_tokens: 7, output_tokens: 3, server_tool_use: { web_search_requests: 2 } });
+    expect(u).toEqual({ input_tokens: 10, output_tokens: 3, web_search_requests: 2, web_fetch_requests: 0, cache_read_input_tokens: 5, cache_creation_input_tokens: 7 });
+  });
+
+  it("prompt caching: on for classify_extract (system block) and rescue (also history), off for search stages; env can turn it off", () => {
+    const env = (m: Record<string, string>) => (k: string) => m[k];
+    const ex = buildParams({ stage: "classify_extract", input: "x" } as any, "PROMPT", env({})).params;
+    expect(ex.system).toEqual([{ type: "text", text: "PROMPT", cache_control: { type: "ephemeral" } }]);
+    expect(ex.cache_control).toBeUndefined();
+    const rescue = buildParams({ stage: "rescue_agent", messages: [{ role: "user", content: "x" }] } as any, "P", env({})).params;
+    expect(rescue.cache_control).toEqual({ type: "ephemeral" });
+    const fmt = buildParams({ stage: "discover_pattern", input: { domain: "a.com" } } as any, "P", env({})).params;
+    expect(fmt.system).toBe("P");
+    const off = buildParams({ stage: "classify_extract", input: "x" } as any, "P", env({ CF_CACHE_STAGES: "" })).params;
+    expect(off.system).toBe("P");
   });
 
   it("RateLimiter returns false after N calls per minute", () => {
