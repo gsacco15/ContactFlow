@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildExtract } from "@cf/core";
-import { initialState, listedRows, migrate, persistable, reducer, searchNames, tableRows, type Search } from "../src/state.ts";
+import { colorOf, initialState, listedRows, migrate, persistable, reducer, searchNames, tableRows, type Search } from "../src/state.ts";
 
 const search = (id: string, want = ""): Search => ({ id, label: id, want, at: "2026-10-02T02:00:00Z", cost: 0 });
 
@@ -92,6 +92,24 @@ describe("reducer", () => {
     s = reducer(s, { type: "row", contact: { ...s.contacts["jane-doe-acme"], status: "skipped", fit } });
     s = reducer(s, { type: "role", roleFilter: "something else" });
     expect(tableRows(s).map((c) => c.id)).toEqual(["john-roe-acme"]);
+  });
+
+  it("groups rows by search (newest first, then company); colours stay with their search", () => {
+    const beta = buildExtract({ mode: "people", companies: [{ name: "Beta", website: "beta.com" }], people: [{ first: "Ann", last: "Lee", company: "Beta" }] });
+    let s = reducer(initialState("s1"), { type: "run_start", extracted: ex, search: search("a") });
+    s = reducer(s, { type: "run_end" });
+    s = reducer(s, { type: "run_start", extracted: beta, search: search("b") });
+    expect(tableRows(s).map((c) => c.id)).toEqual(["ann-lee-beta", "jane-doe-acme", "john-roe-acme"]);
+    expect([colorOf(s, "a"), colorOf(s, "b")]).toEqual([0, 1]);
+    s = reducer(s, { type: "search_remove", id: "a" });
+    s = reducer(s, { type: "run_end" });
+    s = reducer(s, { type: "run_start", extracted: ex, search: search("c") });
+    expect(colorOf(s, "b")).toBe(1); // unchanged
+    expect(colorOf(s, "c")).toBe(0); // reuses the freed colour
+    s = reducer(s, { type: "search_rename", id: "c", label: "  Acme partners " });
+    expect(s.searches.at(-1)!.label).toBe("Acme partners");
+    s = reducer(s, { type: "filters", filters: { groupBy: "company" } });
+    expect(tableRows(s).map((c) => c.id)).toEqual(["jane-doe-acme", "john-roe-acme", "ann-lee-beta"]);
   });
 
   it("old saved state becomes one 'Earlier results' search", () => {

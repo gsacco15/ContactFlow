@@ -4,7 +4,16 @@ import { FitBadge } from "./FitBadge.tsx";
 import { LOW_DOMAIN_CONFIDENCE } from "../config.ts";
 import type { Pipeline } from "../usePipeline.ts";
 import { Button, LinkIcon, Pill } from "./ui.tsx";
-import { listedRows, searchTime, tableRows, visibleSearches, wantFor } from "../state.ts";
+import { colorOf, groupBy, groupOf, listedRows, searchTime, tableRows, visibleSearches, wantFor, type GroupBy, type State } from "../state.ts";
+
+/** One colour per search, so its card, section and rows match. */
+const PALETTE = ["#2563eb", "#059669", "#d97706", "#db2777", "#7c3aed", "#0891b2", "#65a30d", "#dc2626"];
+const colorFor = (s: State, id?: string) => PALETTE[colorOf(s, id)] ?? "#a8a29e";
+
+function searchStats(s: State, id: string) {
+  const people = Object.entries(s.rowSearches).filter(([k, v]) => v.includes(id) && s.contacts[k]).map(([k]) => s.contacts[k]);
+  return { people: people.length, ok: people.filter((c) => c.status === "ok").length };
+}
 
 /** One chip per search: tick to show/hide its rows (and leave them out of the export), × to remove it. */
 function Searches({ p }: { p: Pipeline }) {
@@ -13,29 +22,41 @@ function Searches({ p }: { p: Pipeline }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       {[...state.searches].reverse().map((x) => {
-        const ids = Object.entries(state.rowSearches).filter(([, v]) => v.includes(x.id)).map(([k]) => k);
-        const people = ids.filter((id) => state.contacts[id]);
-        const ok = people.filter((id) => state.contacts[id].status === "ok").length;
+        const { people, ok } = searchStats(state, x.id);
         const running = state.activeSearch === x.id;
+        const color = colorFor(state, x.id);
         return (
           <div
             key={x.id}
-            className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-sm shadow-sm ${x.hidden ? "border-stone-200 bg-stone-50 text-stone-400" : "border-stone-300 bg-white"}`}
+            className={`flex items-center gap-2 rounded-lg border border-l-4 px-2.5 py-1.5 text-sm shadow-sm ${x.hidden ? "border-stone-200 bg-stone-50 text-stone-400" : "border-stone-300 bg-white"}`}
+            style={{ borderLeftColor: x.hidden ? undefined : color }}
           >
             <input type="checkbox" aria-label={`Show ${x.label}`} checked={!x.hidden} onChange={(e) => dispatch({ type: "search_toggle", id: x.id, hidden: !e.target.checked || undefined })} />
             <button type="button" className="text-left" title="Show only this search" onClick={() => dispatch({ type: "search_only", id: x.id })}>
               <span className="font-medium">{x.label}</span>
               {x.want && <span className="text-stone-500"> · {x.want}</span>}
               <span className="block text-xs text-stone-400">
-                {running ? "running…" : `${people.length} people · ${ok} with email`} · ${x.cost.toFixed(2)} · {searchTime(x.at)}
+                {running ? "running…" : `${people} people · ${ok} with email`} · ${x.cost.toFixed(2)} · {searchTime(x.at)}
               </span>
+            </button>
+            <button
+              type="button"
+              aria-label={`Rename ${x.label}`}
+              title="Rename this search"
+              className="text-stone-300 hover:text-stone-700"
+              onClick={() => {
+                const label = prompt("Name this search", x.label);
+                if (label) dispatch({ type: "search_rename", id: x.id, label });
+              }}
+            >
+              ✎
             </button>
             <button
               type="button"
               aria-label={`Remove ${x.label}`}
               title="Remove this search (people another search also found stay)"
               disabled={running}
-              className="ml-1 text-stone-400 hover:text-red-600 disabled:opacity-30"
+              className="text-stone-400 hover:text-red-600 disabled:opacity-30"
               onClick={() => confirm(`Remove “${x.label}” from your list?`) && dispatch({ type: "search_remove", id: x.id })}
             >
               ×
@@ -69,6 +90,7 @@ export function ResultsTable({ p }: { p: Pipeline }) {
   const empty = Object.values(state.companies).filter(
     (c) => (state.companySearches[c.id] ?? []).some((x) => shown.has(x)) && !withRows.has(c.id) && (c.fetched_at || c.error || c.domain || c.mx_ok === false || c.skipped),
   );
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   if (!state.searches.length && !state.running) return null;
 
   const rows = tableRows(state);
@@ -80,11 +102,12 @@ export function ResultsTable({ p }: { p: Pipeline }) {
   const toggle = (k: keyof typeof filters) => (
     <label className="flex items-center gap-1.5">
       <input type="checkbox" checked={filters[k]} onChange={(e) => dispatch({ type: "filters", filters: { [k]: e.target.checked } })} />
-      {{ onlyOk: "Only ok", hidePatternless: "Only rows with an email", groupByCompany: "Group by company", includeGuesses: "Include backup guesses", hideIrrelevant: "Hide not relevant" }[k]}
+      {{ onlyOk: "Only ok", hidePatternless: "Only rows with an email", groupByCompany: "Group by company", groupBy: "", includeGuesses: "Include backup guesses", hideIrrelevant: "Hide not relevant" }[k]}
     </label>
   );
 
-  let lastCompany: string | undefined;
+  let lastGroup: string | undefined;
+  const search = (id?: string) => state.searches.find((x) => x.id === id);
   return (
     <section className="space-y-3" aria-label="Results">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-stone-200 pt-4">
@@ -115,7 +138,18 @@ export function ResultsTable({ p }: { p: Pipeline }) {
           </span>
         )}
         {toggle("hidePatternless")}
-        {toggle("groupByCompany")}
+        <label className="flex items-center gap-1.5">
+          Group by
+          <select
+            className="rounded border border-stone-300 bg-white px-1.5 py-0.5 text-sm"
+            value={groupBy(state)}
+            onChange={(e) => dispatch({ type: "filters", filters: { groupBy: e.target.value as GroupBy, groupByCompany: false } })}
+          >
+            <option value="search">Search</option>
+            <option value="company">Company</option>
+            <option value="none">Nothing</option>
+          </select>
+        </label>
         {anyWant && toggle("hideIrrelevant")}
         <span className="border-l border-stone-300 pl-4" title="Common formats with no source behind them. Off = they are hidden here and left out of Copy/CSV.">
           {toggle("includeGuesses")}
@@ -137,17 +171,25 @@ export function ResultsTable({ p }: { p: Pipeline }) {
           <tbody>
             {rows.map((c) => {
               const co = state.companies[c.company_id];
-              const header = filters.groupByCompany && co?.name !== lastCompany;
-              lastCompany = co?.name;
+              const g = groupOf(state, c.id);
+              const by = groupBy(state);
+              const key = by === "search" ? g : by === "company" ? co?.name : undefined;
+              const header = by !== "none" && key !== lastGroup;
+              lastGroup = key;
+              const color = colorFor(state, g);
+              const folded = !!key && collapsed.has(key);
               return [
                 header && (
-                  <tr key={`h-${c.company_id}`} className="bg-stone-50/70">
-                    <td colSpan={7} className="px-3 py-1.5 text-xs font-semibold text-stone-600">
-                      {co?.name ?? "No company"}
-                    </td>
-                  </tr>
+                  <GroupHeader
+                    key={`h-${key}`}
+                    folded={folded}
+                    onToggle={() => setCollapsed((x) => (x.has(key!) ? new Set([...x].filter((y) => y !== key)) : new Set([...x, key!])))}
+                    color={by === "search" ? color : undefined}
+                    title={by === "search" ? search(g)?.label ?? "Search" : co?.name ?? "No company"}
+                    sub={by === "search" ? [search(g)?.want, `${rows.filter((r) => groupOf(state, r.id) === g).length} shown`].filter(Boolean).join(" · ") : `${rows.filter((r) => state.companies[r.company_id]?.name === co?.name).length} shown`}
+                  />
                 ),
-                <Row key={c.id} c={c} co={co} p={p} />,
+                !folded && <Row key={c.id} c={c} co={co} p={p} color={color} />,
               ];
             })}
           </tbody>
@@ -181,14 +223,28 @@ export function ResultsTable({ p }: { p: Pipeline }) {
   );
 }
 
-function Row({ c, co, p }: { c: Contact; co?: Company; p: Pipeline }) {
+/** Section row: colour dot, name, details; click to fold (folding only affects this view, not the export). */
+function GroupHeader({ title, sub, color, folded, onToggle }: { title: string; sub: string; color?: string; folded: boolean; onToggle: () => void }) {
+  return (
+    <tr className="cursor-pointer border-t border-stone-200 bg-stone-50 hover:bg-stone-100" onClick={onToggle} title={folded ? "Show these rows" : "Fold these rows (they still export)"}>
+      <td colSpan={7} className="px-3 py-1.5 text-xs" style={color ? { boxShadow: `inset 4px 0 0 ${color}` } : undefined}>
+        <span className="mr-1.5 inline-block w-3 text-stone-400">{folded ? "▸" : "▾"}</span>
+        {color && <span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle" style={{ background: color }} />}
+        <span className="font-semibold text-stone-800">{title}</span>
+        <span className="ml-2 text-stone-500">{sub}</span>
+      </td>
+    </tr>
+  );
+}
+
+function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color?: string }) {
   const top = c.candidates.find((x) => x.pattern !== "pasted");
   const pattern = top ? co?.patterns.find((x) => x.template === top.pattern) : undefined;
   const failed = c.status !== "ok" && c.status !== "pending" && c.status !== "skipped";
   const shown = visibleCandidates(c, { includeGuesses: !!p.state.filters.includeGuesses });
   return (
     <tr className="border-t border-stone-100 align-top">
-      <td className="px-3 py-2">
+      <td className="px-3 py-2" style={color ? { boxShadow: `inset 3px 0 0 ${color}` } : undefined}>
         <div className="flex items-start gap-1">
           {c.flag && <span title={c.flag} className="cursor-help text-amber-600">⚠</span>}
           <FitBadge c={c} want={wantFor(p.state, c)} />

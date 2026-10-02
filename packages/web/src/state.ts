@@ -1,6 +1,7 @@
 import { relevance, visibleCandidates, type Company, type Contact, type ExtractResult } from "@cf/core";
 
-export type Filters = { onlyOk: boolean; hidePatternless: boolean; groupByCompany: boolean; includeGuesses: boolean; hideIrrelevant: boolean };
+export type GroupBy = "search" | "company" | "none";
+export type Filters = { onlyOk: boolean; hidePatternless: boolean; groupByCompany: boolean; groupBy?: GroupBy; includeGuesses: boolean; hideIrrelevant: boolean };
 export type Usage = { tokens: number; searches: number; cost: number; calls: number };
 
 /** One Run of the pipeline. Results from every search stay in the list until removed. */
@@ -11,7 +12,11 @@ export type Search = {
   at: string; // ISO time
   cost: number;
   hidden?: boolean; // unticked: rows left out of the table and the export
+  color?: number; // index into the search colours, fixed when the search is made
 };
+
+/** How many distinct search colours there are (the palette lives in the UI). */
+export const SEARCH_COLORS = 8;
 
 export type State = {
   session: string;
@@ -55,6 +60,7 @@ export type Action =
   | { type: "search_toggle"; id: string; hidden?: boolean }
   | { type: "search_only"; id?: string }
   | { type: "search_all"; hidden: boolean }
+  | { type: "search_rename"; id: string; label: string }
   | { type: "search_remove"; id: string }
   | { type: "row"; contact: Contact }
   | { type: "company"; company: Company }
@@ -154,7 +160,9 @@ export function reducer(s: State, a: Action): State {
           a.extracted!.companies.every((c) => s.companySearches[c.id]?.includes(x.id)) &&
           [...people.map((p) => p.id), ...(a.reuse ?? [])].every((r) => s.rowSearches[r]?.includes(x.id)),
       );
-      const search = same ? { ...same, at: a.search.at, hidden: undefined } : a.search;
+      const used = new Set(s.searches.map((x, i) => x.color ?? i % SEARCH_COLORS));
+      const color = [...Array(SEARCH_COLORS).keys()].find((i) => !used.has(i)) ?? s.searches.length % SEARCH_COLORS;
+      const search = same ? { ...same, at: a.search.at, hidden: undefined } : { ...a.search, color };
       const id = search.id;
       const skip = new Set(a.skip ?? []);
       const contacts = { ...s.contacts };
@@ -214,6 +222,8 @@ export function reducer(s: State, a: Action): State {
       return { ...s, searches: s.searches.map((x) => (x.id === a.id ? { ...x, hidden: a.hidden } : x)) };
     case "search_only":
       return { ...s, searches: s.searches.map((x) => ({ ...x, hidden: a.id ? x.id !== a.id : undefined })) };
+    case "search_rename":
+      return { ...s, searches: s.searches.map((x) => (x.id === a.id ? { ...x, label: a.label.trim() || x.label } : x)) };
     case "search_all":
       return { ...s, searches: s.searches.map((x) => ({ ...x, hidden: a.hidden || undefined })) };
     case "search_remove": {
@@ -254,6 +264,20 @@ export function migrate(s: State): State {
   };
 }
 
+export const groupBy = (s: State): GroupBy => s.filters.groupBy ?? (s.filters.groupByCompany ? "company" : "search");
+
+/** The search a row is shown under: the newest ticked search that found it. */
+export function groupOf(s: State, contactId: string): string | undefined {
+  const ids = s.rowSearches[contactId] ?? [];
+  return s.searches.filter((x) => !x.hidden && ids.includes(x.id)).at(-1)?.id;
+}
+
+/** Colour slot of a search (older searches without one get theirs by position). */
+export const colorOf = (s: State, id?: string) => {
+  const i = s.searches.findIndex((x) => x.id === id);
+  return i < 0 ? -1 : (s.searches[i].color ?? i % SEARCH_COLORS);
+};
+
 /** "Looking for" that applies to a row: the one from the search that found it. */
 export const wantFor = (s: State, c: Contact) => searchOf(s, c.id)?.want ?? s.roleFilter;
 
@@ -263,7 +287,15 @@ export function tableRows(s: State): Contact[] {
   let rows = listedRows(s);
   if (f.hideIrrelevant !== false) rows = rows.filter((r) => !wantFor(s, r).trim() || relevance(r, wantFor(s, r)) !== false);
   if (f.hidePatternless) rows = rows.filter((r) => visibleCandidates(r, { includeGuesses: !!f.includeGuesses }).length);
-  if (f.groupByCompany) rows = [...rows].sort((a, b) => (s.companies[a.company_id]?.name ?? "~").localeCompare(s.companies[b.company_id]?.name ?? "~"));
+  const by = groupBy(s);
+  const company = (c: Contact) => s.companies[c.company_id]?.name ?? "~";
+  if (by === "company") rows = [...rows].sort((a, b) => company(a).localeCompare(company(b)));
+  if (by === "search") {
+    // Newest search first; inside a search, by company.
+    const rank = new Map(s.searches.map((x, i) => [x.id, i]));
+    const g = (c: Contact) => rank.get(groupOf(s, c.id) ?? "") ?? -1;
+    rows = [...rows].sort((a, b) => g(b) - g(a) || company(a).localeCompare(company(b)));
+  }
   return rows;
 }
 
