@@ -21,12 +21,13 @@ never fetch linkedin.com or login-walled pages.
 | 5 | Google Sheets: update existing rows (opt-in) | Master sheet improves over time | S | free |
 | 6 | Names for email-only rows | `emery.harlan@x.com` → Emery Harlan instead of Unknown | S | free |
 | 7 | Bring your own model (Sign in with ChatGPT / own key) | Users pay their own model cost; model choice; OpenAI fast model as a Jev alternative | L | moves to the user |
-| 8 | ContactFlow in Claude Desktop / ChatGPT (MCP) | Use it by chatting | M | per host |
+| 8 | Platform: API + MCP + plugins | Text in → contacts out from anywhere: Postman / code, AI agents, Zapier, ChatGPT / Claude apps | L | per call (operator or caller's key) |
 | — | Accounts / list on every device | Deferred: means storing names server-side (privacy decision first) | L | — |
 | — | Parallel researcher agents (Agent SDK) | Deferred: not needed at ≤ 100 contacts per run | — | — |
 
 Suggested order: 1 → 3 → 2 → 4 → 5 → 6, with 7 pulled forward if cost is what's blocking a public
-launch. 8 any time after 1 (it reuses everything).
+launch. 8 after 1 (an API that returns verified emails is the stronger product) and alongside 7
+(API callers need keys and billing).
 
 ---
 
@@ -155,15 +156,53 @@ automated multi-step use. If not allowed → fall back to "paste your own API ke
 **Done when.** `pnpm record` for each provider on the same 10 firms; compare domain hits (≥ 8/10)
 and sourced formats (≥ 6/10) — ship OpenAI as an option only if it meets the v1 bar.
 
-## 8. MCP server (Claude Desktop / ChatGPT app)
+## 8. Platform: API + MCP + plugins (one engine, three ways in)
 
-**What changes.** "Find emails for the partners at these 5 firms" in a chat returns the table.
+**Idea.** The input is "any text", so ContactFlow works as a black box: anything that produces text
+(a person, a script, an AI agent, a CRM note) sends it in and gets clean contacts back. One server-side
+engine, exposed three ways.
 
-**Build.** Thin server exposing the core stages as tools (`classify_extract`, `resolve_domain`,
-`discover_pattern`, `find_people`, `build_candidates`, `export_csv`); the host model orchestrates.
-Core is already host-agnostic. Same edge function for model calls and keys.
+**Shared foundation (build first).**
+- **Server-side runs.** Today the browser orchestrates a run. Move `runPipeline` behind a job queue
+  on the server (Supabase: a `cf_jobs` table + a worker function; or a small Node/Deno worker),
+  because runs outlast one request's time limit. Core needs no changes — it is host-agnostic.
+- **Jobs.** `cf_jobs(id, key_id, status, input_hash, result, cost, created_at)`. Results kept 7 days,
+  then deleted (names are stored only for the job's lifetime — say so on the Privacy page).
+- **API keys.** `cf_api_keys(id, owner, hash, limits)`; per-key rate limits and daily caps (reuse the
+  `CF_DAILY_LIMIT` idea per key). Usage logged to `cf_usage` with `key_id`.
+- **Versioned output.** `/v1/…`; the row shape is the CSV columns as JSON, plus `emails[]` with
+  `email`, `basis`, `confidence`, `source_url`, `verify_status`. Additive changes only within v1.
+- **Billing.** Operator-paid with per-key quotas, or caller's own model key (item 7).
+- **Guardrails.** Terms of use for API keys; per-key limits; optional "verified-only" output for new
+  keys; the same never-LinkedIn / never-login-walled rules apply.
 
-**Done when.** Works from Claude Desktop end to end on one firm list; ChatGPT app manifest later.
+**8a. REST API (works in Postman, curl, any language).**
+- `POST /v1/find` `{ "text": "...", "looking_for": "partners, not clerks", "options": {…},
+  "webhook_url": "…" }` → `202 { "job_id": "…" }`
+- `GET /v1/find/{job_id}` → `{ "status": "running" | "done" | "failed", "progress": {done, total},
+  "rows": [...], "cost": 0.42 }`
+- Optional webhook POST on completion (signed with the key's secret).
+- Ship an **OpenAPI spec** (`docs/api/openapi.yaml`) and a **Postman collection**
+  (`docs/api/ContactFlow.postman_collection.json`) with the two calls, an example body and a key
+  variable, so testing is: import → set key → Send.
+- Auth: `Authorization: Bearer cf_live_…`.
+
+**8b. MCP server (AI agents: Claude, ChatGPT, others).**
+- Tools: `find_contacts(text, looking_for?)` (submits and waits/polls), `get_job(job_id)`; plus
+  finer tools for agents that want control: `resolve_domain`, `discover_pattern`,
+  `build_candidates`.
+- Remote MCP over HTTP with the same API keys; results returned as rows (and a short summary).
+
+**8c. Plugins (no-code and app stores).**
+- **Zapier / Make**: action "Find contacts in text" (input text + looking for → rows), trigger
+  "Job finished". Built on the REST API.
+- **ChatGPT app / Claude integration**: the MCP server plus the store manifest; results table as a
+  widget later.
+- Not a LinkedIn browser extension (LinkedIn's terms forbid automated extraction).
+
+**Done when.** Postman collection runs end to end against staging (submit → poll → rows);
+webhook fires and verifies; per-key limits return 429; MCP `find_contacts` works from Claude
+Desktop on a firm list; a Zap writes emails back to a Google Sheet.
 
 ---
 
