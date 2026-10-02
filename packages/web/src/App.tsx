@@ -8,19 +8,35 @@ import { Banner } from "./components/ui.tsx";
 import { HowItWorks } from "./components/HowItWorks.tsx";
 import { Logo } from "./components/Logo.tsx";
 import { Privacy, SUPPORT_EMAIL, Terms } from "./components/Legal.tsx";
+import { Landing } from "./components/Landing.tsx";
+import { load, save } from "./lib/storage.ts";
 
-type Page = "app" | "how" | "privacy" | "terms";
-const PAGES: Page[] = ["how", "privacy", "terms"];
+type Page = "home" | "app" | "how" | "privacy" | "terms";
+const PAGES: Page[] = ["home", "app", "how", "privacy", "terms"];
+const VISITED = "cf:visited";
+
+/** First visit → landing page; anyone who has opened the app before goes straight to it. */
+function initialPage(): Page {
+  const fromHash = PAGES.find((x) => location.hash === `#${x}`);
+  if (fromHash) return fromHash;
+  return load<boolean>(VISITED) ? "app" : "home";
+}
 
 export default function App() {
   const p = usePipeline();
   const { state } = p;
-  const [page, setPage] = useState<Page>(() => PAGES.find((x) => location.hash === `#${x}`) ?? "app");
+  const [page, setPage] = useState<Page>(initialPage);
   const go = (to: Page) => {
+    if (to === "app") save(VISITED, true);
     setPage(to);
     history.replaceState(null, "", to === "app" ? location.pathname : `#${to}`);
     scrollTo(0, 0);
   };
+  useEffect(() => {
+    if (page === "app") save(VISITED, true);
+  }, [page]);
+
+  if (page === "home") return <Landing onStart={() => go("app")} onHow={() => go("how")} onPrivacy={() => go("privacy")} onTerms={() => go("terms")} />;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -66,6 +82,7 @@ export default function App() {
       {page === "app" && <ExportBar p={p} />}
       <footer className="border-t border-stone-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center gap-x-4 px-4 py-4 text-xs whitespace-nowrap text-stone-400 sm:gap-x-5">
+          <button className="hover:text-stone-700" onClick={() => go("home")}>Home</button>
           <button className="hover:text-stone-700" onClick={() => go("privacy")}>Privacy</button>
           <button className="hover:text-stone-700" onClick={() => go("terms")}>Terms</button>
           <a className="hover:text-stone-700" href={`mailto:${SUPPORT_EMAIL}`}>Support</a>

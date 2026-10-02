@@ -24,3 +24,14 @@ input[type="checkbox"] {
 .tabular {
   font-variant-numeric: tabular-nums;
 }
+
+/* Landing page: slow drifting clay shapes. */
+@keyframes lp-float {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  50% { transform: translate(-18px, 14px) rotate(8deg); }
+}
+.lp-float { animation: lp-float 14s ease-in-out infinite; }
+.lp-float-slow { animation: lp-float 22s ease-in-out infinite reverse; }
+@media (prefers-reduced-motion: reduce) {
+  .lp-float, .lp-float-slow { animation: none; }
+}
