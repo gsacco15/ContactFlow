@@ -33,7 +33,7 @@ function Searches({ p }: { p: Pipeline }) {
             style={{ borderLeftColor: x.hidden ? undefined : color }}
           >
             <input type="checkbox" aria-label={`Show ${x.label}`} checked={!x.hidden} onChange={(e) => dispatch({ type: "search_toggle", id: x.id, hidden: !e.target.checked || undefined })} />
-            <button type="button" className="min-w-0 flex-1 text-left" title={`${x.label}${x.want ? ` · ${x.want}` : ""} — click to show only this search`} onClick={() => dispatch({ type: "search_only", id: x.id })}>
+            <button type="button" aria-pressed={!x.hidden} className="min-w-0 flex-1 text-left" title={`${x.label}${x.want ? ` · ${x.want}` : ""} — tap to ${x.hidden ? "show" : "hide"}`} onClick={() => dispatch({ type: "search_toggle", id: x.id, hidden: !x.hidden || undefined })}>
               <span className="block truncate">
                 <span className="font-medium">{x.label}</span>
                 {x.want && <span className="text-stone-500"> · {x.want}</span>}
