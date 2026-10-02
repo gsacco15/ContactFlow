@@ -6,6 +6,7 @@ import { ResultsTable } from "./components/ResultsTable.tsx";
 import { ExportBar } from "./components/ExportBar.tsx";
 import { Banner } from "./components/ui.tsx";
 import { HowItWorks } from "./components/HowItWorks.tsx";
+import { Logo } from "./components/Logo.tsx";
 
 export default function App() {
   const p = usePipeline();
@@ -21,8 +22,10 @@ export default function App() {
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-stone-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
-          <h1 className="text-base font-semibold tracking-tight">
-            <button onClick={() => go("app")}>ContactFlow</button>
+          <h1 className="leading-none">
+            <button onClick={() => go("app")} className="rounded-md" title="ContactFlow">
+              <Logo />
+            </button>
           </h1>
           <p className="hidden text-sm text-stone-500 sm:block">Paste anything → ranked email guesses with sources.</p>
           <button onClick={() => go(page === "how" ? "app" : "how")} className="ml-auto text-xs text-stone-400 hover:text-stone-700">
