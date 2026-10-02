@@ -56,7 +56,9 @@ describe("MCP protocol", () => {
     expect((await handleHttp(rpc({ jsonrpc: "2.0", id: 1, method: "ping" }, "nope"), E, deps)).status).toBe(401);
     const bearer = new Request("https://contactflow.test/api/mcp", { method: "POST", headers: { authorization: "Bearer secret" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }) });
     expect((await handleHttp(bearer, E, deps)).status).toBe(200);
-    expect((await handleHttp(new Request("https://contactflow.test/api/mcp?key=secret"), E, deps)).status).toBe(405); // no SSE stream
+    const visit = await handleHttp(new Request("https://contactflow.test/api/mcp?key=secret"), E, deps);
+    expect(visit.status).toBe(405); // no SSE stream
+    expect(await visit.text()).toMatch(/MCP server is running/);
   });
 });
 

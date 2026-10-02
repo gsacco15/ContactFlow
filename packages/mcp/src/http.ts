@@ -64,7 +64,8 @@ export async function handleHttp(req: Request, env: Env, deps: Deps | undefined 
     if (!same(given, want)) return json({ error: "unauthorized" }, 401);
   }
   // Stateless server: no SSE stream to open and no session to end.
-  if (req.method !== "POST") return new Response(null, { status: 405, headers: { ...CORS, Allow: "POST, OPTIONS" } });
+  // A browser visit gets a plain note; MCP clients only read the 405.
+  if (req.method !== "POST") return new Response("ContactFlow MCP server is running. Add this URL as an app in ChatGPT (Developer mode).\n", { status: 405, headers: { ...CORS, Allow: "POST, OPTIONS", "content-type": "text/plain; charset=utf-8" } });
   if (!deps) return json({ error: "edge function URL not configured (VITE_EDGE_URL)" }, 503);
 
   let body: unknown;

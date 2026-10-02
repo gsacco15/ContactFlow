@@ -2617,7 +2617,7 @@ async function handleHttp(req, env2, deps = edgeDeps(env2)) {
     const given = url.searchParams.get("key") ?? req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
     if (!same(given, want)) return json({ error: "unauthorized" }, 401);
   }
-  if (req.method !== "POST") return new Response(null, { status: 405, headers: { ...CORS, Allow: "POST, OPTIONS" } });
+  if (req.method !== "POST") return new Response("ContactFlow MCP server is running. Add this URL as an app in ChatGPT (Developer mode).\n", { status: 405, headers: { ...CORS, Allow: "POST, OPTIONS", "content-type": "text/plain; charset=utf-8" } });
   if (!deps) return json({ error: "edge function URL not configured (VITE_EDGE_URL)" }, 503);
   let body;
   try {
