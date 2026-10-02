@@ -7,7 +7,7 @@ const NEW = "__new";
 const LAST = "cf:lastSheet";
 
 /** "Push to…" menu: Google Sheets now, CRMs later. `table` is header + rows, exactly what the table shows. */
-export function PushMenu({ table, disabled }: { table: () => string[][]; disabled?: boolean }) {
+export function PushMenu({ table, onExcel, disabled }: { table: () => string[][]; onExcel: () => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -25,6 +25,17 @@ export function PushMenu({ table, disabled }: { table: () => string[][]; disable
       {open && (
         <div className="absolute bottom-full left-0 z-20 mb-2 w-80 space-y-3 rounded-xl border border-stone-200 bg-white p-3 text-sm shadow-lg">
           <GoogleSheets table={table} />
+          <button
+            type="button"
+            className="flex w-full items-center justify-between border-t border-stone-100 pt-2 text-left font-medium text-stone-700 hover:text-stone-950"
+            onClick={() => {
+              onExcel();
+              setOpen(false);
+            }}
+          >
+            <span>Excel file</span>
+            <span className="text-xs font-normal text-stone-400">.xlsx · a tab per search</span>
+          </button>
           <div className="flex items-center justify-between border-t border-stone-100 pt-2 text-stone-400">
             <span>HubSpot &amp; other CRMs</span>
             <span className="text-xs">coming later</span>
