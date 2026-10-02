@@ -1,11 +1,11 @@
 // Supabase Edge Function `pipeline` — the only server code in v1 and the only place the
-// Anthropic API key exists. Routes: POST /llm, /mx, /cache, /site, /shadow, /evidence, /jev; GET /health.
+// Anthropic API key exists. Routes: POST /llm, /mx, /cache, /site, /shadow, /evidence, /verify, /jev; GET /health.
 import Anthropic from "npm:@anthropic-ai/sdk@0.131.0";
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { STAGES, type StageName } from "./_core/schemas.ts";
 import { BUNDLED_PROMPTS } from "./_core/prompts.ts";
 import {
-  CACHE_KEY, DOMAIN, FETCH_BLOCKED_DOMAINS, evidenceRow, type EvidenceRow, HttpError, JEV_URL, bioLinks, extractEmails, pickLinks, slugName, robotsAllows, sameSite, sitemapLinks, type SiteEmail, RateLimiter, addUsage, buildParams, corsHeaders, mxFromDoh, mxFromRecords,
+  CACHE_KEY, DOMAIN, FETCH_BLOCKED_DOMAINS, evidenceRow, type EvidenceRow, VERIFY_PROVIDERS, mockVerify, parseVerifyBody, type VerifyStatusWire, HttpError, JEV_URL, bioLinks, extractEmails, pickLinks, slugName, robotsAllows, sameSite, sitemapLinks, type SiteEmail, RateLimiter, addUsage, buildParams, corsHeaders, mxFromDoh, mxFromRecords,
   parseBody, parseJevBatch, readContent, zeroUsage, type Env, type LlmBody,
 } from "./lib.ts";
 
@@ -253,6 +253,31 @@ async function readSite(domain: string, maxPages: number, bioPages: number) {
   return { emails: [...emails.values()].slice(0, 60), pages };
 }
 
+// ── /verify (mailbox checks through CF_VERIFIER; the key never leaves this function) ──
+
+async function runVerify(emails: string[]): Promise<{ provider: string; real: boolean; results: Record<string, VerifyStatusWire> }> {
+  const provider = (env("CF_VERIFIER") ?? "").toLowerCase();
+  if (!provider) throw new HttpError(501, "verification not set up (CF_VERIFIER)");
+  if (provider === "mock") return { provider, real: false, results: Object.fromEntries(emails.map((e) => [e, mockVerify(e)])) };
+  const adapter = VERIFY_PROVIDERS[provider];
+  const key = env("CF_VERIFIER_KEY");
+  if (!adapter || !key) throw new HttpError(501, `verification provider "${provider}" not configured`);
+  const results: Record<string, VerifyStatusWire> = {};
+  for (const email of emails) {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 15_000);
+    try {
+      const r = await fetch(adapter.url(email, key), { signal: ctl.signal });
+      results[email] = r.ok ? adapter.read(await r.json()) : "unverified";
+    } catch {
+      results[email] = "unverified";
+    } finally {
+      clearTimeout(t);
+    }
+  }
+  return { provider, real: true, results };
+}
+
 // ── router ──────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -338,6 +363,13 @@ Deno.serve(async (req) => {
         return json({ rows: data ?? [] });
       }
       throw new HttpError(400, "op must be record or get");
+    }
+    if (path.endsWith("/verify")) {
+      const emails = parseVerifyBody(body);
+      if (!(await underDailyLimit())) return json({ error: "daily_limit" }, 429);
+      const out = await runVerify(emails);
+      if (db && out.real) await db.from("cf_usage").insert({ session, ip_hash: await sha(ip), stage: "verify", model: `verifier:${out.provider}`, input_tokens: 0, output_tokens: 0, verifications: emails.length });
+      return json(out);
     }
     if (path.endsWith("/jev")) {
       if (!(await underDailyLimit())) return json({ error: "daily_limit" }, 429);

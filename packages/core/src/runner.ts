@@ -10,6 +10,7 @@ import { capThirdParty, cleanUrl, isAggregatorDomain, isBlockedUrl, normalizeDom
 import { pMap } from "./pmap.ts";
 import { EVIDENCE_MODE, LOW_DOMAIN_CONFIDENCE, NO_FORMAT_CACHE_DAYS, SITE_READ_MODE } from "./config.ts";
 import { evidenceFromMx, evidenceFromSearch, evidenceFromSite, patternFromEvidence, scoreEvidence } from "./evidence.ts";
+import { verifyCompany } from "./verify/company.ts";
 import { siteFormat } from "./site.ts";
 import { judgeFit, relevance } from "./fit.ts";
 import { cleanEmail, domainFromPaste, mergePatterns, pastePatterns } from "./paste.ts";
@@ -94,6 +95,7 @@ export async function runPipeline(input: string | ExtractResult, ctx: Ctx, hooks
       await finishContact(c, co, ctx, hooks);
       emit(c);
     }
+    await verifyAndUpdate(co, own, ctx, hooks);
   });
 
   return { extract: ex, companies: [...companies.values()], contacts };
@@ -550,6 +552,25 @@ export async function rerunCompany(co: Company, contacts: Contact[], ctx: Ctx, h
     await finishContact(c, co, fresh, hooks);
     hooks.onRow?.(c);
   }
+  await verifyAndUpdate(co, contacts, ctx, hooks);
+}
+
+/** Mailbox checks for one company, then refresh its rows. Automatic only in VERIFY_MODE "auto". */
+async function verifyAndUpdate(co: Company, contacts: Contact[], ctx: Ctx, hooks: RunHooks, opts: { person?: Contact; clicked?: boolean } = {}) {
+  const active = contacts.filter((c) => c.status !== "skipped");
+  const v = await verifyCompany(co, active, ctx, (c) => applyCompany(c, co, ctx), opts);
+  if (!v.checks && !v.verified && !v.catch_all) return v;
+  hooks.onCompany?.(co);
+  for (const c of active) hooks.onRow?.(c);
+  return v;
+}
+
+/**
+ * The Verify buttons. With `person`: check that row's emails now. Without: check the firm (one
+ * sampled person, "Verify all"). A valid result proves the format for everyone at the firm.
+ */
+export async function verifyRow(co: Company, contacts: Contact[], ctx: Ctx, hooks: RunHooks = {}, person?: Contact) {
+  return verifyAndUpdate(co, contacts, ctx, hooks, { person, clicked: true });
 }
 
 export { contactId };

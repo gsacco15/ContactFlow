@@ -104,10 +104,11 @@ export function estimateCost(u: {
   web_search_requests: number;
   cache_read_input_tokens?: number;
   cache_creation_input_tokens?: number;
+  verifications?: number;
 }): number {
   const p = PRICES.find((x) => u.model?.startsWith(x.prefix)) ?? DEFAULT_PRICE;
   const cached = (u.cache_read_input_tokens ?? 0) * CACHE_PRICE.read + (u.cache_creation_input_tokens ?? 0) * CACHE_PRICE.write;
-  return ((u.input_tokens + cached) * p.input + u.output_tokens * p.output) / 1e6 + u.web_search_requests * PRICE_PER_SEARCH;
+  return ((u.input_tokens + cached) * p.input + u.output_tokens * p.output) / 1e6 + u.web_search_requests * PRICE_PER_SEARCH + (u.verifications ?? 0) * PRICE_PER_VERIFY;
 }
 
 /** Size limits for one JSON enrich request (API, MCP, ChatGPT app). */
@@ -143,3 +144,17 @@ export const EVIDENCE_HALF_LIFE_DAYS = 180;
 export const EVIDENCE_TTL_DAYS = 365;
 /** "Strong enough to skip the search": best score at least `score`, and `margin`× the runner-up. */
 export const EVIDENCE_STRONG = { score: 1.5, margin: 2 };
+
+/**
+ * Email verification (mailbox checks through a paid provider in the edge function).
+ * "off": no checks. "button": only when someone clicks Verify / Verify all. "auto": during every
+ * search (sample one person per firm). Off until a provider is chosen; later per plan (pro
+ * accounts). ?verify=button or ?verify=auto tries it in one browser.
+ */
+export const VERIFY_MODE: "off" | "button" | "auto" = "off";
+/** At most this many checks per company per run: sample one person, try their emails in order. */
+export const VERIFY_LIMITS = { perCompany: 3 };
+/** Confidence shown for a format a mailbox check proved at this company. */
+export const VERIFIED_CONFIDENCE = 0.97;
+/** Rough cost of one check (provider-dependent; ZeroBounce / MillionVerifier are ~$0.002–0.008). */
+export const PRICE_PER_VERIFY = 0.004;

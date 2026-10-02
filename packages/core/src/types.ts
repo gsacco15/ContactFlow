@@ -16,6 +16,7 @@ export type Pattern = {
   stated?: boolean; // the source itself states the format/percentage (vs. the model estimating it)
   from_site?: boolean; // proven from real addresses on the company's own website
   from_evidence?: boolean; // proven by earlier lookups (evidence engine), no search this time
+  verified?: boolean; // a mailbox check at this company confirmed an address in this format
 };
 
 export type StatedFormat = { quote: string; template?: Template; example_email?: string; example_name?: string };
@@ -44,6 +45,8 @@ export type Company = {
   rescued?: boolean; // the rescue agent repaired this company
   pattern_conflict?: string; // paste and search disagree on the top pattern
   skipped?: string; // why the company was not looked up (no people, only flagged people)
+  format_verified?: Template; // a mailbox check proved this format at this company
+  catch_all?: boolean; // the mail server accepts any address: checks can't prove a format here
 };
 
 export type VerifyStatus = "valid" | "risky" | "invalid" | "catch_all" | "unverified";
@@ -131,6 +134,7 @@ export type LlmUsage = {
   web_fetch_requests: number;
   cache_read_input_tokens?: number; // served from the prompt cache (~0.1× price)
   cache_creation_input_tokens?: number; // written to the prompt cache (~1.25× price)
+  verifications?: number; // mailbox checks (priced per check)
 };
 
 export type LlmResponse = {
@@ -144,7 +148,7 @@ export type LlmResponse = {
   stop_reason?: string;
 };
 
-export type UsageEvent = LlmUsage & { stage: StageName; model?: string };
+export type UsageEvent = LlmUsage & { stage: StageName | "verify"; model?: string };
 
 export type Cache = {
   get(key: string): Promise<any>;
@@ -177,6 +181,8 @@ export type RunOptions = {
   siteMode?: "off" | "shadow" | "on";
   /** Override EVIDENCE_MODE (config) for this run. */
   evidenceMode?: "off" | "shadow" | "on";
+  /** Override VERIFY_MODE (config) for this run. */
+  verifyMode?: "off" | "button" | "auto";
 };
 
 export type Ctx = {
@@ -194,7 +200,17 @@ export type Ctx = {
   shadow?: (row: SiteShadowRow) => Promise<void>;
   /** Evidence engine store (edge /evidence). Used only when EVIDENCE_MODE / options.evidenceMode isn't "off". */
   evidence?: EvidenceStore;
+  /** Mailbox checks (edge /verify, paid provider). Used only when VERIFY_MODE / options.verifyMode isn't "off". */
+  mailbox?: MailboxChecker;
 };
+
+export interface MailboxChecker {
+  /** Provider name, e.g. "zerobounce"; "mock" for tests. */
+  name: string;
+  /** False for the stand-in: its answers are never recorded as evidence. */
+  real: boolean;
+  check(emails: string[]): Promise<Record<string, VerifyStatus>>;
+}
 
 export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];
 

@@ -82,6 +82,19 @@ shape for the API, MCP, ChatGPT app and benchmark (item 8 builds on it).
 
 ## 1. Email verification — verify during the search, prove formats per company
 
+**Status (Oct 2026): built, switched off.** `VERIFY_MODE` in `config.ts`: `off` (now) · `button`
+(only when someone clicks ✓ Verify / ✓ Verify all) · `auto` (during every search). Try it in one
+browser with `?verify=button` or `?verify=auto`. Code: `packages/core/src/verify/company.ts`
+(`verifyCompany`), `verifyRow` in `runner.ts`, edge `POST /verify` with ZeroBounce and
+MillionVerifier adapters (`VERIFY_PROVIDERS` in `lib.ts`) and a `mock` stand-in that is never
+recorded as evidence. Checks are logged in `cf_usage` (stage `verify`, column `verifications`)
+and priced with `PRICE_PER_VERIFY`.
+
+**To turn on:** pick a provider → Supabase secrets `CF_VERIFIER=zerobounce` (or
+`millionverifier`) and `CF_VERIFIER_KEY=…` → test with `?verify=button` → set
+`VERIFY_MODE = "button"` (or `"auto"`). For a dry run without a provider: `CF_VERIFIER=mock`.
+Still to do: plan gate (pro accounts), "Only verified" filter, `format_verified` CSV column.
+
 **Route (decided).** Verify while searching, not at export: it fixes wrong answers in the run,
 cracks firms with no published format, and each check proves a company's format for everyone
 after. Verified results are a paid-plan feature; export stays open to all.

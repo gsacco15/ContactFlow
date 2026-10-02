@@ -22,7 +22,7 @@ export function visibleCandidates(c: Contact, opts: ExportOptions = {}) {
   return opts.includeGuesses ? c.candidates : c.candidates.filter((x) => x.basis !== "guess");
 }
 
-export const confidenceBasis = (p?: Pattern) => (!p ? "" : p.from_paste ? "paste" : p.from_site ? "company website" : p.stated ? "stated by source" : "estimated");
+export const confidenceBasis = (p?: Pattern) => (!p ? "" : p.verified ? "verified by mailbox check" : p.from_evidence ? "proven by earlier lookups" : p.from_paste ? "paste" : p.from_site ? "company website" : p.stated ? "stated by source" : "estimated");
 
 export type CsvRow = Record<(typeof CSV_COLUMNS)[number], string>;
 

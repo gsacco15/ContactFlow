@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef } from "react";
 import {
-  ClaudeDecisions, JevDecisions, MxVerifier, applyCompany, classifyExtract, estimateCost, judgeFit, rerunCompany, runPipeline,
+  ClaudeDecisions, JevDecisions, MxVerifier, VERIFY_MODE, applyCompany, classifyExtract, estimateCost, judgeFit, rerunCompany, runPipeline, verifyRow,
   type Contact, type Ctx, type DecisionProvider, type ExtractResult, type RunHooks,
 } from "@cf/core";
 import { ACCESS_TOKEN, BUDGET, EDGE_URL, RATE_LIMIT_RETRY_MS } from "./config.ts";
@@ -50,6 +50,7 @@ export function usePipeline() {
         searches: u.web_search_requests,
         cost: estimateCost(u),
       });
+    const verifyMode = verifyModeNow();
     return {
       llm,
       cache: layeredCache(localCache, client.cache),
@@ -58,6 +59,7 @@ export function usePipeline() {
       site: client.site,
       shadow: client.shadow,
       evidence: client.evidence,
+      mailbox: verifyMode !== "off" ? client.mailbox : undefined,
       budget: BUDGET,
       options: {
         roleFilter: state.roleFilter,
@@ -66,6 +68,7 @@ export function usePipeline() {
         skipIrrelevant: state.skipIrrelevant !== false,
         siteMode: siteModeFromUrl(),
         evidenceMode: modeFromUrl("evidence"),
+        verifyMode,
       },
       onUsage,
       signal,
@@ -184,6 +187,30 @@ export function usePipeline() {
     }
   }
 
+  /**
+   * Verify buttons. With a contact id: check that person's emails. Without: "Verify all" — one
+   * check per company (a valid result proves the format for everyone there).
+   */
+  async function verify(contactId?: string) {
+    if (!client || verifyModeNow() === "off") return;
+    const target = contactId ? state.contacts[contactId] : undefined;
+    const companyIds = target ? [target.company_id] : [...new Set(state.order.map((id) => state.contacts[id]?.company_id).filter(Boolean))];
+    dispatch({ type: "run_start" });
+    try {
+      const ctx = makeCtx();
+      for (const id of companyIds) {
+        const co = state.companies[id];
+        if (!co?.domain || (!target && (co.format_verified || co.catch_all))) continue;
+        const contacts = state.order.map((x) => state.contacts[x]).filter((c) => c?.company_id === id).map(clone);
+        const person = target ? contacts.find((c) => c.id === target.id) : undefined;
+        await verifyRow(clone(co), contacts, ctx, hooks, person);
+      }
+      dispatch({ type: "run_end" });
+    } catch (e) {
+      dispatch({ type: "run_end", error: (e as Error).message });
+    }
+  }
+
   /** Inline name/title edits regenerate that row's candidates. */
   async function editContact(id: string, patch: Partial<Pick<Contact, "first" | "middle" | "last" | "title">>) {
     const c = { ...clone(state.contacts[id]), ...patch };
@@ -222,10 +249,21 @@ export function usePipeline() {
     dispatch({ type: "clear", session: sessionId() });
   }
 
-  return { state, dispatch, parse, recheck, run, resume, retry, include, stop, clear, editContact, configured: !!client };
+  return { state, dispatch, parse, recheck, run, resume, retry, include, verify, verifyMode: verifyModeNow(), stop, clear, editContact, configured: !!client };
 }
 
 export type Pipeline = ReturnType<typeof usePipeline>;
+
+/** VERIFY_MODE, or ?verify=button / ?verify=auto / ?verify=off in this browser (testing; later per plan). */
+function verifyModeNow(): "off" | "button" | "auto" {
+  try {
+    const v = new URLSearchParams(window.location.search).get("verify");
+    if (v === "off" || v === "button" || v === "auto") return v;
+  } catch {
+    /* no window */
+  }
+  return VERIFY_MODE;
+}
 
 /** Testing switch: ?site=on (use a proven website format, skip the search), ?site=shadow, ?site=off. */
 function siteModeFromUrl(): "off" | "shadow" | "on" | undefined {

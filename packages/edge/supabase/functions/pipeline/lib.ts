@@ -416,3 +416,48 @@ export function evidenceRow(raw: any): EvidenceRow | undefined {
     observed_at: Number.isNaN(at.getTime()) || at.getTime() > Date.now() + 86_400_000 ? new Date().toISOString() : at.toISOString(),
   };
 }
+
+// ── Email verification (mailbox checks; the provider key lives only here) ──
+
+export type VerifyStatusWire = "valid" | "risky" | "invalid" | "catch_all" | "unverified";
+export const VERIFY_MAX_BATCH = 10;
+
+/** Provider adapters: request URL + how to read the answer. Add a provider here. */
+export const VERIFY_PROVIDERS: Record<string, { url: (email: string, key: string) => string; read: (json: any) => VerifyStatusWire }> = {
+  // https://www.zerobounce.net/docs/email-validation-api-quickstart/
+  zerobounce: {
+    url: (email, key) => `https://api.zerobounce.net/v2/validate?api_key=${encodeURIComponent(key)}&email=${encodeURIComponent(email)}&ip_address=`,
+    read: (j) => {
+      const s = String(j?.status ?? "").toLowerCase();
+      return s === "valid" ? "valid" : s === "invalid" ? "invalid" : s === "catch-all" ? "catch_all" : ["spamtrap", "abuse", "do_not_mail"].includes(s) ? "risky" : "unverified";
+    },
+  },
+  // https://developer.millionverifier.com/
+  millionverifier: {
+    url: (email, key) => `https://api.millionverifier.com/api/v3/?api=${encodeURIComponent(key)}&email=${encodeURIComponent(email)}&timeout=10`,
+    read: (j) => {
+      const r = String(j?.result ?? "").toLowerCase();
+      return r === "ok" ? "valid" : r === "invalid" ? "invalid" : r === "catch_all" ? "catch_all" : r === "disposable" ? "risky" : "unverified";
+    },
+  },
+};
+
+/**
+ * Stand-in for testing the flow with no provider: predictable, obviously fake answers. Addresses
+ * with a "." in the name are valid, others invalid; domains starting "catchall" accept anything.
+ * The client never records these as evidence.
+ */
+export function mockVerify(email: string): VerifyStatusWire {
+  const [local, domain = ""] = email.split("@");
+  if (domain.startsWith("catchall")) return "catch_all";
+  return local.includes(".") ? "valid" : "invalid";
+}
+
+export function parseVerifyBody(raw: any): string[] {
+  const list = raw?.emails;
+  if (!Array.isArray(list) || !list.length) throw new HttpError(400, "emails[] required");
+  if (list.length > VERIFY_MAX_BATCH) throw new HttpError(413, `at most ${VERIFY_MAX_BATCH} emails per request`);
+  const out = list.map((e: unknown) => String(e ?? "").trim().toLowerCase());
+  if (out.some((e) => !/^[^@\s]+@([a-z0-9-]+\.)+[a-z]{2,}$/.test(e))) throw new HttpError(400, "invalid email in list");
+  return [...new Set<string>(out)];
+}

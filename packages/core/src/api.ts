@@ -73,7 +73,7 @@ export type EnrichPattern = {
   format: string;
   template: Template;
   confidence: number;
-  confidence_basis: "your input" | "company website" | "stated by source" | "estimated";
+  confidence_basis: "verified by mailbox check" | "proven by earlier lookups" | "your input" | "company website" | "stated by source" | "estimated";
   /** "RocketReach", "their site", a hostname — null when unknown. */
   source: string | null;
   source_url: string | null;
@@ -233,7 +233,7 @@ function toPattern(p: Pattern, domain?: string): EnrichPattern {
     template: p.template,
     confidence: Math.round(p.confidence * 100) / 100,
     confidence_basis: basis === "paste" ? "your input" : (basis as EnrichPattern["confidence_basis"]),
-    source: p.from_paste ? "your input" : p.from_site ? "their site" : (sourceName(p.source_url, domain) ?? null),
+    source: p.verified ? "mailbox check" : p.from_paste ? "your input" : p.from_site ? "their site" : (sourceName(p.source_url, domain) ?? null),
     source_url: p.source_url ?? null,
   };
 }

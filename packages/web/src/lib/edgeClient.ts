@@ -1,6 +1,6 @@
 // HTTP client for the `pipeline` edge function. No React; also used by scripts/smoke.ts.
 import { SITE_BIO_PAGES, SITE_MAX_PAGES } from "@cf/core";
-import type { Cache, Evidence, EvidenceStore, JevRequest, JevResponse, LlmRequest, LlmResponse, SiteRead, SiteShadowRow } from "@cf/core";
+import type { Cache, Evidence, EvidenceStore, MailboxChecker, VerifyStatus, JevRequest, JevResponse, LlmRequest, LlmResponse, SiteRead, SiteShadowRow } from "@cf/core";
 
 export type EdgeOptions = {
   url: string;
@@ -49,6 +49,21 @@ export function edgeClient(o: EdgeOptions) {
     site: (domain: string) => post<SiteRead>("site", { domain, maxPages: SITE_MAX_PAGES, bioPages: SITE_BIO_PAGES }),
     /** Site-reading trial log (domain-level only). */
     shadow: async (row: SiteShadowRow) => void (await post("shadow", row)),
+    /** Mailbox checks through the provider set in the edge function (CF_VERIFIER). `real` is
+     * false for the stand-in, whose answers are never recorded as evidence. */
+    mailbox: ((): MailboxChecker => {
+      const box: MailboxChecker = {
+        name: "verifier",
+        real: false,
+        async check(emails: string[]) {
+          const r = await post<{ provider: string; real: boolean; results: Record<string, VerifyStatus> }>("verify", { emails });
+          box.name = r.provider;
+          box.real = r.real;
+          return r.results;
+        },
+      };
+      return box;
+    })(),
     /** Evidence engine store: domain-level format facts only; paste evidence is never sent. */
     evidence: {
       record: async (rows: Evidence[]) => {

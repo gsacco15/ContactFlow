@@ -62,7 +62,7 @@ export function generateCandidates(
   const seen = new Set<string>();
   const out: Candidate[] = [];
   const basisOf = (p: Pattern, variant = false): EmailBasis =>
-    !variant && (p.from_paste || p.source_url) && p.confidence >= MIN_SOURCED_CONFIDENCE && patterns.includes(p) ? "sourced" : "guess";
+    !variant && (p.from_paste || p.verified || p.from_evidence || p.source_url) && p.confidence >= MIN_SOURCED_CONFIDENCE && patterns.includes(p) ? "sourced" : "guess";
   const push = (p: Pattern, f: string, l: string, variant = false) => {
     if (out.length >= MAX) return;
     if (f.length === 1 && p.template.includes("{first}")) return; // only an initial is known

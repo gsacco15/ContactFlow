@@ -29,7 +29,15 @@ What we're building, in order. Updated as each item lands. `[x]` done · `[~]` i
    - [x] Each source counts once (no echo from re-searching the same page)
    - [x] **Switched to `shadow`** — collecting from normal use, results unchanged
    - [ ] Switch to `on` only after the benchmark shows strong verdicts are right (`pnpm bench --evidence on`)
-5. [~] **Verification button (switched off)** — Verify per row / all; checks 1–2 people per firm and re-ranks the rest; writes into the evidence engine. Stand-in provider until we pick one (MillionVerifier or ZeroBounce). Pro accounts later.
+5. [x] **Verification (built, switched off)** — see v2 build sheet §1
+   - [x] One check per firm, cheapest first: valid → format proven for everyone; invalid → next format (max 3); catch-all → stop
+   - [x] Already proven by an earlier check (any user) → no check at all
+   - [x] Cracks firms with no published format (backup guesses get checked too)
+   - [x] Modes: `off` (now) · `button` (✓ Verify / ✓ Verify all) · `auto` (every search); `?verify=button` to try
+   - [x] Badges: ✓ valid · ~ risky · ◎ accept-all · "✓ verified here" on the format; CSV/JSON say "verified by mailbox check"
+   - [x] Edge `/verify` (v17): ZeroBounce + MillionVerifier adapters, `mock` stand-in (never recorded); key only on the server; checks logged and priced
+   - [ ] **You:** pick a provider and add `CF_VERIFIER` + `CF_VERIFIER_KEY` in Supabase secrets
+   - [ ] Then: "Only verified" filter · `format_verified` CSV column · pro-account gate
 6. [ ] **API → MCP → ChatGPT app** — `/v1/enrich` with API keys, MCP tools (`enrich_contacts`, `find_domain`, `get_format`, later `verify`), results widget inside ChatGPT.
 
 ## Later / ideas
@@ -47,7 +55,8 @@ What we're building, in order. Updated as each item lands. `[x]` done · `[~]` i
 - [x] Website reader opens bio pages (edge v15)
 - [x] JSON contract v1
 - [x] Benchmark (ready; waiting on a real list)
-- [x] Evidence engine (built, off; edge v16)
+- [x] Evidence engine (shadow; edge v16)
+- [x] Verification (built, off; edge v17)
 - [x] Landing page (flat brand mark, paste box with examples, themed panels) — `/#home`
 - [x] Share preview + iPhone home-screen icon
 - [x] Paste cleanup on (LinkedIn only)

@@ -6,10 +6,11 @@ export { generateCandidates, patternLabel, inferTemplates, needsMiddle } from ".
 export { pastePatterns, domainFromPaste, mergePatterns, cleanEmail, isGenericEmail, formatFromAddress } from "./paste.ts";
 export * from "./validate.ts";
 export * from "./stages/index.ts";
-export { runPipeline, runRescue, rerunCompany, enrichCompany, applyCompany, shouldRescue, parseFinish, type RunHooks, type RescueFix } from "./runner.ts";
+export { runPipeline, runRescue, rerunCompany, verifyRow, enrichCompany, applyCompany, shouldRescue, parseFinish, type RunHooks, type RescueFix } from "./runner.ts";
 export { type DecisionProvider, type ScoredItem, ClaudeDecisions, JevDecisions, type JevTransport, type JevRequest, type JevResponse } from "./decisions/index.ts";
 export { judgeFit, relevance, personState, fitQuestion, looksLikeKeywords } from "./fit.ts";
 export { type Verifier, MxVerifier } from "./verify/index.ts";
+export { verifyCompany, type VerifyOutcome } from "./verify/company.ts";
 export { toCsv, toTable, toTsv, toRow, visibleCandidates, confidenceBasis, CSV_COLUMNS, type CsvRow, type ExportOptions } from "./export/csv.ts";
 export { type CrmAdapter, type CrmRecord, toCrmRecords } from "./crm/index.ts";
 export { memoryCache } from "./cache.ts";

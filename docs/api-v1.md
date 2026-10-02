@@ -52,7 +52,7 @@ Bad input returns every problem at once, with paths: `people[0].company: require
 
 - `emails[].basis`: `seen` (in your input) · `sourced` (built from a sourced format) · `guess` (common format, no source — only with `include_guesses`).
 - `emails[].verify_status`: `unverified` until verification ships, then `valid` / `invalid` / `catch_all` / `risky`.
-- `pattern.confidence_basis`: `your input` · `company website` · `stated by source` · `estimated`. Third-party sources top out at 0.95.
+- `pattern.confidence_basis`: `verified by mailbox check` · `proven by earlier lookups` · `your input` · `company website` · `stated by source` · `estimated`. Third-party sources top out at 0.95.
 - `status`: `ok` · `no_domain` · `no_pattern` · `skipped` · `error`.
 - `note`: why there's no email, or what a retry found. `flag`: e.g. their headline names a different employer.
 - `ref` is echoed back so you can match rows to your own records.
