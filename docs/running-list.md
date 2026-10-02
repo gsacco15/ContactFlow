@@ -8,10 +8,10 @@ What we're building, in order. Updated as each item lands. `[x]` done · `[~]` i
    - [x] **100% cap** — third-party sites (RocketReach, ContactOut…) show at most 95%, with the site's name in the pill. Only the firm's own site (and later verification) can go higher.
    - [x] **Phone-width results table** — email under the name, pattern + score on one line, long notes collapse to one tappable line.
    - [x] **Bio pages** — the website reader follows links from the team page into individual bio pages (where law firms list addresses).
-2. **JSON format (the contract)**
-   - [~] Input: people `{first, last, company, title?, domain?}` or companies + roles.
-   - [ ] Output: people with up to 3 emails, pattern, source, confidence, verify status, notes.
-   - [ ] One schema in `packages/core`, used by the benchmark, the API, MCP and the ChatGPT app.
+2. **JSON format (the contract)** — see `docs/api-v1.md`
+   - [x] Input: people `{first, last, company, title?, domain?}` or companies + roles, or raw text. Your `ref` comes back.
+   - [x] Output: people with up to 3 emails, pattern, source, confidence, verify status, notes.
+   - [x] One schema in `packages/core/src/api.ts`, used by the benchmark, the API, MCP and the ChatGPT app. JSON input skips the AI reading step.
 
 ## Next
 
@@ -29,6 +29,10 @@ What we're building, in order. Updated as each item lands. `[x]` done · `[~]` i
 
 ## Done recently
 
+- [x] 100% cap (third-party sources max 95%, named in the table)
+- [x] Phone-width results (one stacked card per person)
+- [x] Website reader opens bio pages (edge v15)
+- [x] JSON contract v1
 - [x] Landing page (flat brand mark, paste box with examples, themed panels) — `/#home`
 - [x] Share preview + iPhone home-screen icon
 - [x] Paste cleanup on (LinkedIn only)

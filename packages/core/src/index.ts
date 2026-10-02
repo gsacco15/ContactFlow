@@ -10,7 +10,7 @@ export { runPipeline, runRescue, rerunCompany, enrichCompany, applyCompany, shou
 export { type DecisionProvider, type ScoredItem, ClaudeDecisions, JevDecisions, type JevTransport, type JevRequest, type JevResponse } from "./decisions/index.ts";
 export { judgeFit, relevance, personState, fitQuestion, looksLikeKeywords } from "./fit.ts";
 export { type Verifier, MxVerifier } from "./verify/index.ts";
-export { toCsv, toTable, toTsv, toRow, visibleCandidates, CSV_COLUMNS, type CsvRow, type ExportOptions } from "./export/csv.ts";
+export { toCsv, toTable, toTsv, toRow, visibleCandidates, confidenceBasis, CSV_COLUMNS, type CsvRow, type ExportOptions } from "./export/csv.ts";
 export { type CrmAdapter, type CrmRecord, toCrmRecords } from "./crm/index.ts";
 export { memoryCache } from "./cache.ts";
 export { pMap } from "./pmap.ts";
@@ -18,3 +18,4 @@ export { matchesRoles, parseRoles } from "./roles.ts";
 export { cleanPaste, type CleanResult } from "./clean.ts";
 export { siteFormat, type SiteEmail, type SiteRead, type SiteVerdict } from "./site.ts";
 export type { SiteShadowRow } from "./types.ts";
+export * from "./api.ts";

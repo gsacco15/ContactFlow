@@ -109,3 +109,6 @@ export function estimateCost(u: {
   const cached = (u.cache_read_input_tokens ?? 0) * CACHE_PRICE.read + (u.cache_creation_input_tokens ?? 0) * CACHE_PRICE.write;
   return ((u.input_tokens + cached) * p.input + u.output_tokens * p.output) / 1e6 + u.web_search_requests * PRICE_PER_SEARCH;
 }
+
+/** Size limits for one JSON enrich request (API, MCP, ChatGPT app). */
+export const API_LIMITS = { people: 200, companies: 50, textChars: 50_000, field: 200 };
