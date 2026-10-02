@@ -22,7 +22,7 @@ export function Input({ p }: { p: Pipeline }) {
           <input
             value={state.roleFilter}
             onChange={(e) => dispatch({ type: "role", roleFilter: e.target.value })}
-            placeholder="company-first only, e.g. VP Sales, Head of Growth"
+            placeholder="e.g. Partner, Attorney, -Paralegal, -Retired — filters pasted people; finds people at companies with none"
             className="w-full rounded-md border border-stone-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-stone-500"
           />
         </label>

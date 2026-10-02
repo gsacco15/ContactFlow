@@ -167,7 +167,7 @@ LinkedIn or anything behind a login. That keeps it in the same category as Hunte
 | M6 company-first | ✅ code | role filter / role hints → find_people; URL inputs | ≥ 1 match per company with a public team page |
 
 **v2 backlog:**
-- **Role / fit filter** ("partners and attorneys, not paralegals or retirees"): a target-roles box at the
+- **Fit filter, next steps** (the target-roles filter itself shipped: "Partner, Attorney, -Paralegal"): a box at the
   preview step that unticks non-matching people before any search; then seniority × function tags
   per title; then an ICP fit score (0–100) with best leads first. Titles and ⚠ flags are already captured.
 - Names for email-only rows (`emery.harlan@` → Emery Harlan) — they currently show as Unknown.

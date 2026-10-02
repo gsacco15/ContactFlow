@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildExtract, generateCandidates, inferTemplates, normalizeName, pastePatterns, runPipeline, type Contact } from "../src/index.ts";
+import { buildExtract, formatFromAddress, generateCandidates, inferTemplates, normalizeName, pastePatterns, runPipeline, type Contact } from "../src/index.ts";
 import { mockCtx, toolResponse } from "./helpers.ts";
 
 describe("inferTemplates", () => {
@@ -97,5 +97,25 @@ describe("runner with paste evidence", () => {
     const res = await runPipeline(extract(), ctx);
     expect(res.companies[0].pattern_conflict).toMatch(/paste says \{f\}\{m\}\{l\}, search says \{first\}\.\{last\}/);
     expect(res.companies[0].patterns.map((p) => p.template)).toEqual(["{f}{m}{l}", "{first}.{last}"]);
+  });
+});
+
+describe("formatFromAddress (unnamed addresses)", () => {
+  it.each([
+    ["jfairchild@crokefairchild.com", "Croke Fairchild Duarte & Beres LLC", "{f}{last}"],
+    ["kbattle@mokblaw.com", "O'Connor & Battle LLP", "{f}{last}"],
+    ["msanchez@sanchezdh.com", "Sanchez Daniels & Hoffman LLP", "{f}{last}"],
+    ["kevin.battle@x.com", "O'Connor & Battle LLP", "{first}.{last}"],
+    ["emery.harlan@mwhlawgroup.com", "MWH Law Group LLP", undefined],
+    ["afishman@cm.law", "CM Law, LLP", undefined],
+    ["ken@johnsonblumberg.com", "Johnson, Blumberg & Associates", undefined],
+    ["info@tristancervantes.com", "Tristan & Cervantes", undefined],
+  ])("%s at %s → %s", (email, firm, want) => {
+    expect(formatFromAddress(email, firm)).toBe(want);
+  });
+
+  it("an unnamed partner address sets the format for named colleagues at that firm", () => {
+    const people = [person("", "", "jfairchild@crokefairchild.com")];
+    expect(pastePatterns(co({ name: "Croke Fairchild Duarte & Beres LLC", domain: "crokefairchild.com" }), people).map((p) => p.template)).toEqual(["{f}{last}"]);
   });
 });

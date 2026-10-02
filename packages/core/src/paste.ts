@@ -35,6 +35,28 @@ export function domainFromPaste(co: Company, people: Contact[]): string | undefi
   return [...votes].sort((a, b) => b[1] - a[1])[0]?.[0];
 }
 
+/**
+ * The format an unnamed address shows, only when it is unambiguous: the address contains a
+ * surname from the firm's own name. jfairchild@ at "Croke Fairchild…" → {f}{last};
+ * kevin.battle@ at "O'Connor & Battle" → {first}.{last}; battle@ → {last}. Anything else → undefined.
+ */
+export function formatFromAddress(email: string, companyName: string): Template | undefined {
+  const local = email.split("@")[0]?.toLowerCase() ?? "";
+  if (isGenericEmail(email)) return undefined;
+  const words = new Set(asciiFold(companyName).split(/[^a-z]+/).filter((w) => w.length >= 3));
+  const sep = /^([a-z]{2,})([._-])([a-z]{2,})$/.exec(local);
+  if (sep) {
+    const [, a, s, b] = sep;
+    if (words.has(b) && !words.has(a)) return ({ ".": "{first}.{last}", _: "{first}_{last}", "-": "{first}-{last}" } as const)[s as "." | "_" | "-"];
+    if (words.has(a) && !words.has(b) && s === ".") return "{last}.{first}";
+    return undefined;
+  }
+  if (!/^[a-z]+$/.test(local)) return undefined;
+  if (words.has(local)) return "{last}";
+  if (local.length >= 4 && words.has(local.slice(1))) return "{f}{last}";
+  return undefined;
+}
+
 type Vote = { count: number; examples: number; quote?: string; evidence: string[] };
 
 /**
@@ -68,7 +90,13 @@ export function pastePatterns(co: Company, people: Contact[]): Pattern[] {
   };
 
   for (const p of people) {
-    if (!p.first) continue; // email-only rows: the address counts as "seen", but can't prove a format
+    if (!p.first) {
+      // Unnamed address: counts only when it plainly shows a surname from the firm's name.
+      const e = cleanEmail(p.email);
+      const t = e && e.endsWith(`@${domain}`) ? formatFromAddress(e, co.name) : undefined;
+      if (t) vote(t, { example: e, quote: `${e} (surname matches the firm name)` });
+      continue;
+    }
     if (p.email) fromExample(p.email, [p.first, p.middle, p.last].filter(Boolean).join(" "), `${p.email} (${p.first} ${p.last})`);
   }
   for (const s of co.stated_formats ?? []) {

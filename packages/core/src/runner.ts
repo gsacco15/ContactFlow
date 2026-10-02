@@ -9,6 +9,7 @@ import { normalizeName, slug } from "./normalize.ts";
 import { cleanUrl, isAggregatorDomain, isBlockedUrl, normalizeDomain, validatePatterns } from "./validate.ts";
 import { pMap } from "./pmap.ts";
 import { LOW_DOMAIN_CONFIDENCE } from "./config.ts";
+import { matchesRoles } from "./roles.ts";
 import { cleanEmail, domainFromPaste, mergePatterns, pastePatterns } from "./paste.ts";
 import { needsMiddle } from "./candidates.ts";
 
@@ -55,23 +56,25 @@ export async function runPipeline(input: string | ExtractResult, ctx: Ctx, hooks
   await pMap([...companies.values()], ctx.budget.concurrency, async (co) => {
     if (ctx.signal?.aborted) return;
     const own = people.filter((p) => p.company_id === co.id);
-    const active = own.filter((p) => !p.flag);
+    const active = own.filter((p) => isActive(p, ctx));
     const roleFilter = ctx.options?.roleFilter?.trim() || co.role_hint;
 
     // Nothing to apply a lookup to → spend nothing on this company.
-    if (!active.length && !roleFilter) {
-      co.skipped = own.length
-        ? "only ⚠-flagged people — include one to look this company up"
-        : "no people in your paste — add Target roles to look some up";
+    if (!active.length && (own.length || !roleFilter)) {
+      co.skipped = !own.length
+        ? "no people in your paste — add Target roles to look some up"
+        : own.some((p) => p.flag && !p.keep)
+          ? "only ⚠-flagged or filtered-out people — include one to look this company up"
+          : "nobody here matches your target roles";
       hooks.onCompany?.(co);
-      for (const c of own) emit(markSkipped(c));
+      for (const c of own) emit(markSkipped(c, ctx));
       return;
     }
     delete co.skipped;
     await enrichCompany(co, ctx, active);
     hooks.onCompany?.(co);
 
-    if (!active.length && roleFilter && co.domain && co.mx_ok !== false) {
+    if (!own.length && roleFilter && co.domain && co.mx_ok !== false) {
       const found = await findPeople(co, roleFilter, ctx);
       if (found.ok && found.data) own.push(...found.data.people.slice(0, Math.max(0, ctx.budget.maxContacts - contacts.length)));
       else if (!found.ok) co.error = `find_people: ${found.error}`;
@@ -253,13 +256,21 @@ const INCOMPLETE_LAST = "Last name is incomplete (e.g. “Maria O.”) — click
 const rescues = new WeakMap<Company, Promise<StageResult<RescueFix>>>();
 
 const SKIPPED_FLAG = "⚠ may not work here — click Include to look them up.";
+const SKIPPED_ROLE = "Not in your target roles — click Include to look them up.";
 
-function markSkipped(c: Contact): Contact {
-  return Object.assign(c, { status: "skipped" as const, candidates: [], primary_email: undefined, error: c.flag ? SKIPPED_FLAG : "company not looked up" });
+/** Looked up only if not ⚠-flagged and not filtered out by the target roles — unless the user clicked Include. */
+function isActive(c: Contact, ctx: Ctx): boolean {
+  if (c.keep) return true;
+  return !c.flag && matchesRoles(c.title, ctx.options?.roleFilter) !== false;
+}
+
+function markSkipped(c: Contact, ctx?: Ctx): Contact {
+  const error = c.flag ? SKIPPED_FLAG : ctx && matchesRoles(c.title, ctx.options?.roleFilter) === false ? SKIPPED_ROLE : "company not looked up";
+  return Object.assign(c, { status: "skipped" as const, candidates: [], primary_email: undefined, error });
 }
 
 async function finishContact(c: Contact, co: Company, ctx: Ctx, hooks: RunHooks) {
-  if (c.flag) return void markSkipped(c);
+  if (!isActive(c, ctx)) return void markSkipped(c, ctx);
   await applyCompany(c, co, ctx);
   if (!(await shouldRescue(c, co, ctx))) return;
   let pending = rescues.get(co);
@@ -425,12 +436,11 @@ export async function rerunCompany(co: Company, contacts: Contact[], ctx: Ctx, h
   delete co.rescue_note;
   delete co.rescued;
   rescues.delete(co);
-  const active = contacts.filter((c) => !c.flag);
-  const roleFilter0 = ctx.options?.roleFilter?.trim() || co.role_hint;
-  if (!active.length && !roleFilter0 && contacts.length) {
-    co.skipped = "only ⚠-flagged people — include one to look this company up";
+  const active = contacts.filter((c) => isActive(c, ctx));
+  if (!active.length && contacts.length) {
+    co.skipped = "only ⚠-flagged or filtered-out people — include one to look this company up";
     hooks.onCompany?.(co);
-    for (const c of contacts) hooks.onRow?.(markSkipped(c));
+    for (const c of contacts) hooks.onRow?.(markSkipped(c, ctx));
     return;
   }
   delete co.skipped;

@@ -182,8 +182,8 @@ function Row({ c, co, p }: { c: Contact; co?: Company; p: Pipeline }) {
             {c.status === "pending" && p.state.running ? "running…" : STATUS_LABEL[c.status]}
           </Pill>
           {c.error && <span className="max-w-48 text-xs text-stone-500">{c.error}</span>}
-          {c.status === "skipped" && c.flag && (
-            <Button variant="ghost" className="!px-1.5 !py-0.5 text-xs" disabled={p.state.running || !p.configured} onClick={() => p.include(c.id)} title={c.flag}>
+          {c.status === "skipped" && (
+            <Button variant="ghost" className="!px-1.5 !py-0.5 text-xs" disabled={p.state.running || !p.configured} onClick={() => p.include(c.id)} title={c.flag ?? c.error}>
               Include
             </Button>
           )}

@@ -3,7 +3,7 @@ export * from "./schemas.ts";
 export * from "./config.ts";
 export { normalizeName, slug, asciiFold, cleanDisplayName, nicknameVariant, NICKNAMES, type NormalizedName } from "./normalize.ts";
 export { generateCandidates, patternLabel, inferTemplates, needsMiddle } from "./candidates.ts";
-export { pastePatterns, domainFromPaste, mergePatterns, cleanEmail, isGenericEmail } from "./paste.ts";
+export { pastePatterns, domainFromPaste, mergePatterns, cleanEmail, isGenericEmail, formatFromAddress } from "./paste.ts";
 export * from "./validate.ts";
 export * from "./stages/index.ts";
 export { runPipeline, runRescue, rerunCompany, enrichCompany, applyCompany, shouldRescue, parseFinish, type RunHooks, type RescueFix } from "./runner.ts";
@@ -13,3 +13,4 @@ export { toCsv, toTsv, toRow, visibleCandidates, CSV_COLUMNS, type CsvRow, type 
 export { type CrmAdapter, type CrmRecord, toCrmRecords } from "./crm/index.ts";
 export { memoryCache } from "./cache.ts";
 export { pMap } from "./pmap.ts";
+export { matchesRoles, parseRoles } from "./roles.ts";

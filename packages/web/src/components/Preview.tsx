@@ -1,4 +1,4 @@
-import { slug, type Company, type Contact, type ExtractResult } from "@cf/core";
+import { matchesRoles, slug, type Company, type Contact, type ExtractResult } from "@cf/core";
 import { BUDGET, LARGE_PASTE_CONTACTS } from "../config.ts";
 import type { Pipeline } from "../usePipeline.ts";
 import { Banner, Button } from "./ui.tsx";
@@ -12,7 +12,9 @@ export function Preview({ p }: { p: Pipeline }) {
   const peopleAt = (id: string) => ex.people.filter((x) => x.company_id === id).length;
   const companiesWithout = ex.companies.filter((c) => !peopleAt(c.id) && !c.role_hint);
   const roles = p.state.roleFilter.trim();
-  const flagged = ex.people.filter((x) => x.flag).length;
+  const flagged = ex.people.filter((x) => x.flag && !x.keep).length;
+  const fit = (x: Contact) => (x.keep ? true : matchesRoles(x.title, roles));
+  const filteredOut = roles ? ex.people.filter((x) => fit(x) === false).length : 0;
   const pastedEmails = ex.people.filter((x) => x.email).length;
   const statements = ex.companies.reduce((n, c) => n + (c.stated_formats?.length ?? 0), 0);
 
@@ -42,6 +44,11 @@ export function Preview({ p }: { p: Pipeline }) {
       </div>
 
       {ex.notes && <p className="text-sm text-stone-600">Note: {ex.notes}</p>}
+      {filteredOut > 0 && (
+        <Banner tone="info">
+          Target roles: {ex.people.length - filteredOut} of {ex.people.length} people match. The {filteredOut} marked ✗ will be skipped — nothing is spent on them. Tick “keep” to include one anyway.
+        </Banner>
+      )}
       {flagged > 0 && (
         <Banner tone="warn">
           {flagged} {flagged === 1 ? "person may" : "people may"} not work at the company they’re listed under (marked ⚠ below). Remove them before running if so.
@@ -82,15 +89,20 @@ export function Preview({ p }: { p: Pipeline }) {
                 <th className="px-2 py-1.5">Last</th>
                 <th className="px-2 py-1.5">Title</th>
                 <th className="px-2 py-1.5">Company</th>
+                {roles && <th className="px-2 py-1.5 text-center">Fits roles</th>}
                 <th className="w-8" />
               </tr>
             </thead>
             <tbody>
               {ex.people.map((x, i) => (
-                <tr key={`${x.id}-${i}`} className={`border-t border-stone-100 ${x.flag ? "bg-amber-50" : ""}`}>
+                <tr key={`${x.id}-${i}`} className={`border-t border-stone-100 ${roles && fit(x) === false ? "opacity-50" : x.flag && !x.keep ? "bg-amber-50" : ""}`}>
                   <td className="px-1">
                     <div className="flex items-center gap-1">
-                      {x.flag && <span title={x.flag} className="cursor-help text-amber-600">⚠</span>}
+                      {x.flag && (
+                        <label className="flex cursor-help items-center gap-0.5 text-xs text-amber-700" title={`${x.flag} — tick to include anyway`}>
+                          ⚠<input type="checkbox" checked={!!x.keep} onChange={(e) => editPerson(i, { keep: e.target.checked || undefined })} />
+                        </label>
+                      )}
                       <input className={cell} value={x.first} aria-label="First name" onChange={(e) => editPerson(i, { first: e.target.value })} />
                     </div>
                     {(x.flag || x.email) && <div className="px-1.5 pb-1 text-xs text-stone-500">{x.flag ?? x.email}</div>}
@@ -111,6 +123,19 @@ export function Preview({ p }: { p: Pipeline }) {
                       ))}
                     </select>
                   </td>
+                  {roles && (
+                    <td className="px-2 text-center text-sm">
+                      {fit(x) === false ? (
+                        <label className="inline-flex items-center gap-1 text-stone-500" title="Doesn’t match your target roles">
+                          ✗ <input type="checkbox" checked={!!x.keep} onChange={(e) => editPerson(i, { keep: e.target.checked || undefined })} /> keep
+                        </label>
+                      ) : fit(x) === true ? (
+                        <span className="text-emerald-600">✓</span>
+                      ) : (
+                        <span className="text-stone-400" title="No title to check — kept">?</span>
+                      )}
+                    </td>
+                  )}
                   <td className="text-center">
                     <button className="text-stone-400 hover:text-red-600" onClick={() => removePerson(i)} aria-label={`Remove ${x.first} ${x.last}`}>
                       ×

@@ -72,6 +72,7 @@ export type Contact = {
   company_id: string;
   email?: string; // literal address next to this person in the paste
   flag?: string; // e.g. headline names a different employer — check before running
+  keep?: boolean; // user clicked Include: look up despite a flag or the role filter
   linkedin_url?: string;
   raw_source: string; // the pasted chunk this came from, for debugging
   candidates: Candidate[]; // max 3

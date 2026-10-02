@@ -127,7 +127,7 @@ export function usePipeline() {
       .filter((x) => x?.company_id === c.company_id)
       .map((x) => {
         const y = clone(x);
-        if (y.id === id) delete y.flag;
+        if (y.id === id) y.keep = true;
         return y;
       });
     dispatch({ type: "row", contact: contacts.find((x) => x.id === id)! });
