@@ -1,4 +1,4 @@
-# Contact Finder
+# ContactFlow
 
 Paste anything (LinkedIn results, a team page, a company list, URLs, messy notes) and get back an
 outreach-ready contact table: up to 3 ranked email guesses per person, each with the pattern it came
@@ -110,7 +110,7 @@ Function secrets (`supabase secrets set …`). The browser never sees any of the
 | `CF_CACHE_TTL_DAYS` | `30` | Server cache TTL cap for `domain → patterns` |
 | `CF_ALLOWED_ORIGINS` | `*` | Comma-separated CORS origins. Set it to your app's URL in production. |
 | `CF_ACCESS_TOKEN` | unset | If set, requests need header `x-cf-token`. A light guard for a personal deployment. |
-| `TYPESAFE_API_KEY` | unset | Jev (TypeSafe) for the "Who do you want?" relevance judge and other decisions. Without it, Claude (Haiku) judges. |
+| `TYPESAFE_API_KEY` | unset | Jev (TypeSafe) for the "Looking for" relevance judge and other decisions. Without it, Claude (Haiku) judges. |
 | `CF_JEV_MODEL` | `jev-latest` | Jev model alias |
 
 Web (`packages/web/.env`): `VITE_EDGE_URL`, `VITE_ACCESS_TOKEN` (must match `CF_ACCESS_TOKEN`),
@@ -173,7 +173,7 @@ LinkedIn or anything behind a login. That keeps it in the same category as Hunte
 | Edge platform | Supabase Edge Function `pipeline`; cache and usage tables in the same project |
 | Search budget per company | 4 (1–2 domain + 2–3 pattern), env-tunable |
 | Verifier | MX only (`MxVerifier`). NeverBounce / ZeroBounce / Hunter plug in behind `Verifier`. |
-| CRM | CRM-agnostic `CrmAdapter` taking flat `CrmRecord`s. HubSpot first in v2; "Push to CRM" shows *coming soon*. |
+| CRM | CRM-agnostic `CrmAdapter` taking flat `CrmRecord`s. Google Sheets shipped in v1 (Push to… menu); HubSpot next — see docs/v2-build-sheet.md. |
 | Max contacts per run | 100 (preview warns and runs the first 100) |
 | Cache TTL | 30 days |
 | Nickname expansion | Off by default; a per-run checkbox. Takes a free slot ahead of statistical fill, never a found pattern. |
@@ -191,10 +191,4 @@ LinkedIn or anything behind a login. That keeps it in the same category as Hunte
 | M5 MX, rescue, polish | ✅ | dead-domain fixture → `no_domain`; 8-call rescue budget; Retry; filters; cost counter uses the same usage the function logs | counter vs `cf_usage` |
 | M6 company-first | ✅ code | role filter / role hints → find_people; URL inputs | ≥ 1 match per company with a public team page |
 
-**v2 backlog:**
-- **Fit filter, next steps** (the target-roles filter itself shipped: "Partner, Attorney, -Paralegal"): a box at the
-  preview step that unticks non-matching people before any search; then seniority × function tags
-  per title; then an ICP fit score (0–100) with best leads first. Titles and ⚠ flags are already captured.
-- Names for email-only rows (`emery.harlan@` → Emery Harlan) — they currently show as Unknown.
-- `JevDecisions` + calibrated rescue gate, HubSpot adapter, remote MCP server exposing the stage tools
-  (core is already host-agnostic), Agent SDK researcher fan-out.
+**v2:** the plan, build order and acceptance checks are in [docs/v2-build-sheet.md](docs/v2-build-sheet.md).

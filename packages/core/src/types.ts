@@ -74,7 +74,7 @@ export type Contact = {
   flag?: string; // e.g. headline names a different employer — check before running
   keep?: boolean; // user clicked Include: look up despite a flag or the role filter
   drop?: boolean; // user marked them not relevant, whatever the judge said
-  fit?: Fit; // relevance to "Who do you want?", from the decision model
+  fit?: Fit; // relevance to "Looking for", from the decision model
   linkedin_url?: string;
   raw_source: string; // the pasted chunk this came from, for debugging
   candidates: Candidate[]; // max 3

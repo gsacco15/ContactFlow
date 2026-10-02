@@ -17,7 +17,7 @@ export const fitQuestion = (description: string) =>
   `This person is a relevant contact for this goal: ${description.trim()}. Judge by their role and seniority; someone with no title is unclear.`;
 
 /**
- * Judge every person against "Who do you want?" in one batch and store the result on them.
+ * Judge every person against "Looking for" in one batch and store the result on them.
  * Skips people already judged for the same description.
  */
 export async function judgeFit(people: Contact[], description: string, decisions: DecisionProvider, companyName: (c: Contact) => string | undefined): Promise<void> {

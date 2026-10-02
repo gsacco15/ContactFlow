@@ -87,7 +87,7 @@ export function usePipeline() {
     };
   }
 
-  /** Judge everyone in the parsed list against "Who do you want?" (skips people already judged for it). */
+  /** Judge everyone in the parsed list against "Looking for" (skips people already judged for it). */
   async function judge(ex: ExtractResult, ctx: Ctx) {
     if (!state.roleFilter.trim() || !ex.people.length) return;
     dispatch({ type: "judging", on: true });

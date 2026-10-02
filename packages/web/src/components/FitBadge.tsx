@@ -1,7 +1,7 @@
 import { relevance, type Contact } from "@cf/core";
 
 /**
- * ✓ / ? / ✗ for "Who do you want?", with the judge's % and reason on hover.
+ * ✓ / ? / ✗ for "Looking for", with the judge's % and reason on hover.
  * With onChange, clicking cycles: judge's call → keep → drop → judge's call.
  */
 export function FitBadge({ c, want, onChange }: { c: Contact; want: string; onChange?: (patch: Pick<Contact, "keep" | "drop">) => void }) {

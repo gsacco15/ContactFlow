@@ -1,4 +1,4 @@
-# Contact Finder — notes for coding agents
+# ContactFlow — notes for coding agents
 
 Read README.md first; docs/spec.pdf is scope, docs/build-guide.pdf is implementation detail (guide wins on detail, spec on scope).
 
