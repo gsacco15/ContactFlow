@@ -15,6 +15,7 @@ never fetch linkedin.com or login-walled pages.
 | # | Feature | Why | Size | Running cost |
 |---|---|---|---|---|
 | 1 | Email verification | "Emails you can trust", literally: valid / risky / catch-all / invalid per email | M | ≈ $0.003–0.01 per email checked |
+| 1b | ChatGPT app (lightweight MCP) | ContactFlow inside ChatGPT: it reads the paste, our tools find domain, format and emails | S–M | ≈ cents per company, cached; per-user limits |
 | 2 | HubSpot push | Results straight into the CRM, deduped | M | free (user's HubSpot) |
 | 3 | Lead score + best-first sort | Long lists come out prioritised | S | ≈ $0 (reuses Jev scores) |
 | 4 | "Try harder" button | Rescue the firms you care about without raising every run's cost | S | ≈ $0.05–0.20 per click |
@@ -25,8 +26,8 @@ never fetch linkedin.com or login-walled pages.
 | — | Accounts / list on every device | Deferred: means storing names server-side (privacy decision first) | L | — |
 | — | Parallel researcher agents (Agent SDK) | Deferred: not needed at ≤ 100 contacts per run | — | — |
 
-Suggested order: 1 → 3 → 2 → 4 → 5 → 6, with 7 pulled forward if cost is what's blocking a public
-launch. 8 after 1 (an API that returns verified emails is the stronger product) and alongside 7
+Suggested order: 1 → 1b → 3 → 2 → 4 → 5 → 6, with 7 pulled forward if cost is what's blocking a
+public launch. 1b's prototype can start before 1 finishes (verify_email is added to it when 1 lands). 8 after 1 (an API that returns verified emails is the stronger product) and alongside 7
 (API callers need keys and billing).
 
 ---
@@ -57,6 +58,43 @@ rate limits). One adapter only.
 **Done when.** Mock provider in `scripts/mock-anthropic.mjs` (or a sibling mock) drives an
 end-to-end run: valid promoted to Email 1, invalid demoted, cached second run makes zero verify
 calls; unit tests for the budget and catch-all short-circuit; counter matches `cf_usage`.
+
+## 1b. ChatGPT app (lightweight MCP)
+
+**What changes for the user.** In ChatGPT: paste a LinkedIn page or say "find emails for the
+partners at these 5 firms". ChatGPT reads the names itself and calls ContactFlow's tools; the answer
+is a table with emails and sources. Same cache as the website.
+
+**Why it's light.** The host model orchestrates, so each tool is a short call (seconds) — no job
+queue, no server-side runs (unlike item 8's REST API).
+
+**Tools (MCP, remote over HTTP).**
+
+| Tool | Does | Backed by |
+|---|---|---|
+| `find_domain(company, hint?)` | Official domain + source URL + confidence | `resolveDomain` + `company:` cache |
+| `find_email_format(domain)` | Up to 3 formats, confidence (stated or estimated), source URLs | `discoverPattern` + `domain:` cache |
+| `build_emails(first, last, middle?, domain, formats)` | Up to 3 ranked emails with basis | `candidates.ts` (pure, free) |
+| `check_domain(domain)` | Accepts mail? (MX) | `/mx` logic |
+| `verify_email(email)` *(after item 1)* | valid / risky / catch-all / invalid | item 1's `/verify` |
+
+Tool descriptions tell the model: sourced beats guess; never present a guess as confirmed; never
+fetch LinkedIn (the server refuses anyway).
+
+**Build.**
+- New Supabase function `mcp` (Deno) using the MCP TypeScript SDK; imports core stages directly
+  (core is host-agnostic) and shares `lib.ts` (keys, `WEB_TOOLS`, `FETCH_BLOCKED_DOMAINS`).
+- Per-user limits: anonymous IP / OAuth subject quota (e.g. 20 companies/day free), logged to
+  `cf_usage` with stage `mcp:<tool>`.
+- Privacy page: a ChatGPT section (names pass through tool calls, never stored).
+- Later: a results-table widget (Apps SDK UI component) and app-directory submission.
+
+**Check first.** Current OpenAI Apps SDK / app directory requirements (auth, review rules, widget
+format, rate limits) — newer than what this plan was written from.
+
+**Done when.** Connected in ChatGPT developer mode; a firm list returns a table with sourced
+emails; repeat firms hit the cache (zero searches); quota returns a clear message; LinkedIn URLs
+are refused.
 
 ## 2. HubSpot push
 
