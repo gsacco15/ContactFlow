@@ -38,7 +38,9 @@ What we're building, in order. Updated as each item lands. `[x]` done · `[~]` i
    - [x] Edge `/verify` (v17): ZeroBounce + MillionVerifier adapters, `mock` stand-in (never recorded); key only on the server; checks logged and priced
    - [x] Simplified: one **"Verify emails"** checkbox with the search settings — ticked = the search verifies (one check per firm); results marked on each row
    - [x] Demo answers until a provider key exists: grey "demo ✓ / ✗", nothing crossed out, "Demo checks — fake results" note, never saved
-   - [ ] **You:** pick a provider and add `CF_VERIFIER` + `CF_VERIFIER_KEY` in Supabase secrets
+   - [x] **Live with MillionVerifier** (Oct 2): real answers, accept-all detected (Cloudflare), bounces detected (Austin Energy); provider errors retried and shown as "verifier unavailable"
+   - [x] Second-opinion check on a colleague before blaming a format
+   - [ ] First live "✓ verified here" on a firm (not seen yet)
    - [ ] Then: "Only verified" filter · `format_verified` CSV column · pro-account gate
 6. [ ] **API → MCP → ChatGPT app** — `/v1/enrich` with API keys, MCP tools (`enrich_contacts`, `find_domain`, `get_format`, later `verify`), results widget inside ChatGPT.
 
