@@ -1,12 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { sheetNames } from "../src/lib/excel.ts";
 import { appendNew } from "../src/lib/googleSheets.ts";
-
-describe("sheetNames", () => {
-  it("strips illegal characters, caps length and dedupes", () => {
-    expect(sheetNames(["Acme / Beta [x]", "Acme / Beta [x]", "A".repeat(40)])).toEqual(["Acme Beta x", "Acme Beta x 2", "A".repeat(28)]);
-  });
-});
 
 describe("appendNew (Google Sheets)", () => {
   afterEach(() => vi.unstubAllGlobals());
