@@ -14,20 +14,24 @@ export function ExportBar({ p }: { p: Pipeline }) {
   const [showSession, setShowSession] = useState(false);
   const [tapped, setTapped] = useState(false);
   const [peek, setPeek] = useState(false);
-  // Phones: every 8 s, show the session total for ~2.5 s (a colour change, no flashing), until the user taps.
+  // Phones: show the session total for ~2.5 s (a colour change, no flashing) once just after a
+  // search adds cost, then once a minute — until the user taps it.
+  const cost = state.usage.cost;
   useEffect(() => {
-    if (tapped || !state.usage.cost) return;
-    let off: ReturnType<typeof setTimeout> | undefined;
-    const t = setInterval(() => {
+    if (tapped || !cost || state.running) return;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const flip = () => {
       setPeek(true);
-      off = setTimeout(() => setPeek(false), 2500);
-    }, 8000);
+      timers.push(setTimeout(() => setPeek(false), 2500));
+    };
+    timers.push(setTimeout(flip, 3000));
+    const every = setInterval(flip, 60_000);
     return () => {
-      clearInterval(t);
-      if (off) clearTimeout(off);
+      timers.forEach(clearTimeout);
+      clearInterval(every);
       setPeek(false);
     };
-  }, [tapped, !!state.usage.cost]);
+  }, [tapped, cost, state.running]);
   const session = showSession || peek;
   const { filters } = state;
   // Export exactly what the table shows: ticked searches, same filters, guesses only when switched on.
