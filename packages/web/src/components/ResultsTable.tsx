@@ -43,10 +43,15 @@ function Searches({ p }: { p: Pipeline }) {
           </div>
         );
       })}
-      {hidden && (
-        <Button variant="ghost" className="!px-1.5 !py-0.5 text-xs" onClick={() => dispatch({ type: "search_only" })}>
-          Show all
-        </Button>
+      {state.searches.length > 1 && (
+        <span className="flex gap-1 text-xs">
+          <Button variant="ghost" className="!px-1.5 !py-0.5 text-xs" disabled={!hidden} onClick={() => dispatch({ type: "search_all", hidden: false })}>
+            Show all
+          </Button>
+          <Button variant="ghost" className="!px-1.5 !py-0.5 text-xs" disabled={state.searches.every((x) => x.hidden)} onClick={() => dispatch({ type: "search_all", hidden: true })}>
+            Hide all
+          </Button>
+        </span>
       )}
     </div>
   );
@@ -75,7 +80,7 @@ export function ResultsTable({ p }: { p: Pipeline }) {
   const toggle = (k: keyof typeof filters) => (
     <label className="flex items-center gap-1.5">
       <input type="checkbox" checked={filters[k]} onChange={(e) => dispatch({ type: "filters", filters: { [k]: e.target.checked } })} />
-      {{ onlyOk: "Only ok", hidePatternless: "Hide rows with no email", groupByCompany: "Group by company", includeGuesses: "Include backup guesses", hideIrrelevant: "Hide not relevant" }[k]}
+      {{ onlyOk: "Only ok", hidePatternless: "Only rows with an email", groupByCompany: "Group by company", includeGuesses: "Include backup guesses", hideIrrelevant: "Hide not relevant" }[k]}
     </label>
   );
 
@@ -109,7 +114,6 @@ export function ResultsTable({ p }: { p: Pipeline }) {
             <span className="animate-pulse">running…</span>
           </span>
         )}
-        {toggle("onlyOk")}
         {toggle("hidePatternless")}
         {toggle("groupByCompany")}
         {anyWant && toggle("hideIrrelevant")}

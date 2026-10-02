@@ -133,16 +133,18 @@ export function usePipeline() {
           ex = r.data;
         }
         // People already in the list with an email are kept as they are — no second lookup.
-        const skip = ex.people.filter((p) => state.contacts[p.id]?.status === "ok").map((p) => p.id);
+        // (Only while their company still has its domain — otherwise look them up again to repair it.)
+        const done = (id: string) => state.contacts[id]?.status === "ok" && !!state.companies[state.contacts[id].company_id]?.domain;
+        const skip = ex.people.filter((p) => done(p.id)).map((p) => p.id);
         // A company pasted without names whose people are already in the list: reuse them, don't search again.
-        const listed = Object.values(state.contacts).filter((c) => c.status === "ok");
+        const listed = Object.values(state.contacts).filter((c) => done(c.id));
         const reuse = ex.companies.filter((c) => !ex!.people.some((p) => p.company_id === c.id)).flatMap((c) => listed.filter((x) => x.company_id === c.id).map((x) => x.id));
         const search = { id: `s${Date.now().toString(36)}`, label: searchLabel(ex), want: state.roleFilter.trim(), at: new Date().toISOString(), cost: 0 };
         dispatch({ type: "run_start", extracted: ex, limit: BUDGET.maxContacts, search, skip, reuse });
         const people = ex.people.filter((p) => !skip.includes(p.id));
         // Companies whose people are all already done need nothing new.
-        const done = new Set([...ex.people.filter((p) => skip.includes(p.id)), ...reuse.map((id) => state.contacts[id])].map((p) => p.company_id));
-        const companies = ex.companies.filter((c) => !done.has(c.id) || people.some((p) => p.company_id === c.id));
+        const finished = new Set([...ex.people.filter((p) => skip.includes(p.id)), ...reuse.map((id) => state.contacts[id])].map((p) => p.company_id));
+        const companies = ex.companies.filter((c) => !finished.has(c.id) || people.some((p) => p.company_id === c.id));
         await runPipeline({ ...ex, people, companies }, ctx, hooks);
       }
       dispatch({ type: "run_end", error: abort.current.signal.aborted ? "stopped" : undefined });

@@ -54,6 +54,7 @@ export type Action =
   | { type: "run_start"; extracted?: ExtractResult; limit?: number; search?: Search; skip?: string[]; reuse?: string[] }
   | { type: "search_toggle"; id: string; hidden?: boolean }
   | { type: "search_only"; id?: string }
+  | { type: "search_all"; hidden: boolean }
   | { type: "search_remove"; id: string }
   | { type: "row"; contact: Contact }
   | { type: "company"; company: Company }
@@ -145,9 +146,17 @@ export function reducer(s: State, a: Action): State {
       // Retry / Include / resume: same rows, no new search.
       if (!a.extracted || !a.search) return { ...s, running: true, showPreview: false, error: undefined };
       // A new search adds to the list; people already in it with emails are not looked up again.
-      const id = a.search.id;
-      const skip = new Set(a.skip ?? []);
       const people = a.extracted.people.slice(0, a.limit ?? Infinity);
+      // Running the same paste again refreshes that search instead of adding a copy.
+      const same = s.searches.find(
+        (x) =>
+          x.want === a.search!.want &&
+          a.extracted!.companies.every((c) => s.companySearches[c.id]?.includes(x.id)) &&
+          [...people.map((p) => p.id), ...(a.reuse ?? [])].every((r) => s.rowSearches[r]?.includes(x.id)),
+      );
+      const search = same ? { ...same, at: a.search.at, hidden: undefined } : a.search;
+      const id = search.id;
+      const skip = new Set(a.skip ?? []);
       const contacts = { ...s.contacts };
       const order = [...s.order];
       let rowSearches = s.rowSearches;
@@ -165,12 +174,14 @@ export function reducer(s: State, a: Action): State {
         showPreview: false,
         error: undefined,
         extracted: a.extracted,
-        companies: { ...s.companies, ...Object.fromEntries(a.extracted.companies.map((c) => [c.id, s.companies[c.id] ? { ...s.companies[c.id], ...c } : c])) },
+        // Keep what earlier searches learned about a company (domain, formats); a run that
+        // looks it up again replaces it through the "company" action.
+        companies: { ...Object.fromEntries(a.extracted.companies.map((c) => [c.id, c])), ...s.companies },
         contacts,
         order,
         rowSearches,
         companySearches,
-        searches: [...s.searches, a.search],
+        searches: [...s.searches.filter((x) => x.id !== id), search],
         activeSearch: id,
       };
     }
@@ -203,6 +214,8 @@ export function reducer(s: State, a: Action): State {
       return { ...s, searches: s.searches.map((x) => (x.id === a.id ? { ...x, hidden: a.hidden } : x)) };
     case "search_only":
       return { ...s, searches: s.searches.map((x) => ({ ...x, hidden: a.id ? x.id !== a.id : undefined })) };
+    case "search_all":
+      return { ...s, searches: s.searches.map((x) => ({ ...x, hidden: a.hidden || undefined })) };
     case "search_remove": {
       // Drop the search; rows and companies that only it found go with it.
       const strip = (m: Record<string, string[]>) => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, v.filter((x) => x !== a.id)]).filter(([, v]) => v.length));
@@ -248,7 +261,6 @@ export const wantFor = (s: State, c: Contact) => searchOf(s, c.id)?.want ?? s.ro
 export function tableRows(s: State): Contact[] {
   const f = s.filters;
   let rows = listedRows(s);
-  if (f.onlyOk) rows = rows.filter((r) => r.status === "ok");
   if (f.hideIrrelevant !== false) rows = rows.filter((r) => !wantFor(s, r).trim() || relevance(r, wantFor(s, r)) !== false);
   if (f.hidePatternless) rows = rows.filter((r) => visibleCandidates(r, { includeGuesses: !!f.includeGuesses }).length);
   if (f.groupByCompany) rows = [...rows].sort((a, b) => (s.companies[a.company_id]?.name ?? "~").localeCompare(s.companies[b.company_id]?.name ?? "~"));

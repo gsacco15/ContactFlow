@@ -56,6 +56,26 @@ describe("reducer", () => {
     expect(Object.keys(s.companies).sort()).toEqual(["acme", "beta"]);
   });
 
+  it("a later search does not wipe what an earlier one learned about a company", () => {
+    let s = reducer(initialState("s1"), { type: "run_start", extracted: ex, search: search("a") });
+    s = reducer(s, { type: "company", company: { ...ex.companies[0], domain: "acme.com", patterns: [{ template: "{f}{last}", confidence: 0.9, source_url: "https://x" }] } });
+    s = reducer(s, { type: "run_end" });
+    s = reducer(s, { type: "run_start", extracted: ex, search: search("b", "partners"), skip: ["jane-doe-acme", "john-roe-acme"] });
+    expect(s.companies.acme.domain).toBe("acme.com");
+    expect(s.companies.acme.patterns).toHaveLength(1);
+  });
+
+  it("running the same paste again refreshes its search instead of adding a copy", () => {
+    let s = reducer(initialState("s1"), { type: "run_start", extracted: ex, search: search("a", "partners") });
+    s = reducer(s, { type: "run_end" });
+    s = reducer(s, { type: "search_all", hidden: true });
+    s = reducer(s, { type: "run_start", extracted: ex, search: { ...search("b", "partners"), at: "2026-10-03T00:00:00Z" } });
+    expect(s.searches.map((x) => [x.id, x.at, x.hidden])).toEqual([["a", "2026-10-03T00:00:00Z", undefined]]);
+    s = reducer(s, { type: "run_end" });
+    s = reducer(s, { type: "run_start", extracted: ex, search: search("c", "something else") });
+    expect(s.searches.map((x) => x.id)).toEqual(["a", "c"]); // different Looking for → its own search
+  });
+
   it("people found mid-run or on Retry join a search", () => {
     let s = reducer(initialState("s1"), { type: "run_start", extracted: { ...ex, people: [] }, search: search("a", "partners") });
     s = reducer(s, { type: "row", contact: { ...ex.people[0], status: "ok" } });
