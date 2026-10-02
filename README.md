@@ -191,4 +191,5 @@ LinkedIn or anything behind a login. That keeps it in the same category as Hunte
 | M5 MX, rescue, polish | ✅ | dead-domain fixture → `no_domain`; 8-call rescue budget; Retry; filters; cost counter uses the same usage the function logs | counter vs `cf_usage` |
 | M6 company-first | ✅ code | role filter / role hints → find_people; URL inputs | ≥ 1 match per company with a public team page |
 
+**What v1 is, as shipped:** [docs/v1-as-built.md](docs/v1-as-built.md).
 **v2:** the plan, build order and acceptance checks are in [docs/v2-build-sheet.md](docs/v2-build-sheet.md).
