@@ -1,5 +1,6 @@
 import { FIT_THRESHOLDS, LOW_DOMAIN_CONFIDENCE, MIN_SOURCED_CONFIDENCE } from "@cf/core";
 import { BUDGET } from "../config.ts";
+import { FlowDiagram } from "./FlowDiagram.tsx";
 
 type Step = { title: string; body: string; tag?: string };
 
@@ -59,6 +60,11 @@ export function HowItWorks({ onBack }: { onBack: () => void }) {
             Costs more (≈ $0.10–0.50 per company). It never opens LinkedIn.
           </div>
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-stone-500">Step by step, with every branch</h3>
+        <FlowDiagram />
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
