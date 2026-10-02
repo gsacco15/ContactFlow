@@ -271,3 +271,16 @@ describe("rescued label", () => {
     expect(res.contacts.map((c) => [c.status, c.rescued])).toEqual([["ok", true], ["ok", true], ["ok", true]]);
   });
 });
+
+describe("incomplete last names", () => {
+  it("gives no junk guesses for 'Maria O.' and does not rescue", async () => {
+    const { ctx, calls } = mockCtx({
+      resolve_domain: toolResponse("report_domain", { domain: "flsalaw.com", confidence: 0.9, source_url: "https://x", alternatives: [] }),
+      discover_pattern: firstLast(),
+    });
+    const res = await runPipeline(buildExtract({ people: [{ first: "Maria", last: "O.", company: "Werman" }, { first: "Doug", last: "Werman", company: "Werman" }] }), ctx);
+    expect(res.contacts.map((c) => [c.status, c.candidates.length])).toEqual([["error", 0], ["ok", 3]]);
+    expect(res.contacts[0].error).toMatch(/incomplete/);
+    expect(calls.some((c) => c.stage === "rescue_agent")).toBe(false);
+  });
+});

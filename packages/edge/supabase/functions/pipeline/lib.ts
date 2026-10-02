@@ -99,7 +99,8 @@ export function buildParams(body: LlmBody, prompt: string, env: Env) {
     tool_choice: { type: "auto" },
   };
   const effort = env("CF_EFFORT");
-  if (effort && spec.model !== "classify") params.output_config = { effort };
+  // Haiku 4.5 rejects the effort parameter, so only models that support it get it.
+  if (effort && !/haiku/.test(model)) params.output_config = { effort };
   const fallbacks = env("CF_FALLBACKS") ?? "default";
   const betas: string[] = [];
   if (fallbacks && spec.model !== "classify" && !/haiku/.test(model)) {

@@ -51,9 +51,10 @@ describe("buildParams", () => {
   });
 
   it("model ids come from env; Haiku domain model gets basic web tools", () => {
-    const { params } = buildParams({ stage: "resolve_domain", input: {} }, "p", env({ CF_MODEL_DOMAIN: "claude-haiku-4-5", CF_FALLBACKS: "" }));
+    const { params } = buildParams({ stage: "resolve_domain", input: {} }, "p", env({ CF_MODEL_DOMAIN: "claude-haiku-4-5", CF_FALLBACKS: "", CF_EFFORT: "low" }));
     expect(params.model).toBe("claude-haiku-4-5");
     expect((params.tools as any[])[1].type).toBe("web_search_20250305");
+    expect(params.output_config).toBeUndefined();
     expect(params.fallbacks).toBeUndefined();
   });
 });

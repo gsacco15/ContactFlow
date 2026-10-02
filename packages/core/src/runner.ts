@@ -182,6 +182,12 @@ export async function applyCompany(c: Contact, co: Company | undefined, ctx: Ctx
     c.error = "could not parse a name";
     return;
   }
+  if (/^\p{L}\.$/u.test(c.last.trim())) {
+    // "Maria O." — LinkedIn hides the surname; any guess would be junk.
+    c.status = "error";
+    c.error = INCOMPLETE_LAST;
+    return;
+  }
   c.candidates = generateCandidates(name, co.domain, co.patterns, { nicknames: ctx.options?.nicknames });
   // The person's own pasted work address goes first.
   const own = ctx.options?.usePasteEvidence !== false ? cleanEmail(c.email) : undefined;
@@ -206,6 +212,8 @@ export async function applyCompany(c: Contact, co: Company | undefined, ctx: Ctx
     c.error = co.error;
   } else c.status = "no_pattern";
 }
+
+const INCOMPLETE_LAST = "Last name is incomplete (e.g. “Maria O.”) — click the name to fill it in.";
 
 // One rescue per company per run: the fix is company-level (domain, patterns).
 const rescues = new WeakMap<Company, Promise<StageResult<RescueFix>>>();
@@ -232,7 +240,7 @@ async function finishContact(c: Contact, co: Company, ctx: Ctx, hooks: RunHooks)
 
 /** Gate: v1 is status-only; a calibrated provider (v2) also catches rows that are ok but wrong. */
 export async function shouldRescue(c: Contact, co: Company, ctx: Ctx): Promise<boolean> {
-  if (ctx.options?.rescue === false) return false;
+  if (ctx.options?.rescue === false || c.error === INCOMPLETE_LAST) return false;
   if (c.status !== "ok") return c.status !== "pending" && !!co.name;
   if (!ctx.decisions.calibrated) return false;
   const p = await ctx.decisions.score(
