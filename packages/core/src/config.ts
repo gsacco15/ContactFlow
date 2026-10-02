@@ -151,7 +151,7 @@ export const EVIDENCE_STRONG = { score: 1.5, margin: 2 };
  * search (sample one person per firm). Off until a provider is chosen; later per plan (pro
  * accounts). ?verify=button or ?verify=auto tries it in one browser.
  */
-export const VERIFY_MODE: "off" | "button" | "auto" = "off";
+export const VERIFY_MODE: "off" | "button" | "auto" = "button";
 /** At most this many checks per company per run: sample one person, try their emails in order. */
 export const VERIFY_LIMITS = { perCompany: 3 };
 /** Confidence shown for a format a mailbox check proved at this company. */

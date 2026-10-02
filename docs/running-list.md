@@ -33,7 +33,7 @@ What we're building, in order. Updated as each item lands. `[x]` done · `[~]` i
    - [x] One check per firm, cheapest first: valid → format proven for everyone; invalid → next format (max 3); catch-all → stop
    - [x] Already proven by an earlier check (any user) → no check at all
    - [x] Cracks firms with no published format (backup guesses get checked too)
-   - [x] Modes: `off` (now) · `button` (✓ Verify / ✓ Verify all) · `auto` (every search); `?verify=button` to try
+   - [x] Modes: `off` · **`button` (now: ✓ Verify / ✓ Verify N firms, demo answers until the key is set)** · `auto` (every search)
    - [x] Badges: ✓ valid · ~ risky · ◎ accept-all · "✓ verified here" on the format; CSV/JSON say "verified by mailbox check"
    - [x] Edge `/verify` (v17): ZeroBounce + MillionVerifier adapters, `mock` stand-in (never recorded); key only on the server; checks logged and priced
    - [x] Bottom-bar "✓ Verify N firms · ≈ $X" for the ticked searches (per-row ✓ Verify stays)
