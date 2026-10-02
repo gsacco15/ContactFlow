@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CSV_COLUMNS, toCsv, toTable, toTsv, type Company, type Contact } from "../src/index.ts";
+import { CSV_COLUMNS, toCsv, toRow, toTable, toTsv, type Company, type Contact } from "../src/index.ts";
 
 const company: Company = {
   id: "acme",
@@ -45,13 +45,13 @@ describe("csv", () => {
   it("flattens contact + company, quotes and defuses formulas; drops backup guesses by default", () => {
     const [, row] = toCsv([contact], [company]).split("\r\n");
     expect(row).toBe(
-      `Jane,Doe,"'=HYPERLINK(""x""), VP ""Sales""","Acme, Inc.",acme.com,jane.doe@acme.com,,,sourced,,,first.last,0.80,estimated,https://rocketreach.co/acme,https://acme.com,,unverified,ok,`,
+      `Jane,Doe,"'=HYPERLINK(""x""), VP ""Sales""","Acme, Inc.",acme.com,jane.doe@acme.com,not checked,,,sourced,,,first.last,0.80,estimated,https://rocketreach.co/acme,https://acme.com,,unverified,ok,`,
     );
   });
 
   it("includes backup guesses only when asked", () => {
     const [, row] = toCsv([contact], [company], { includeGuesses: true }).split("\r\n");
-    expect(row).toContain("jane.doe@acme.com,jane@acme.com,,sourced,guess,");
+    expect(row).toContain("jane.doe@acme.com,not checked,jane@acme.com,,sourced,guess,");
   });
 
   it("labels stated vs estimated confidence", () => {
@@ -63,7 +63,7 @@ describe("csv", () => {
     const c = { ...contact, first: "", last: "", title: undefined, candidates: [{ email: "afishman@cm.law", pattern: "pasted", rank: 1 as const, basis: "seen" as const }] };
     const [, row] = toCsv([c], [company]).split("\r\n");
     expect(row.startsWith("Unknown,Unknown,,")).toBe(true);
-    expect(row).toContain("afishman@cm.law,,,seen,");
+    expect(row).toContain("afishman@cm.law,from your paste,,,seen,");
   });
 
   it("tsv has no tabs or newlines inside cells", () => {
@@ -71,5 +71,17 @@ describe("csv", () => {
     const lines = tsv.split("\n").filter(Boolean);
     expect(lines).toHaveLength(2);
     expect(lines[1].split("\t")).toHaveLength(CSV_COLUMNS.length);
+  });
+
+  it("verified column says in plain words what the mailbox check found for email 1", () => {
+    const withStatus = (verify_status: "valid" | "invalid" | "catch_all" | "unverified"): Contact => ({ ...contact, candidates: [{ ...contact.candidates[0], verify_status }] });
+    expect(CSV_COLUMNS.indexOf("verified")).toBe(CSV_COLUMNS.indexOf("email_1") + 1);
+    expect(toRow(withStatus("unverified"), company).verified).toBe("not checked");
+    expect(toRow(withStatus("valid"), company).verified).toBe("yes");
+    expect(toRow(withStatus("invalid"), company).verified).toBe("no (bounced)");
+    expect(toRow(withStatus("catch_all"), company).verified).toBe("accept-all server");
+    expect(toRow(withStatus("unverified"), { ...company, format_verified: "{first}.{last}" }).verified).toBe("format proven");
+    expect(toRow(withStatus("valid"), { ...company, verified_by: "demo" }).verified).toBe("demo");
+    expect(toRow({ ...contact, candidates: [], primary_email: undefined }, company).verified).toBe("");
   });
 });

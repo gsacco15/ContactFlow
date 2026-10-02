@@ -41,7 +41,8 @@ What we're building, in order. Updated as each item lands. `[x]` done · `[~]` i
    - [x] **Live with MillionVerifier** (Oct 2): real answers, accept-all detected (Cloudflare), bounces detected (Austin Energy); provider errors retried and shown as "verifier unavailable"
    - [x] Second-opinion check on a colleague before blaming a format
    - [ ] First live "✓ verified here" on a firm (not seen yet)
-   - [ ] Then: "Only verified" filter · `format_verified` CSV column · pro-account gate
+   - [x] CSV `verified` column next to email 1: yes · format proven · no (bounced) · accept-all server · risky · not checked · demo
+   - [ ] Then: "Only verified" filter · pro-account gate
 6. [ ] **API → MCP → ChatGPT app** — `/v1/enrich` with API keys, MCP tools (`enrich_contacts`, `find_domain`, `get_format`, later `verify`), results widget inside ChatGPT.
 
 ## Later / ideas

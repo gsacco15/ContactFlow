@@ -11,7 +11,7 @@ export { type DecisionProvider, type ScoredItem, ClaudeDecisions, JevDecisions, 
 export { judgeFit, relevance, personState, fitQuestion, looksLikeKeywords } from "./fit.ts";
 export { type Verifier, MxVerifier } from "./verify/index.ts";
 export { verifyCompany, type VerifyOutcome } from "./verify/company.ts";
-export { toCsv, toTable, toTsv, toRow, visibleCandidates, confidenceBasis, CSV_COLUMNS, type CsvRow, type ExportOptions } from "./export/csv.ts";
+export { toCsv, toTable, toTsv, toRow, visibleCandidates, verifiedLabel, confidenceBasis, CSV_COLUMNS, type CsvRow, type ExportOptions } from "./export/csv.ts";
 export { type CrmAdapter, type CrmRecord, toCrmRecords } from "./crm/index.ts";
 export { memoryCache } from "./cache.ts";
 export { pMap } from "./pmap.ts";

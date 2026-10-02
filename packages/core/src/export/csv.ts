@@ -2,7 +2,7 @@ import type { Company, Contact, Pattern } from "../types.ts";
 import { patternLabel } from "../candidates.ts";
 
 export const CSV_COLUMNS = [
-  "first", "last", "title", "company", "domain", "email_1", "email_2", "email_3",
+  "first", "last", "title", "company", "domain", "email_1", "verified", "email_2", "email_3",
   "email_1_basis", "email_2_basis", "email_3_basis",
   "pattern", "pattern_confidence", "pattern_confidence_basis", "pattern_source_url", "domain_source_url",
   "linkedin_url", "verify_status", "status", "opt_out",
@@ -24,6 +24,24 @@ export function visibleCandidates(c: Contact, opts: ExportOptions = {}) {
 
 export const confidenceBasis = (p?: Pattern) => (!p ? "" : p.verified ? "verified by mailbox check" : p.from_evidence ? "proven by earlier lookups" : p.from_paste ? "paste" : p.from_site ? "company website" : p.stated ? "stated by source" : "estimated");
 
+/**
+ * Plain-words verification for the row's main email: "yes" (mailbox confirmed), "format proven"
+ * (a check at this company proved the format), "no (bounced)", "accept-all server" (can't be
+ * proven there), "risky", "not checked", or "demo" for stand-in answers. Empty when no email.
+ */
+export function verifiedLabel(primary: Contact["candidates"][number] | undefined, co: Company | undefined): string {
+  if (!primary) return "";
+  if (primary.pattern === "pasted") return "from your paste";
+  const s = primary.verify_status;
+  if ((co?.verified_by === "demo" || co?.verified_by === "mock") && s && s !== "unverified") return "demo";
+  if (s === "valid") return "yes";
+  if (s === "invalid") return "no (bounced)";
+  if (s === "catch_all" || co?.catch_all) return "accept-all server";
+  if (s === "risky") return "risky";
+  if (co?.format_verified && co.format_verified === primary.pattern) return "format proven";
+  return "not checked";
+}
+
 export type CsvRow = Record<(typeof CSV_COLUMNS)[number], string>;
 
 /** One flat row per contact. Unverified guesses always export as verify_status=unverified. */
@@ -39,6 +57,7 @@ export function toRow(c: Contact, co: Company | undefined, opts: ExportOptions =
     company: co?.name ?? "",
     domain: co?.domain ?? "",
     email_1: cands[0]?.email ?? "",
+    verified: verifiedLabel(cands[0], co),
     email_2: cands[1]?.email ?? "",
     email_3: cands[2]?.email ?? "",
     email_1_basis: cands[0]?.basis ?? "",
