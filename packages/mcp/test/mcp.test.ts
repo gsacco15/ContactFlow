@@ -51,9 +51,9 @@ describe("MCP protocol", () => {
     expect(bad.error.code).toBe(-32601);
   });
 
-  it("private: no key, wrong key or an unconfigured server are refused", async () => {
+  it("open while CF_MCP_KEY is unset; once set, a missing or wrong key is refused", async () => {
+    expect((await handleHttp(new Request("https://contactflow.test/api/mcp", { method: "POST", body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }) }), env({}), deps)).status).toBe(200);
     expect((await handleHttp(rpc({ jsonrpc: "2.0", id: 1, method: "ping" }, "nope"), E, deps)).status).toBe(401);
-    expect((await handleHttp(rpc({ jsonrpc: "2.0", id: 1, method: "ping" }), env({}), deps)).status).toBe(503);
     const bearer = new Request("https://contactflow.test/api/mcp", { method: "POST", headers: { authorization: "Bearer secret" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }) });
     expect((await handleHttp(bearer, E, deps)).status).toBe(200);
     expect((await handleHttp(new Request("https://contactflow.test/api/mcp?key=secret"), E, deps)).status).toBe(405); // no SSE stream

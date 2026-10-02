@@ -2612,10 +2612,11 @@ function edgeDeps(env2) {
 async function handleHttp(req, env2, deps = edgeDeps(env2)) {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   const want = env2("CF_MCP_KEY");
-  if (!want) return json({ error: "MCP server not configured (CF_MCP_KEY)" }, 503);
-  const url = new URL(req.url);
-  const given = url.searchParams.get("key") ?? req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-  if (!same(given, want)) return json({ error: "unauthorized" }, 401);
+  if (want) {
+    const url = new URL(req.url);
+    const given = url.searchParams.get("key") ?? req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+    if (!same(given, want)) return json({ error: "unauthorized" }, 401);
+  }
   if (req.method !== "POST") return new Response(null, { status: 405, headers: { ...CORS, Allow: "POST, OPTIONS" } });
   if (!deps) return json({ error: "edge function URL not configured (VITE_EDGE_URL)" }, 503);
   let body;

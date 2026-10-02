@@ -50,16 +50,19 @@ export function edgeDeps(env: Env): Deps | undefined {
 }
 
 /**
- * The MCP endpoint. Private for now: the caller must present CF_MCP_KEY, as `?key=` in the URL
- * (ChatGPT developer mode, no auth) or `Authorization: Bearer`. OAuth comes with the app listing.
+ * The MCP endpoint. With CF_MCP_KEY set, the caller must present it as `?key=` in the URL (ChatGPT
+ * developer mode, no auth) or `Authorization: Bearer`. OAuth comes with the login / app listing.
  */
 export async function handleHttp(req: Request, env: Env, deps: Deps | undefined = edgeDeps(env)): Promise<Response> {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+  // Open while CF_MCP_KEY is unset (same exposure as the website, capped by CF_DAILY_LIMIT);
+  // set it to lock the server. OAuth replaces this with the login.
   const want = env("CF_MCP_KEY");
-  if (!want) return json({ error: "MCP server not configured (CF_MCP_KEY)" }, 503);
-  const url = new URL(req.url);
-  const given = url.searchParams.get("key") ?? req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-  if (!same(given, want)) return json({ error: "unauthorized" }, 401);
+  if (want) {
+    const url = new URL(req.url);
+    const given = url.searchParams.get("key") ?? req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+    if (!same(given, want)) return json({ error: "unauthorized" }, 401);
+  }
   // Stateless server: no SSE stream to open and no session to end.
   if (req.method !== "POST") return new Response(null, { status: 405, headers: { ...CORS, Allow: "POST, OPTIONS" } });
   if (!deps) return json({ error: "edge function URL not configured (VITE_EDGE_URL)" }, 503);

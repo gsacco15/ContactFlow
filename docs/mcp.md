@@ -4,7 +4,9 @@ ChatGPT reads the user's paste itself and calls ContactFlow's tools with structu
 server is a Vercel Function (`packages/web/api/mcp.js`, built from `packages/mcp`) that sends every
 lookup to the Supabase `pipeline` function, so it holds no Anthropic or verifier key.
 
-Endpoint: `https://contact-flow-web.vercel.app/api/mcp?key=<CF_MCP_KEY>` — private: no key, no access.
+Endpoint: `https://contact-flow-web.vercel.app/api/mcp`. Open for now (same exposure as the website,
+capped by `CF_DAILY_LIMIT`). To lock it, set `CF_MCP_KEY` in Vercel and add `?key=<it>` to the URL;
+OAuth replaces that with the login later.
 
 ## Tools — one per user goal
 
@@ -20,15 +22,12 @@ CRM push.
 
 ## Set up (once)
 
-1. **Vercel → Project → Settings → Environment Variables:** add `CF_MCP_KEY` = a long random string
-   (32+ characters from a password generator). It's the password to the server; keep it out of chat.
-   The function also uses the existing `VITE_EDGE_URL` and `VITE_ACCESS_TOKEN`.
-2. **Vercel → Settings → Build and Deployment → Root Directory** must be `packages/web` (the function
-   lives in `packages/web/api/`). Redeploy after adding the variable.
+1. **Vercel → Settings → Build and Deployment → Root Directory** must be `packages/web` (the function
+   lives in `packages/web/api/`). It uses the existing `VITE_EDGE_URL` and `VITE_ACCESS_TOKEN`.
+2. *(Later, optional)* `CF_MCP_KEY` in Vercel locks the server until the login exists.
 3. **ChatGPT → Settings → Security and login → Developer mode:** on (paid plans).
 4. **ChatGPT → Settings → Apps → Create app:** name `ContactFlow`, MCP server URL
-   `https://contact-flow-web.vercel.app/api/mcp?key=<your key>`, authentication **No authentication**
-   (the key in the URL is the lock). ChatGPT lists the two tools.
+   `https://contact-flow-web.vercel.app/api/mcp`, authentication **No authentication**. ChatGPT lists the two tools.
 5. In a new chat, choose ContactFlow (Developer mode / + menu), paste a LinkedIn page and ask for emails.
 
 ## Limits
