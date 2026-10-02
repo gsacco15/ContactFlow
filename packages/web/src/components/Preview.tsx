@@ -99,13 +99,13 @@ export function Preview({ p }: { p: Pipeline }) {
       {ex.people.length > 0 && (
         <div className="max-h-72 overflow-auto rounded border border-stone-200">
           <table className="w-full text-left text-sm">
-            <thead className="sticky top-0 bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+            <thead className="sticky top-0 z-10 bg-white/60 text-xs uppercase tracking-wide text-stone-600 shadow-[0_1px_0_rgb(231_229_228)] backdrop-blur-lg backdrop-saturate-150">
               <tr>
-                <th className="px-2 py-1.5">First</th>
-                <th className="px-2 py-1.5">Last</th>
-                <th className="px-2 py-1.5">Title</th>
-                <th className="px-2 py-1.5">Company</th>
-                {roles && <th className="px-2 py-1.5 text-center">Relevant?</th>}
+                <th className="px-2 py-2">First</th>
+                <th className="px-2 py-2">Last</th>
+                <th className="px-2 py-2">Title</th>
+                <th className="px-2 py-2">Company</th>
+                {roles && <th className="px-2 py-2 text-center">Relevant?</th>}
                 <th className="w-8" />
               </tr>
             </thead>
