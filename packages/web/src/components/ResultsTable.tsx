@@ -125,7 +125,7 @@ export function ResultsTable({ p }: { p: Pipeline }) {
         </Button>
       </div>
       <Searches p={p} />
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-stone-600">
+      <div className="-mx-4 flex items-center gap-x-5 gap-y-2 overflow-x-auto px-4 pb-1 text-sm whitespace-nowrap text-stone-600 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
         <span className="font-medium text-stone-900">
           {state.running ? `${done}/${total} done` : `${rows.length} shown`}
         </span>
@@ -151,11 +151,11 @@ export function ResultsTable({ p }: { p: Pipeline }) {
           </select>
         </label>
         {anyWant && toggle("hideIrrelevant")}
-        <span className="border-l border-stone-300 pl-4" title="Common formats with no source behind them. Off = they are hidden here and left out of Copy/CSV.">
+        <span className="sm:border-l sm:border-stone-300 sm:pl-4" title="Common formats with no source behind them. Off = they are hidden here and left out of Copy/CSV.">
           {toggle("includeGuesses")}
         </span>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
+      <div className="relative overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-stone-200 bg-stone-50 text-[11px] font-semibold uppercase tracking-wider text-stone-500">
             <tr>

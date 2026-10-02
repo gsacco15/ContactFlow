@@ -299,7 +299,10 @@ export function tableRows(s: State): Contact[] {
   return rows;
 }
 
-const when = (iso: string) => new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const when = (iso: string) => {
+  const d = new Date(iso);
+  return `${d.toLocaleDateString([], { month: "short", day: "numeric" })} · ${d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+};
 
 /** For the export's `search` column, e.g. "Zuber Lawler · legal people · Oct 2, 2:17 PM". */
 export function searchNames(s: State, c: Contact): string {

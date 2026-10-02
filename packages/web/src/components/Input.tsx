@@ -22,7 +22,7 @@ export function Input({ p }: { p: Pipeline }) {
           <input
             value={state.roleFilter}
             onChange={(e) => dispatch({ type: "role", roleFilter: e.target.value })}
-            placeholder="optional — e.g. partners, firm admins; not paralegals"
+            placeholder="e.g. partners, not clerks"
             className="w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm outline-none transition placeholder:text-stone-400 focus:border-stone-400 focus:ring-4 focus:ring-stone-100"
           />
         </label>
@@ -42,26 +42,32 @@ export function Input({ p }: { p: Pipeline }) {
           Use emails &amp; formats found in my paste
         </label>
       </div>
-      <div className="flex flex-wrap items-center gap-2 border-t border-stone-100 pt-3">
-        <Button onClick={p.parse} disabled={!p.configured || busy || !state.input.trim()} title="Stage 1 only — fast, no web searches">
-          {state.parsing ? "Parsing…" : "Parse"}
-        </Button>
+      <div className="flex items-center gap-2 border-t border-stone-100 pt-3">
         {state.running ? (
-          <Button variant="primary" onClick={p.stop}>
+          <Button variant="primary" onClick={p.stop} className="whitespace-nowrap">
             Stop
           </Button>
         ) : (
-          <Button variant="primary" onClick={() => p.run()} disabled={!p.configured || busy || (!state.input.trim() && !state.extracted)}>
-            {state.order.length ? "Run & add to list" : "Run pipeline"}
+          <Button
+            variant="primary"
+            onClick={() => p.run()}
+            disabled={!p.configured || busy || (!state.input.trim() && !state.extracted)}
+            className="whitespace-nowrap"
+            title="Finds the people, their domains and email formats, and adds the results to your list"
+          >
+            Find emails
           </Button>
         )}
+        <Button onClick={p.parse} disabled={!p.configured || busy || !state.input.trim()} className="whitespace-nowrap" title="Optional: see who was found and fix or drop people before anything is searched">
+          {state.parsing ? "Reading…" : "Preview"}
+        </Button>
         {pending > 0 && !state.running && (
           <Button onClick={p.resume} disabled={!p.configured}>
             Resume ({pending} pending)
           </Button>
         )}
         <select
-          className="ml-auto rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm text-stone-600 hover:border-stone-300"
+          className="ml-auto hidden rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm text-stone-600 hover:border-stone-300 sm:block"
           value=""
           aria-label="Load a sample"
           onChange={(e) => {
@@ -78,8 +84,8 @@ export function Input({ p }: { p: Pipeline }) {
             </option>
           ))}
         </select>
-        <Button variant="ghost" onClick={() => dispatch({ type: "input", input: "" })} disabled={busy || !state.input} title="Empties the paste box. Your list below stays.">
-          Clear paste
+        <Button variant="ghost" className="ml-auto sm:ml-0" onClick={() => dispatch({ type: "input", input: "" })} disabled={busy || !state.input} title="Empties the paste box. Your list below stays.">
+          Clear
         </Button>
       </div>
     </section>

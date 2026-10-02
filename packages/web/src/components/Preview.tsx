@@ -70,7 +70,7 @@ export function Preview({ p }: { p: Pipeline }) {
       {known > 0 && (
         <Banner tone="info">
           {known === ex.people.length
-            ? `Everyone here is already in your list with an email. Running again costs nothing — it just ${p.state.roleFilter.trim() ? "re-applies “Looking for” and " : ""}adds this as a search.`
+            ? `Everyone here is already in your list with an email. Finding emails again costs nothing — it just ${p.state.roleFilter.trim() ? "re-applies “Looking for” and " : ""}adds this as a search.`
             : `${known} of ${ex.people.length} are already in your list with an email — they won’t be looked up again. Only the other ${ex.people.length - known} cost anything.`}
         </Banner>
       )}
@@ -90,7 +90,7 @@ export function Preview({ p }: { p: Pipeline }) {
       {ex.people.length === 0 && (
         <Banner tone="warn">
           No people found. The classifier found {ex.companies.length} companies and {ex.urls.length} URLs.{" "}
-          {roles ? `Run will look for “${roles}” on their team pages.` : "Add target roles above to look people up on their team pages (company-first)."}
+          {roles ? `Find emails will look for “${roles}” on their team pages.` : "Add target roles above to look people up on their team pages (company-first)."}
         </Banner>
       )}
       {ex.people.length > 0 && companiesWithout.length > 0 && !roles && (
@@ -101,7 +101,7 @@ export function Preview({ p }: { p: Pipeline }) {
       {ex.people.length > BUDGET.maxContacts && (
         <Banner tone="warn">
           {ex.people.length > LARGE_PASTE_CONTACTS ? "That’s a very large paste. " : ""}
-          Runs are capped at {BUDGET.maxContacts} contacts; Run will process the first {BUDGET.maxContacts}.
+          Each search is capped at {BUDGET.maxContacts} people; Find emails will process the first {BUDGET.maxContacts}.
         </Banner>
       )}
 
