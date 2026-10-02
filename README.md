@@ -135,7 +135,9 @@ One-time setup (Google Cloud console, ~10 min):
 4. **Audience → Test users** → add every Google account that will use it (while the app is in *Testing*).
 5. **Clients → Create client** → *Web application* → **Authorized JavaScript origins**:
    `https://contact-flow-web.vercel.app` (and `http://localhost:5173` for local dev) → create → copy the **Client ID**.
-6. Vercel → project → **Settings → Environment Variables** → `VITE_GOOGLE_CLIENT_ID` = that ID → **redeploy**.
+6. Put the ID in `packages/web/.env.production` as `VITE_GOOGLE_CLIENT_ID` (it's public; this repo already has one),
+   or set the same name in Vercel → Settings → Environment Variables, which overrides it. Redeploy.
+   Never add the client secret anywhere — the browser flow doesn't use it.
 
 Users see "Google hasn't verified this app" until the app is verified; fine for you and test users.
 
