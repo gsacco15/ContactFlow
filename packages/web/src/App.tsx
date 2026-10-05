@@ -123,13 +123,16 @@ export default function App() {
       {page === "app" && <ExportBar p={p} />}
       {keyOpen && <OwnKeyDialog onClose={closeKey} />}
       <footer className="border-t border-stone-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center gap-x-4 px-4 py-4 text-xs whitespace-nowrap text-stone-400 sm:gap-x-5">
+        <div className="mx-auto flex max-w-7xl items-center gap-x-3 px-4 py-4 text-xs whitespace-nowrap text-stone-400 min-[380px]:gap-x-4 sm:gap-x-5">
           <button className="hover:text-stone-700" onClick={() => go("home")}>Home</button>
           <button className="hover:text-stone-700" onClick={() => go("privacy")}>Privacy</button>
           <button className="hover:text-stone-700" onClick={() => go("terms")}>Terms</button>
           <button className="hover:text-stone-700" onClick={() => go("support")}>Support</button>
           <a className="hidden hover:text-stone-700 sm:inline" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
-          <span className="ml-auto">© 2026 ContactFlow</span>
+          {(page === "how" || page === "admin") && (
+            <button className="hover:text-stone-700" onClick={() => go("admin")}>Admin</button>
+          )}
+          <span className="ml-auto hidden sm:inline">© 2026 ContactFlow</span>
         </div>
       </footer>
     </div>
