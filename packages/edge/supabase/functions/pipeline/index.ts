@@ -114,8 +114,8 @@ async function logUsage(session: string, ipHash: string, stage: StageName, model
 
 /**
  * Free tier, in dollars of real spend since 00:00 UTC (cf_usage.cost_usd): the whole site
- * (CF_DAILY_BUDGET_USD) and each visitor by hashed IP (CF_FREE_PER_VISITOR_USD). Visitors with their
- * own Claude key skip the per-visitor cap. ChatGPT calls share one IP, so only the site cap applies.
+ * (CF_DAILY_BUDGET_USD) and, if set above 0, each visitor by hashed IP (CF_FREE_PER_VISITOR_USD).
+ * Visitors with their own Claude key skip the per-visitor cap. ChatGPT calls share one IP, so only the site cap applies.
  * Returns the error code to send, or null when the request may go ahead. Fails open if the DB errs.
  */
 async function overBudget(ipHash: string, opts: { ownKey: boolean; session: string }): Promise<"daily_budget" | "free_limit" | null> {
@@ -127,6 +127,7 @@ async function overBudget(ipHash: string, opts: { ownKey: boolean; session: stri
   if (!site.error && Number(site.data) >= daily) return "daily_budget";
   if (opts.ownKey || opts.session.startsWith("mcp-")) return null;
   const perVisitor = Number(env("CF_FREE_PER_VISITOR_USD") ?? FREE_TIER.perVisitorUsd);
+  if (!(perVisitor > 0)) return null; // no per-visitor ceiling
   const mine = await db.rpc("cf_spend", { since, ip: ipHash });
   return !mine.error && Number(mine.data) >= perVisitor ? "free_limit" : null;
 }

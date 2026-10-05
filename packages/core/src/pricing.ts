@@ -36,8 +36,8 @@ export function estimateCost(u: {
 export const PRICE_PER_VERIFY = 0.00245;
 
 /**
- * Free use, paid by the site: a dollar ceiling for the whole site per UTC day, and a smaller one per
- * visitor (hashed IP) — about 3 searches. People who add their own Claude key aren't counted.
+ * Free use, paid by the site: a dollar ceiling for the whole site per UTC day. perVisitorUsd adds a
+ * per-visitor ceiling (hashed IP); 0 = none. People who add their own Claude key aren't counted.
  * The edge function's CF_DAILY_BUDGET_USD / CF_FREE_PER_VISITOR_USD override these.
  */
-export const FREE_TIER = { dailyUsd: 20, perVisitorUsd: 0.25 };
+export const FREE_TIER = { dailyUsd: 20, perVisitorUsd: 0 };

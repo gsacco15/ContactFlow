@@ -55,7 +55,7 @@ What we're building, in order. Updated as each item lands. `[x]` done · `[~]` i
 
 ## Launch (free to try, capped)
 
-- [x] Dollar caps on free use: $20/day for the whole site, ~$0.25/day (≈3 searches) per visitor (`pricing.ts` FREE_TIER; override with `CF_DAILY_BUDGET_USD` / `CF_FREE_PER_VISITOR_USD` in Supabase secrets). Real cost per row in `cf_usage.cost_usd` (edge v27)
+- [x] Dollar cap on free use: $20/day for the whole site, shared by everyone; no per-visitor cap (`pricing.ts` FREE_TIER; `CF_DAILY_BUDGET_USD` / `CF_FREE_PER_VISITOR_USD` secrets override). Real cost per row in `cf_usage.cost_usd` (edge v27)
 - [x] "Use your own Claude key": header button + prompt when free use runs out; key kept in the browser, used per request, never stored
 - [x] Jev stays on for everyone; verification on, counted in the cap
 - [x] Site-styled dialogs instead of browser pop-ups; logo → homepage; flow diagram removed from How it works

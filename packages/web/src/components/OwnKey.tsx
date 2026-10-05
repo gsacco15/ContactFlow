@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { FREE_TIER } from "@cf/core";
 import { OWN_KEY_PATTERN, getOwnKey, setOwnKey } from "../lib/ownKey.ts";
 import { Banner, Button, Modal } from "./ui.tsx";
 
@@ -61,7 +60,7 @@ export function OwnKeyDialog({ onClose }: { onClose: () => void }) {
 /** Shown when free use runs out: why, and the one-click way on. */
 export function LimitBanner({ code, onKey, onClose }: { code: "free_limit" | "daily_budget" | "own_key_rejected"; onKey: () => void; onClose: () => void }) {
   const text = {
-    free_limit: `You’ve used today’s free searches (about $${FREE_TIER.perVisitorUsd.toFixed(2)} of lookups). Add your own Claude key to keep going, or come back tomorrow.`,
+    free_limit: "You’ve used today’s free searches. Add your own Claude key to keep going, or come back tomorrow.",
     daily_budget: "Free searches are used up for today across ContactFlow. Add your own Claude key to keep going, or come back tomorrow.",
     own_key_rejected: "Anthropic didn’t accept your Claude key. Check it, or remove it to use the free searches.",
   }[code];
