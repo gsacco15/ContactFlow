@@ -80,7 +80,7 @@ export default function App() {
             title={`Theme: ${theme} (click for ${NEXT[theme]})`}
             aria-label={`Theme: ${theme}. Switch to ${NEXT[theme]}`}
           >
-            {theme === "dark" ? "☾" : theme === "light" ? "☀" : "◐"}
+            {theme === "dark" ? "☾" : theme === "light" ? <SunIcon /> : "◐"}
             <span className="hidden sm:inline"> {theme === "dark" ? "Dark" : theme === "light" ? "Light" : "Auto"}</span>
           </button>
           <button
@@ -144,4 +144,14 @@ function RateLimited({ until }: { until?: number }) {
   }, [until]);
   if (!until || until < now) return null;
   return <Banner tone="info">Rate limited, resuming in {Math.ceil((until - now) / 1000)} s…</Banner>;
+}
+
+/** Thin outline sun, drawn to match the ☾ and ◐ text glyphs (the ☀ glyph is heavy and turns into an emoji on phones). */
+function SunIcon() {
+  return (
+    <svg viewBox="0 0 16 16" className="inline-block size-[1em] -translate-y-px align-middle" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden="true">
+      <circle cx="8" cy="8" r="2.8" />
+      <path d="M8 1.5v1.4M8 13.1v1.4M1.5 8h1.4M13.1 8h1.4M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1" />
+    </svg>
+  );
 }
