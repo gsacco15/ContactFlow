@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   FETCH_BLOCKED_DOMAINS, HttpError, RateLimiter, addUsage, buildParams, corsHeaders, fillPrompt, mxFromDoh,
-  parseBody, readContent, webToolVersion, zeroUsage,
+  parseBody, readContent, sameSecret, webToolVersion, zeroUsage,
 } from "../supabase/functions/pipeline/lib.ts";
 
 const env = (vars: Record<string, string> = {}) => (k: string) => vars[k];
@@ -148,5 +148,14 @@ describe("parseJevBatch", () => {
     expect(() => parseJevBatch({ requests: [{ ...ok, state: "" }] })).toThrow(/state/);
     expect(() => parseJevBatch({ requests: [{ ...ok, questions: { q: { type: "essay", instructions: "x" } } }] })).toThrow(/noul/);
     expect(() => parseJevBatch({ requests: Array(101).fill(ok) })).toThrow(/100/);
+  });
+});
+
+describe("sameSecret (admin password)", () => {
+  it("matches only the exact password, and never when none is set", () => {
+    expect(sameSecret("hunter2-long", "hunter2-long")).toBe(true);
+    expect(sameSecret("hunter2-lonG", "hunter2-long")).toBe(false);
+    expect(sameSecret("hunter2", "hunter2-long")).toBe(false);
+    expect(sameSecret("", "")).toBe(false);
   });
 });

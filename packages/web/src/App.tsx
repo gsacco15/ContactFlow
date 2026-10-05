@@ -9,13 +9,14 @@ import { HowItWorks } from "./components/HowItWorks.tsx";
 import { Logo } from "./components/Logo.tsx";
 import { Privacy, SUPPORT_EMAIL, Support, Terms } from "./components/Legal.tsx";
 import { Landing } from "./components/Landing.tsx";
+import { Admin } from "./components/Admin.tsx";
 import { load, save } from "./lib/storage.ts";
 import { getOwnKey } from "./lib/ownKey.ts";
 import { NEXT, getTheme, setTheme, type Theme } from "./lib/theme.ts";
 import { LimitBanner, OwnKeyDialog } from "./components/OwnKey.tsx";
 
-type Page = "home" | "app" | "how" | "privacy" | "terms" | "support";
-const PAGES: Page[] = ["home", "app", "how", "privacy", "terms", "support"];
+type Page = "home" | "app" | "how" | "privacy" | "terms" | "support" | "admin";
+const PAGES: Page[] = ["home", "app", "how", "privacy", "terms", "support", "admin"];
 const VISITED = "cf:visited";
 
 /** First visit → landing page; anyone who has opened the app before goes straight to it. */
@@ -98,7 +99,7 @@ export default function App() {
       </header>
       {page !== "app" ? (
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8">
-          {page === "how" ? <HowItWorks onBack={() => go("app")} /> : page === "privacy" ? <Privacy /> : page === "support" ? <Support /> : <Terms />}
+          {page === "how" ? <HowItWorks onBack={() => go("app")} /> : page === "privacy" ? <Privacy /> : page === "support" ? <Support /> : page === "admin" ? <Admin /> : <Terms />}
         </main>
       ) : (
       <main className="mx-auto w-full max-w-7xl flex-1 space-y-5 px-4 py-5">

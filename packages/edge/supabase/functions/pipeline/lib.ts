@@ -168,6 +168,14 @@ export class RateLimiter {
   }
 }
 
+/** Admin password check: compares every character whatever the length, so timing gives nothing away. */
+export function sameSecret(given: string, want: string): boolean {
+  if (!want) return false;
+  let diff = given.length ^ want.length;
+  for (let i = 0; i < Math.max(given.length, want.length); i++) diff |= (given.charCodeAt(i) || 0) ^ (want.charCodeAt(i) || 0);
+  return diff === 0;
+}
+
 export function corsHeaders(origin: string | null, env: Env): Record<string, string> {
   const allowed = (env("CF_ALLOWED_ORIGINS") || "*").split(",").map((s) => s.trim());
   const allow = allowed.includes("*") ? "*" : origin && allowed.includes(origin) ? origin : allowed[0];

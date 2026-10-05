@@ -1,12 +1,12 @@
 // Supabase Edge Function `pipeline` — the only server code in v1 and the only place the
-// Anthropic API key exists. Routes: POST /llm, /mx, /cache, /site, /shadow, /evidence, /verify, /jev; GET /health.
+// Anthropic API key exists. Routes: POST /llm, /mx, /cache, /site, /shadow, /evidence, /verify, /jev, /admin; GET /health.
 import Anthropic from "npm:@anthropic-ai/sdk@0.131.0";
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { STAGES, type StageName } from "./_core/schemas.ts";
 import { BUNDLED_PROMPTS } from "./_core/prompts.ts";
 import { FREE_TIER, PRICE_PER_VERIFY, estimateCost } from "./_core/pricing.ts";
 import {
-  CACHE_KEY, DOMAIN, FETCH_BLOCKED_DOMAINS, evidenceRow, type EvidenceRow, VERIFY_PROVIDERS, mockVerify, parseVerifyBody, type VerifyStatusWire, HttpError, JEV_URL, bioLinks, extractEmails, pickLinks, slugName, robotsAllows, sameSite, sitemapLinks, type SiteEmail, RateLimiter, addUsage, buildParams, corsHeaders, mxFromDoh, mxFromRecords,
+  CACHE_KEY, DOMAIN, FETCH_BLOCKED_DOMAINS, evidenceRow, type EvidenceRow, VERIFY_PROVIDERS, mockVerify, parseVerifyBody, type VerifyStatusWire, HttpError, JEV_URL, bioLinks, extractEmails, pickLinks, slugName, robotsAllows, sameSite, sitemapLinks, type SiteEmail, RateLimiter, addUsage, sameSecret, buildParams, corsHeaders, mxFromDoh, mxFromRecords,
   parseBody, parseJevBatch, readContent, zeroUsage, type Env, type LlmBody,
 } from "./lib.ts";
 
@@ -130,6 +130,15 @@ async function overBudget(ipHash: string, opts: { ownKey: boolean; session: stri
   if (!(perVisitor > 0)) return null; // no per-visitor ceiling
   const mine = await db.rpc("cf_spend", { since, ip: ipHash });
   return !mine.error && Number(mine.data) >= perVisitor ? "free_limit" : null;
+}
+
+/** A visitor turned away by the free cap: counted for the admin page (hashed IP only), then the error to send. */
+async function turnedAway(code: "daily_budget" | "free_limit", ipHash: string) {
+  if (db) {
+    const { error } = await db.from("cf_limit_hits").insert({ ip_hash: ipHash, code });
+    if (error) console.error("cf_limit_hits insert", error.message);
+  }
+  return { error: code };
 }
 
 // ── /mx ─────────────────────────────────────────────────────────────────────
@@ -407,7 +416,7 @@ Deno.serve(async (req) => {
       const emails = parseVerifyBody(body);
       const ipHash = await sha(ip);
       const over = await overBudget(ipHash, { ownKey, session });
-      if (over) return json({ error: over }, 429);
+      if (over) return json(await turnedAway(over, ipHash), 429);
       const out = await runVerify(emails);
       // Provider errors aren't charged, so they're logged with 0 verifications. Checks always use our credits.
       const verifications = out.providerDown ? 0 : emails.length;
@@ -418,11 +427,29 @@ Deno.serve(async (req) => {
     if (path.endsWith("/jev")) {
       const ipHash = await sha(ip);
       const over = await overBudget(ipHash, { ownKey, session });
-      if (over) return json({ error: over }, 429);
+      if (over) return json(await turnedAway(over, ipHash), 429);
       const out = await runJev(body);
       const cost_usd = estimateCost({ model: out.model, input_tokens: out.usage.input_tokens, output_tokens: out.usage.output_tokens, web_search_requests: 0 });
       if (db) await db.from("cf_usage").insert({ session, ip_hash: ipHash, stage: "jev", model: out.model, input_tokens: out.usage.input_tokens, output_tokens: out.usage.output_tokens, cost_usd });
       return json(out);
+    }
+    if (path.endsWith("/admin")) {
+      // Owner's stats page (#admin). Off until CF_ADMIN_KEY is set; the rate limits above slow guessing.
+      const want = env("CF_ADMIN_KEY") ?? "";
+      if (!want) throw new HttpError(404, "admin not set up: add the CF_ADMIN_KEY secret");
+      if (!sameSecret(String(body?.key ?? ""), want)) {
+        await new Promise((r) => setTimeout(r, 1000));
+        throw new HttpError(403, "wrong password");
+      }
+      if (!db) throw new HttpError(503, "no database");
+      const days = Math.min(90, Math.max(1, Math.floor(Number(body?.days ?? 30)) || 30));
+      const { data, error } = await db.rpc("cf_admin_stats", { days });
+      if (error) throw new HttpError(500, error.message);
+      return json({
+        ...(data as Record<string, unknown>),
+        cap: Number(env("CF_DAILY_BUDGET_USD") ?? FREE_TIER.dailyUsd),
+        per_visitor_cap: Number(env("CF_FREE_PER_VISITOR_USD") ?? FREE_TIER.perVisitorUsd),
+      });
     }
     if (path.endsWith("/llm")) {
       const parsed = parseBody(body);
@@ -430,7 +457,7 @@ Deno.serve(async (req) => {
       // With their own key, the visitor pays Anthropic directly: no cap applies to this call.
       if (!byokClient) {
         const over = await overBudget(ipHash, { ownKey, session });
-        if (over) return json({ error: over }, 429);
+        if (over) return json(await turnedAway(over, ipHash), 429);
       }
       const out = await runLlm(parsed, byokClient ?? anthropic);
       await logUsage(session, ipHash, parsed.stage, out.model, out.usage, !!byokClient);
