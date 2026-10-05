@@ -28,7 +28,21 @@ export type AdminSession = {
   hit_cap: boolean;
 };
 
-export type AdminStats = { today: string; days: AdminDay[]; sessions: AdminSession[]; cap: number; per_visitor_cap: number };
+/** Everything ever logged; spend is what the site paid (own-key calls apart). */
+export type AdminAllTime = {
+  since: string | null;
+  spend: number;
+  own_key_spend: number;
+  requests: number;
+  searches: number;
+  checks: number;
+  visitors: number;
+  sessions: number;
+  chatgpt_lookups: number;
+  capped_visitors: number;
+};
+
+export type AdminStats = { today: string; all_time?: AdminAllTime; days: AdminDay[]; sessions: AdminSession[]; cap: number; per_visitor_cap: number };
 
 export async function fetchAdmin(key: string, days = 30): Promise<AdminStats> {
   if (!EDGE_URL) throw new Error("Not connected (VITE_EDGE_URL is not set)");
@@ -44,5 +58,6 @@ export async function fetchAdmin(key: string, days = 30): Promise<AdminStats> {
     ...data,
     days: (data.days ?? []).map((d: AdminDay) => ({ ...d, spend: money(d.spend), own_key_spend: Number(d.own_key_spend) })),
     sessions: (data.sessions ?? []).map((x: AdminSession) => ({ ...x, spend: money(x.spend) })),
+    all_time: data.all_time ? { ...data.all_time, spend: Number(data.all_time.spend), own_key_spend: Number(data.all_time.own_key_spend) } : undefined,
   };
 }

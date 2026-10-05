@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { fetchAdmin, type AdminDay, type AdminSession, type AdminStats } from "../lib/admin.ts";
+import { fetchAdmin, type AdminAllTime, type AdminDay, type AdminSession, type AdminStats } from "../lib/admin.ts";
 import { load, remove, save } from "../lib/storage.ts";
 import { ACCENT } from "./Logo.tsx";
 import { Banner, Button } from "./ui.tsx";
@@ -61,6 +61,7 @@ export function Admin() {
       </div>
       {error && <Banner tone="error">{error}</Banner>}
       {today && <Today day={today} cap={stats.cap} />}
+      {stats.all_time && <AllTime t={stats.all_time} />}
       <SpendChart days={stats.days} cap={stats.cap} />
       <DayTable days={stats.days} />
       <Sessions sessions={stats.sessions} />
@@ -292,6 +293,37 @@ function Sessions({ sessions }: { sessions: AdminSession[] }) {
           </tbody>
         </table>
       </div>
+    </section>
+  );
+}
+
+/** Running totals since the first logged request. */
+function AllTime({ t }: { t: AdminAllTime }) {
+  const since = t.since ? new Date(t.since).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : undefined;
+  return (
+    <section className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm" aria-label="All time">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <div className="text-xs text-stone-500">All-time free spend{since ? ` · since ${since}` : ""}</div>
+          <div className="mt-1 text-3xl font-semibold tabular-nums text-stone-900">{usd(t.spend)}</div>
+          {t.own_key_spend > 0 && <div className="mt-0.5 text-xs text-stone-500">+ {usd(t.own_key_spend)} paid by visitors’ own keys</div>}
+        </div>
+      </div>
+      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3 lg:grid-cols-6">
+        {[
+          ["Visitors", t.visitors],
+          ["Sessions", t.sessions],
+          ["Web searches", t.searches],
+          ["Mailbox checks", t.checks],
+          ["ChatGPT lookups", t.chatgpt_lookups],
+          ["Hit the cap", t.capped_visitors],
+        ].map(([label, value]) => (
+          <div key={label}>
+            <dt className="text-xs text-stone-500">{label}</dt>
+            <dd className="mt-0.5 text-lg font-semibold tabular-nums text-stone-900">{Number(value).toLocaleString()}</dd>
+          </div>
+        ))}
+      </dl>
     </section>
   );
 }
