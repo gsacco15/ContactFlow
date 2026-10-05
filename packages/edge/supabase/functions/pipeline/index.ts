@@ -4,6 +4,7 @@ import Anthropic from "npm:@anthropic-ai/sdk@0.131.0";
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { STAGES, type StageName } from "./_core/schemas.ts";
 import { BUNDLED_PROMPTS } from "./_core/prompts.ts";
+import { FREE_TIER, PRICE_PER_VERIFY, estimateCost } from "./_core/pricing.ts";
 import {
   CACHE_KEY, DOMAIN, FETCH_BLOCKED_DOMAINS, evidenceRow, type EvidenceRow, VERIFY_PROVIDERS, mockVerify, parseVerifyBody, type VerifyStatusWire, HttpError, JEV_URL, bioLinks, extractEmails, pickLinks, slugName, robotsAllows, sameSite, sitemapLinks, type SiteEmail, RateLimiter, addUsage, buildParams, corsHeaders, mxFromDoh, mxFromRecords,
   parseBody, parseJevBatch, readContent, zeroUsage, type Env, type LlmBody,
@@ -47,7 +48,14 @@ async function sha(s: string) {
 
 // ── /llm ────────────────────────────────────────────────────────────────────
 
-async function create(params: Record<string, unknown>, betas: string[]): Promise<any> {
+/** A visitor's own Claude key (header x-anthropic-key): used for that request only, never stored or logged. */
+function ownKeyClient(req: Request): Anthropic | null {
+  const key = req.headers.get("x-anthropic-key")?.trim();
+  return key && /^sk-ant-[A-Za-z0-9_-]{20,}$/.test(key) ? new Anthropic({ apiKey: key }) : null;
+}
+
+async function create(params: Record<string, unknown>, betas: string[], client: Anthropic = anthropic): Promise<any> {
+  const anthropic = client;
   if (!betas.length) return anthropic.messages.create(params as any);
   try {
     return await anthropic.beta.messages.create({ ...params, betas } as any);
@@ -61,7 +69,7 @@ async function create(params: Record<string, unknown>, betas: string[]): Promise
   }
 }
 
-async function runLlm(body: LlmBody) {
+async function runLlm(body: LlmBody, client: Anthropic = anthropic) {
   const prompt = await loadPrompt(STAGES[body.stage].prompt);
   const { params, betas, spec, model } = buildParams(body, prompt, env);
   const messages = [...(params.messages as any[])];
@@ -71,7 +79,7 @@ async function runLlm(body: LlmBody) {
 
   // Server tools can pause a long turn (pause_turn); resend and the API resumes it.
   for (let i = 0; i < 4; i++) {
-    res = await create({ ...params, messages }, betas);
+    res = await create({ ...params, messages }, betas, client);
     addUsage(usage, res.usage);
     content.push(...res.content);
     if (res.stop_reason !== "pause_turn") break;
@@ -84,7 +92,7 @@ async function runLlm(body: LlmBody) {
   if (spec.finalTool && !toolCalls.some((c) => c.name === spec.finalTool) && res.stop_reason !== "max_tokens") {
     messages.push({ role: "assistant", content: res.content });
     messages.push({ role: "user", content: `Call the \`${spec.finalTool}\` tool now with your final answer.` });
-    res = await create({ ...params, messages }, betas);
+    res = await create({ ...params, messages }, betas, client);
     addUsage(usage, res.usage);
     content.push(...res.content);
     ({ toolCalls, sources } = readContent(content));
@@ -92,10 +100,11 @@ async function runLlm(body: LlmBody) {
   return { content, toolCalls, sources, usage, model: res.model ?? model, stop_reason: res.stop_reason };
 }
 
-async function logUsage(session: string, ipHash: string, stage: StageName, model: string, u: ReturnType<typeof zeroUsage>) {
+async function logUsage(session: string, ipHash: string, stage: StageName, model: string, u: ReturnType<typeof zeroUsage>, byok = false) {
   if (!db) return;
+  const cost_usd = estimateCost({ model, ...u });
   const { error } = await db.from("cf_usage").insert({
-    session, ip_hash: ipHash, stage, model,
+    session, ip_hash: ipHash, stage, model, cost_usd, byok,
     input_tokens: u.input_tokens, output_tokens: u.output_tokens,
     searches: u.web_search_requests, fetches: u.web_fetch_requests,
     cache_read_tokens: u.cache_read_input_tokens, cache_write_tokens: u.cache_creation_input_tokens,
@@ -103,12 +112,23 @@ async function logUsage(session: string, ipHash: string, stage: StageName, model
   if (error) console.error("cf_usage insert", error.message);
 }
 
-async function underDailyLimit(): Promise<boolean> {
-  const limit = Number(env("CF_DAILY_LIMIT") ?? 2000);
-  if (!db || !limit) return true;
-  const since = new Date(Date.now() - 86_400_000).toISOString();
-  const { count, error } = await db.from("cf_usage").select("id", { count: "exact", head: true }).gte("created_at", since);
-  return error ? true : (count ?? 0) < limit;
+/**
+ * Free tier, in dollars of real spend since 00:00 UTC (cf_usage.cost_usd): the whole site
+ * (CF_DAILY_BUDGET_USD) and each visitor by hashed IP (CF_FREE_PER_VISITOR_USD). Visitors with their
+ * own Claude key skip the per-visitor cap. ChatGPT calls share one IP, so only the site cap applies.
+ * Returns the error code to send, or null when the request may go ahead. Fails open if the DB errs.
+ */
+async function overBudget(ipHash: string, opts: { ownKey: boolean; session: string }): Promise<"daily_budget" | "free_limit" | null> {
+  if (!db) return null;
+  const now = new Date();
+  const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
+  const daily = Number(env("CF_DAILY_BUDGET_USD") ?? FREE_TIER.dailyUsd);
+  const site = await db.rpc("cf_spend", { since });
+  if (!site.error && Number(site.data) >= daily) return "daily_budget";
+  if (opts.ownKey || opts.session.startsWith("mcp-")) return null;
+  const perVisitor = Number(env("CF_FREE_PER_VISITOR_USD") ?? FREE_TIER.perVisitorUsd);
+  const mine = await db.rpc("cf_spend", { since, ip: ipHash });
+  return !mine.error && Number(mine.data) >= perVisitor ? "free_limit" : null;
 }
 
 // ── /mx ─────────────────────────────────────────────────────────────────────
@@ -314,6 +334,8 @@ Deno.serve(async (req) => {
     if (token && req.headers.get("x-cf-token") !== token) throw new HttpError(401, "bad token");
 
     const session = (req.headers.get("x-session") ?? "anon").slice(0, 64);
+    const byokClient = ownKeyClient(req);
+    const ownKey = !!byokClient;
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
     if (!sessionLimiter.allow(session) || !ipLimiter.allow(ip)) return json({ error: "rate_limited" }, 429);
 
@@ -382,30 +404,42 @@ Deno.serve(async (req) => {
     }
     if (path.endsWith("/verify")) {
       const emails = parseVerifyBody(body);
-      if (!(await underDailyLimit())) return json({ error: "daily_limit" }, 429);
+      const ipHash = await sha(ip);
+      const over = await overBudget(ipHash, { ownKey, session });
+      if (over) return json({ error: over }, 429);
       const out = await runVerify(emails);
-      // Provider errors aren't charged, so they're logged with 0 verifications.
-      if (db && out.real) await db.from("cf_usage").insert({ session, ip_hash: await sha(ip), stage: "verify", model: `verifier:${out.provider}`, input_tokens: 0, output_tokens: 0, verifications: out.providerDown ? 0 : emails.length, verify_detail: out.details.join(", ").slice(0, 300) });
+      // Provider errors aren't charged, so they're logged with 0 verifications. Checks always use our credits.
+      const verifications = out.providerDown ? 0 : emails.length;
+      if (db && out.real) await db.from("cf_usage").insert({ session, ip_hash: ipHash, stage: "verify", model: `verifier:${out.provider}`, input_tokens: 0, output_tokens: 0, verifications, cost_usd: verifications * PRICE_PER_VERIFY, verify_detail: out.details.join(", ").slice(0, 300) });
       if (out.providerDown) return json({ error: `verifier unavailable: ${out.details[0]}`.slice(0, 200) }, 502);
       return json(out);
     }
     if (path.endsWith("/jev")) {
-      if (!(await underDailyLimit())) return json({ error: "daily_limit" }, 429);
+      const ipHash = await sha(ip);
+      const over = await overBudget(ipHash, { ownKey, session });
+      if (over) return json({ error: over }, 429);
       const out = await runJev(body);
-      if (db) await db.from("cf_usage").insert({ session, ip_hash: await sha(ip), stage: "jev", model: out.model, input_tokens: out.usage.input_tokens, output_tokens: out.usage.output_tokens });
+      const cost_usd = estimateCost({ model: out.model, input_tokens: out.usage.input_tokens, output_tokens: out.usage.output_tokens, web_search_requests: 0 });
+      if (db) await db.from("cf_usage").insert({ session, ip_hash: ipHash, stage: "jev", model: out.model, input_tokens: out.usage.input_tokens, output_tokens: out.usage.output_tokens, cost_usd });
       return json(out);
     }
     if (path.endsWith("/llm")) {
       const parsed = parseBody(body);
-      if (!(await underDailyLimit())) return json({ error: "daily_limit" }, 429);
-      const out = await runLlm(parsed);
-      await logUsage(session, await sha(ip), parsed.stage, out.model, out.usage);
+      const ipHash = await sha(ip);
+      // With their own key, the visitor pays Anthropic directly: no cap applies to this call.
+      if (!byokClient) {
+        const over = await overBudget(ipHash, { ownKey, session });
+        if (over) return json({ error: over }, 429);
+      }
+      const out = await runLlm(parsed, byokClient ?? anthropic);
+      await logUsage(session, ipHash, parsed.stage, out.model, out.usage, !!byokClient);
       return json(out);
     }
     throw new HttpError(404, "unknown route");
   } catch (e) {
     if (e instanceof HttpError) return json({ error: e.message }, e.status);
     if (e instanceof SyntaxError) return json({ error: "invalid JSON" }, 400);
+    if (e instanceof Anthropic.AuthenticationError && req.headers.get("x-anthropic-key")) return json({ error: "own_key_rejected" }, 401);
     if (e instanceof Anthropic.RateLimitError) return json({ error: "upstream_rate_limited" }, 429);
     if (e instanceof Anthropic.APIError) return json({ error: `anthropic ${e.status}: ${e.message}` }, 502);
     console.error(e);

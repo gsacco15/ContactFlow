@@ -3,7 +3,7 @@ import { patternLabel, sourceName, visibleCandidates, type Candidate, type Compa
 import { FitBadge } from "./FitBadge.tsx";
 import { LOW_DOMAIN_CONFIDENCE } from "../config.ts";
 import type { Pipeline } from "../usePipeline.ts";
-import { Button, LinkIcon, Pill } from "./ui.tsx";
+import { Button, LinkIcon, Pill, useConfirm } from "./ui.tsx";
 import { colorOf, groupBy, groupOf, listedRows, searchTime, tableRows, visibleSearches, wantFor, type GroupBy, type State } from "../state.ts";
 
 /** One colour per search, so its card, section and rows match. */
@@ -18,9 +18,11 @@ function searchStats(s: State, id: string) {
 /** One chip per search: tick to show/hide its rows (and leave them out of the export), × to remove it. */
 function Searches({ p }: { p: Pipeline }) {
   const { state, dispatch } = p;
+  const [ask, confirmDialog] = useConfirm();
   const hidden = state.searches.some((x) => x.hidden);
   return (
     <div className="space-y-2">
+      {confirmDialog}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
       {[...state.searches].reverse().map((x) => {
         const { people, ok } = searchStats(state, x.id);
@@ -60,7 +62,7 @@ function Searches({ p }: { p: Pipeline }) {
               title="Remove this search (people another search also found stay)"
               disabled={running}
               className="text-stone-400 hover:text-red-600 disabled:opacity-30"
-              onClick={() => confirm(`Remove “${x.label}” from your list?`) && dispatch({ type: "search_remove", id: x.id })}
+              onClick={() => ask({ title: `Remove “${x.label}”?`, body: "Its people leave your list, unless another search also found them.", confirm: "Remove", danger: true, onYes: () => dispatch({ type: "search_remove", id: x.id }) })}
             >
               ×
             </button>
@@ -95,6 +97,7 @@ export function ResultsTable({ p }: { p: Pipeline }) {
     (c) => (state.companySearches[c.id] ?? []).some((x) => shown.has(x)) && !withRows.has(c.id) && (c.fetched_at || c.error || c.domain || c.mx_ok === false || c.skipped),
   );
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [ask, confirmDialog] = useConfirm();
   if (!state.searches.length && !state.running) return null;
 
   const rows = tableRows(state);
@@ -114,6 +117,7 @@ export function ResultsTable({ p }: { p: Pipeline }) {
   const search = (id?: string) => state.searches.find((x) => x.id === id);
   return (
     <section className="space-y-3" aria-label="Results">
+      {confirmDialog}
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-stone-200 pt-4">
         <h2 className="text-lg font-semibold tracking-tight">Your list</h2>
         <span className="tabular text-sm text-stone-500">
@@ -123,7 +127,7 @@ export function ResultsTable({ p }: { p: Pipeline }) {
           variant="ghost"
           className="ml-auto !px-1.5 !py-0.5 text-xs"
           disabled={state.running}
-          onClick={() => confirm("Remove every search and person from your list? Export first if you need them.") && p.clear()}
+          onClick={() => ask({ title: "Clear your whole list?", body: "Every search and person goes. Export first if you need them.", confirm: "Clear list", danger: true, onYes: () => p.clear() })}
         >
           Clear list
         </Button>

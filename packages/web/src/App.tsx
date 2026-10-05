@@ -10,6 +10,8 @@ import { Logo } from "./components/Logo.tsx";
 import { Privacy, SUPPORT_EMAIL, Support, Terms } from "./components/Legal.tsx";
 import { Landing } from "./components/Landing.tsx";
 import { load, save } from "./lib/storage.ts";
+import { getOwnKey } from "./lib/ownKey.ts";
+import { LimitBanner, OwnKeyDialog } from "./components/OwnKey.tsx";
 
 type Page = "home" | "app" | "how" | "privacy" | "terms" | "support";
 const PAGES: Page[] = ["home", "app", "how", "privacy", "terms", "support"];
@@ -26,6 +28,13 @@ export default function App() {
   const p = usePipeline();
   const { state } = p;
   const [page, setPage] = useState<Page>(initialPage);
+  const [keyOpen, setKeyOpen] = useState(false);
+  const [ownKey, setOwnKeyState] = useState(!!getOwnKey());
+  const closeKey = () => {
+    setKeyOpen(false);
+    setOwnKeyState(!!getOwnKey());
+    if (getOwnKey() && state.limit !== "daily_budget") p.dispatch({ type: "limit", code: undefined });
+  };
   const go = (to: Page) => {
     if (to === "app") save(VISITED, true);
     setPage(to);
@@ -50,13 +59,20 @@ export default function App() {
       <header className="border-b border-stone-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
           <h1 className="leading-none">
-            <button onClick={() => go("app")} className="rounded-md" title="ContactFlow">
+            <button onClick={() => go("home")} className="rounded-md" title="ContactFlow home">
               <Logo />
             </button>
           </h1>
           <p className="hidden text-sm text-stone-500 sm:block">Paste anything → emails you can trust.</p>
           <button onClick={() => go(page === "app" ? "how" : "app")} className="ml-auto text-xs text-stone-400 hover:text-stone-700">
             {page === "app" ? "How it works" : "Back to app"}
+          </button>
+          <button
+            onClick={() => setKeyOpen(true)}
+            className="rounded-md px-1.5 py-0.5 text-xs text-stone-500 hover:bg-stone-100 hover:text-stone-800"
+            title={ownKey ? "Searches use your own Claude key" : "Free searches each day; add your own Claude key for unlimited"}
+          >
+            {ownKey ? "Your key ✓" : "Free · own key"}
           </button>
           <span className="flex items-center gap-1.5 text-xs text-stone-500" title={p.configured ? `Connected · relevance by ${state.judge === "jev" ? "Jev" : "Claude"}` : "Not connected"}>
             <span className={`size-1.5 rounded-full ${p.configured ? "bg-emerald-500" : "bg-stone-300"}`} />
@@ -76,7 +92,8 @@ export default function App() {
           </Banner>
         )}
         <RateLimited until={state.rateLimitedUntil} />
-        {state.error && (
+        {state.limit && <LimitBanner code={state.limit} onKey={() => setKeyOpen(true)} onClose={() => p.dispatch({ type: "limit", code: undefined })} />}
+        {state.error && !(state.limit && state.error === "stopped") && (
           <Banner tone="error" onClose={() => p.dispatch({ type: "error", error: undefined })}>
             {state.error}
           </Banner>
@@ -87,6 +104,7 @@ export default function App() {
       </main>
       )}
       {page === "app" && <ExportBar p={p} />}
+      {keyOpen && <OwnKeyDialog onClose={closeKey} />}
       <footer className="border-t border-stone-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center gap-x-4 px-4 py-4 text-xs whitespace-nowrap text-stone-400 sm:gap-x-5">
           <button className="hover:text-stone-700" onClick={() => go("home")}>Home</button>

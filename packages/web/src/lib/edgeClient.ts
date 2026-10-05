@@ -10,7 +10,15 @@ export type EdgeOptions = {
   onRateLimited?: (seconds: number) => void;
   retryDelayMs?: number;
   fetch?: typeof fetch;
+  /** The visitor's own Claude key, read at each request (kept in their browser only). */
+  anthropicKey?: () => string | undefined;
+  /** Free use ran out, or their own key was refused. The request fails with this code. */
+  onLimit?: (code: LimitCode) => void;
 };
+
+/** Server answers that end free use for now: per-visitor allowance, site-wide daily budget, or a bad own key. */
+export type LimitCode = "free_limit" | "daily_budget" | "own_key_rejected";
+const LIMITS: LimitCode[] = ["free_limit", "daily_budget", "own_key_rejected"];
 
 export class EdgeError extends Error {
   constructor(public status: number, message: string) {
@@ -25,12 +33,21 @@ export function edgeClient(o: EdgeOptions) {
 
   async function post<T>(route: string, body: unknown, signal?: AbortSignal): Promise<T> {
     for (let attempt = 0; ; attempt++) {
+      const key = o.anthropicKey?.();
       const res = await doFetch(`${base}/${route}`, {
         method: "POST",
-        headers: { "content-type": "application/json", "x-session": o.session, ...(o.token ? { "x-cf-token": o.token } : {}) },
+        headers: { "content-type": "application/json", "x-session": o.session, ...(o.token ? { "x-cf-token": o.token } : {}), ...(key ? { "x-anthropic-key": key } : {}) },
         body: JSON.stringify(body),
         signal,
       });
+      if (res.status === 429 || res.status === 401) {
+        // Out of free use (or a refused own key): no retry, tell the app.
+        const peek = await res.clone().json().catch(() => ({}));
+        if (LIMITS.includes(peek?.error)) {
+          o.onLimit?.(peek.error);
+          throw new EdgeError(res.status, peek.error);
+        }
+      }
       if (res.status === 429 && attempt === 0) {
         o.onRateLimited?.(delay / 1000);
         await new Promise((r) => setTimeout(r, delay));

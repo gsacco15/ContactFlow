@@ -5,6 +5,7 @@ import {
 } from "@cf/core";
 import { ACCESS_TOKEN, BUDGET, EDGE_URL, RATE_LIMIT_RETRY_MS } from "./config.ts";
 import { edgeClient, layeredCache } from "./lib/edgeClient.ts";
+import { getOwnKey } from "./lib/ownKey.ts";
 import { clearLocalCache, load, localCache, remove, save, sessionId } from "./lib/storage.ts";
 import { firmsToVerify, initialState, migrate, persistable, reducer, searchLabel, type State } from "./state.ts";
 
@@ -32,6 +33,12 @@ export function usePipeline() {
             token: ACCESS_TOKEN || undefined,
             retryDelayMs: RATE_LIMIT_RETRY_MS,
             onRateLimited: (s) => dispatch({ type: "rate_limited", until: Date.now() + s * 1000 }),
+            anthropicKey: getOwnKey,
+            // Out of free use: stop the run and offer the own-key step.
+            onLimit: (code) => {
+              dispatch({ type: "limit", code });
+              abort.current?.abort();
+            },
           })
         : null,
     [state.session],

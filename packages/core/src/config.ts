@@ -81,36 +81,6 @@ export const CLEAN_PASTE = true;
 /** Domain confidence below this is flagged red in the UI. */
 export const LOW_DOMAIN_CONFIDENCE = 0.5;
 
-/**
- * Estimate-only pricing (USD). Per million tokens, plus per web search.
- * Keyed by model-id prefix; the first match wins. Update when prices change.
- */
-export const PRICES: { prefix: string; input: number; output: number }[] = [
-  { prefix: "claude-haiku", input: 1, output: 5 },
-  { prefix: "jev", input: 0.042, output: 0 },
-  { prefix: "claude-sonnet", input: 2, output: 10 },
-  { prefix: "claude-opus", input: 4, output: 20 },
-];
-export const DEFAULT_PRICE = { input: 2, output: 10 };
-export const PRICE_PER_SEARCH = 0.01; // $10 per 1,000 searches
-
-/** Prompt-cache pricing relative to the input price: reads and 5-minute writes. */
-export const CACHE_PRICE = { read: 0.1, write: 1.25 };
-
-export function estimateCost(u: {
-  model?: string;
-  input_tokens: number;
-  output_tokens: number;
-  web_search_requests: number;
-  cache_read_input_tokens?: number;
-  cache_creation_input_tokens?: number;
-  verifications?: number;
-}): number {
-  const p = PRICES.find((x) => u.model?.startsWith(x.prefix)) ?? DEFAULT_PRICE;
-  const cached = (u.cache_read_input_tokens ?? 0) * CACHE_PRICE.read + (u.cache_creation_input_tokens ?? 0) * CACHE_PRICE.write;
-  return ((u.input_tokens + cached) * p.input + u.output_tokens * p.output) / 1e6 + u.web_search_requests * PRICE_PER_SEARCH + (u.verifications ?? 0) * PRICE_PER_VERIFY;
-}
-
 /** Size limits for one JSON enrich request (API, MCP, ChatGPT app). */
 export const API_LIMITS = { people: 200, companies: 50, textChars: 50_000, field: 200 };
 
@@ -162,5 +132,6 @@ export const VERIFY_MODE: "off" | "button" | "auto" = "button";
 export const VERIFY_LIMITS = { perCompany: 3, secondPerson: 1 };
 /** Confidence shown for a format a mailbox check proved at this company. */
 export const VERIFIED_CONFIDENCE = 0.97;
-/** Cost of one check. MillionVerifier: 2,000 credits for $4.90 = $0.00245 (Oct 2026). */
-export const PRICE_PER_VERIFY = 0.00245;
+
+// Pricing, the free tier and estimateCost live in pricing.ts (import-free: the edge function uses it too).
+export * from "./pricing.ts";

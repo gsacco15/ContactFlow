@@ -173,7 +173,7 @@ export function corsHeaders(origin: string | null, env: Env): Record<string, str
   const allow = allowed.includes("*") ? "*" : origin && allowed.includes(origin) ? origin : allowed[0];
   return {
     "Access-Control-Allow-Origin": allow,
-    "Access-Control-Allow-Headers": "content-type, x-session, x-cf-token, authorization, apikey, x-client-info",
+    "Access-Control-Allow-Headers": "content-type, x-session, x-cf-token, x-anthropic-key, authorization, apikey, x-client-info",
     "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",

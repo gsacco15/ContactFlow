@@ -2300,6 +2300,7 @@ var ENRICH_REQUEST_SCHEMA = {
 };
 
 // packages/web/src/lib/edgeClient.ts
+var LIMITS = ["free_limit", "daily_budget", "own_key_rejected"];
 var EdgeError = class extends Error {
   constructor(status, message) {
     super(message);
@@ -2313,12 +2314,20 @@ function edgeClient(o) {
   const delay = o.retryDelayMs ?? 1e4;
   async function post(route, body, signal) {
     for (let attempt = 0; ; attempt++) {
+      const key = o.anthropicKey?.();
       const res = await doFetch(`${base}/${route}`, {
         method: "POST",
-        headers: { "content-type": "application/json", "x-session": o.session, ...o.token ? { "x-cf-token": o.token } : {} },
+        headers: { "content-type": "application/json", "x-session": o.session, ...o.token ? { "x-cf-token": o.token } : {}, ...key ? { "x-anthropic-key": key } : {} },
         body: JSON.stringify(body),
         signal
       });
+      if (res.status === 429 || res.status === 401) {
+        const peek = await res.clone().json().catch(() => ({}));
+        if (LIMITS.includes(peek?.error)) {
+          o.onLimit?.(peek.error);
+          throw new EdgeError(res.status, peek.error);
+        }
+      }
       if (res.status === 429 && attempt === 0) {
         o.onRateLimited?.(delay / 1e3);
         await new Promise((r) => setTimeout(r, delay));

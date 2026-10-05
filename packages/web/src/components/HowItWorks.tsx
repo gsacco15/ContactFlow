@@ -1,5 +1,5 @@
 import { FIT_THRESHOLDS, LOW_DOMAIN_CONFIDENCE, MIN_SOURCED_CONFIDENCE } from "@cf/core";
-import { FlowDiagram, KIND, type Kind } from "./FlowDiagram.tsx";
+import { KIND, type Kind } from "./FlowDiagram.tsx";
 
 type Step = { title: string; body: string; tag?: string; kind: Kind };
 
@@ -60,11 +60,6 @@ export function HowItWorks({ onBack }: { onBack: () => void }) {
       </section>
 
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-stone-500">Every branch</h3>
-        <FlowDiagram />
-      </section>
-
-      <section className="space-y-3">
         <h3 className="text-sm font-semibold uppercase tracking-wider text-stone-500">Good to know</h3>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {[
@@ -73,7 +68,7 @@ export function HowItWorks({ onBack }: { onBack: () => void }) {
           ["Domains", `If we’re less than ${pct(LOW_DOMAIN_CONFIDENCE)} sure a domain is the company’s, no emails are made for it — a wrong domain is worse than none.`],
           ["Looking for", `Plain words work for any industry (“partners, firm admins; not paralegals”). ✓ ${pct(FIT_THRESHOLDS.yes)}+ relevant, ✗ under ${pct(FIT_THRESHOLDS.no)}, ? in between. Click a badge to keep or drop someone.`],
           ["Your list", "Every run becomes a search card. Tick cards to show or hide them, rename them, and export whatever is ticked. People found twice appear once and aren’t looked up again."],
-          ["Cost & privacy", "Shown live at the bottom. A company with names pasted costs a few cents; finding people on its site costs more (≈ $0.10–0.50). Email formats are cached for 30 days so repeat companies are nearly free. Names stay in your browser; only formats are stored on the server."],
+          ["Cost & privacy", "A few searches a day are free. For more, add your own Claude key (top right): you pay Anthropic directly, usually a few cents per company. Formats are remembered, so repeat companies are nearly free. Names stay in your browser; only company formats are stored on the server."],
         ].map(([t, b]) => (
           <div key={t} className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
             <h4 className="mb-1 font-semibold">{t}</h4>

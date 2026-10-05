@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 
 export function Button({ variant = "secondary", className = "", ...p }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "ghost" }) {
   const styles = {
@@ -49,4 +49,52 @@ export function Banner({ tone, children, onClose }: { tone: "info" | "warn" | "e
       )}
     </div>
   );
+}
+
+/** Site-styled dialog: dimmed backdrop, white card; Escape or a click outside closes it. */
+export function Modal({ title, children, onClose, labelId = "modal-title" }: { title: string; children: ReactNode; onClose: () => void; labelId?: string }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-stone-900/40 p-4 backdrop-blur-[2px]" role="dialog" aria-modal="true" aria-labelledby={labelId} onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl border border-black/5 bg-white p-5 shadow-[0_24px_60px_-20px_rgba(21,23,26,.45)]" onClick={(e) => e.stopPropagation()}>
+        <h2 id={labelId} className="text-lg font-semibold tracking-tight text-stone-900">
+          {title}
+        </h2>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+type Ask = { title: string; body?: string; confirm: string; danger?: boolean; onYes: () => void };
+
+/**
+ * A styled replacement for window.confirm. Returns [ask, dialog]: render `dialog` once, then
+ * call ask({ title, body, confirm, onYes }).
+ */
+export function useConfirm(): [(a: Ask) => void, ReactNode] {
+  const [a, setA] = useState<Ask | null>(null);
+  const close = () => setA(null);
+  const dialog = a ? (
+    <Modal title={a.title} onClose={close} labelId="confirm-title">
+      {a.body && <p className="mt-2 text-sm text-stone-600">{a.body}</p>}
+      <div className="mt-5 flex justify-end gap-2">
+        <Button variant="ghost" onClick={close} autoFocus>
+          Cancel
+        </Button>
+        <button
+          type="button"
+          onClick={() => (a.onYes(), close())}
+          className={`rounded-lg px-3.5 py-2 text-sm font-medium text-white shadow-sm ${a.danger ? "bg-red-600 hover:bg-red-700" : "bg-stone-900 hover:bg-stone-800"}`}
+        >
+          {a.confirm}
+        </button>
+      </div>
+    </Modal>
+  ) : null;
+  return [setA, dialog];
 }

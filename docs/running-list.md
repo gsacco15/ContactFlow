@@ -53,6 +53,15 @@ What we're building, in order. Updated as each item lands. `[x]` done · `[~]` i
    - [ ] Fix: verified call reported "connection failed" although the lookup finished (check Vercel logs)
    - [ ] Later: login (OAuth) or `CF_MCP_KEY` lock · own domain + listing · `/v1/enrich` REST API with keys
 
+## Launch (free to try, capped)
+
+- [x] Dollar caps on free use: $20/day for the whole site, ~$0.25/day (≈3 searches) per visitor (`pricing.ts` FREE_TIER; override with `CF_DAILY_BUDGET_USD` / `CF_FREE_PER_VISITOR_USD` in Supabase secrets). Real cost per row in `cf_usage.cost_usd` (edge v27)
+- [x] "Use your own Claude key": header button + prompt when free use runs out; key kept in the browser, used per request, never stored
+- [x] Jev stays on for everyone; verification on, counted in the cap
+- [x] Site-styled dialogs instead of browser pop-ups; logo → homepage; flow diagram removed from How it works
+- [ ] **You:** Google OAuth consent screen → Publish app (so anyone can use Push to Google Sheets)
+- [ ] Saved examples that cost $0 (replay real results)
+
 ## Later / ideas
 
 - [ ] More email formats: `lastf`, `fmlast`, `first.l`, `lastfirst`, `f.m.last`.

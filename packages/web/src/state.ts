@@ -43,6 +43,8 @@ export type State = {
   pasteUsage: Usage; // since the current paste was entered
   error?: string;
   rateLimitedUntil?: number;
+  /** Free use ran out (or the visitor's own key was refused): show the "use your own key" step. */
+  limit?: "free_limit" | "daily_budget" | "own_key_rejected";
   filters: Filters;
 };
 
@@ -69,6 +71,7 @@ export type Action =
   | { type: "usage"; tokens: number; searches: number; cost: number }
   | { type: "run_end"; error?: string }
   | { type: "rate_limited"; until: number }
+  | { type: "limit"; code?: "free_limit" | "daily_budget" | "own_key_rejected" }
   | { type: "filters"; filters: Partial<Filters> }
   | { type: "error"; error?: string }
   | { type: "clear"; session: string };
@@ -242,6 +245,8 @@ export function reducer(s: State, a: Action): State {
     }
     case "rate_limited":
       return { ...s, rateLimitedUntil: a.until };
+    case "limit":
+      return { ...s, limit: a.code };
     case "filters":
       return { ...s, filters: { ...s.filters, ...a.filters } };
     case "error":
@@ -253,7 +258,7 @@ export function reducer(s: State, a: Action): State {
 
 /** What survives a refresh: everything except in-flight flags. */
 export function persistable(s: State): State {
-  return { ...s, parsing: false, running: false, judging: false, rateLimitedUntil: undefined, activeSearch: undefined };
+  return { ...s, parsing: false, running: false, judging: false, rateLimitedUntil: undefined, activeSearch: undefined, limit: undefined };
 }
 
 /** State saved before searches existed: its rows become one "Earlier results" search. */

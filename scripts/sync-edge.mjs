@@ -9,6 +9,7 @@ const fn = `${root}packages/edge/supabase/functions/pipeline/`;
 mkdirSync(`${fn}_core`, { recursive: true });
 mkdirSync(`${fn}prompts`, { recursive: true });
 copyFileSync(`${root}packages/core/src/schemas.ts`, `${fn}_core/schemas.ts`);
+copyFileSync(`${root}packages/core/src/pricing.ts`, `${fn}_core/pricing.ts`);
 
 const prompts = {};
 for (const f of readdirSync(`${root}prompts`).filter((f) => f.endsWith(".md"))) {
