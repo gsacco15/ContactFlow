@@ -64,15 +64,15 @@ export default function App() {
   return (
     <div className="cf-app flex min-h-screen flex-col">
       <header className="border-b border-stone-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
-          <h1 className="leading-none">
+        <div className="mx-auto flex max-w-7xl items-center gap-2 whitespace-nowrap px-4 py-3 sm:gap-3">
+          <h1 className="shrink-0 leading-none">
             <button onClick={() => go("home")} className="rounded-md" title="ContactFlow home">
               <Logo />
             </button>
           </h1>
           <p className="hidden text-sm text-stone-500 sm:block">Paste anything → emails you can trust.</p>
           <button onClick={() => go(page === "app" ? "how" : "app")} className="ml-auto text-xs text-stone-400 hover:text-stone-700">
-            {page === "app" ? "How it works" : "Back to app"}
+            {page === "app" ? <><span className="min-[380px]:hidden">Help</span><span className="hidden min-[380px]:inline">How it works</span></> : "Back"}
           </button>
           <button
             onClick={cycleTheme}
@@ -80,18 +80,19 @@ export default function App() {
             title={`Theme: ${theme} (click for ${NEXT[theme]})`}
             aria-label={`Theme: ${theme}. Switch to ${NEXT[theme]}`}
           >
-            {theme === "dark" ? "☾ Dark" : theme === "light" ? "☀ Light" : "◐ Auto"}
+            {theme === "dark" ? "☾" : theme === "light" ? "☀" : "◐"}
+            <span className="hidden sm:inline"> {theme === "dark" ? "Dark" : theme === "light" ? "Light" : "Auto"}</span>
           </button>
           <button
             onClick={() => setKeyOpen(true)}
             className="rounded-md px-1.5 py-0.5 text-xs text-stone-500 hover:bg-stone-100 hover:text-stone-800"
             title={ownKey ? "Searches use your own Claude key" : "Free searches each day; add your own Claude key for unlimited"}
           >
-            {ownKey ? "Your key ✓" : "Free · own key"}
+            {ownKey ? "Your key ✓" : <><span className="hidden sm:inline">Free · </span>Own key</>}
           </button>
           <span className="flex items-center gap-1.5 text-xs text-stone-500" title={p.configured ? `Connected · relevance by ${state.judge === "jev" ? "Jev" : "Claude"}` : "Not connected"}>
             <span className={`size-1.5 rounded-full ${p.configured ? "bg-emerald-500" : "bg-stone-300"}`} />
-            {p.configured ? "Connected" : "Offline"}
+            <span className="hidden sm:inline">{p.configured ? "Connected" : "Offline"}</span>
           </span>
         </div>
       </header>
