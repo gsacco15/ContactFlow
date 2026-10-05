@@ -229,7 +229,7 @@ export function ResultsTable({ p }: { p: Pipeline }) {
         </details>
       )}
       <p className="text-xs text-stone-500">
-        Emails are pattern-based guesses, not verified mailboxes. MX checks only confirm the domain accepts mail. You are responsible for CAN-SPAM (US) and GDPR/PECR (EU, UK) compliance:
+        Unless marked verified (or format proven) by a mailbox check, emails follow the company’s sourced format and aren’t guaranteed. You are responsible for CAN-SPAM (US) and GDPR/PECR (EU, UK) compliance:
         include an unsubscribe link, use an honest sender, and keep a suppression list.
       </p>
     </section>

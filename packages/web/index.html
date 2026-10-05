@@ -34,6 +34,10 @@
     <meta name="twitter:title" content="ContactFlow — Paste anything → emails you can trust" />
     <meta name="twitter:description" content="People, domain and a sourced email format from a LinkedIn page, a team page or plain notes." />
     <meta name="twitter:image" content="https://contact-flow-web.vercel.app/og-v3.png" />
+      <script>
+      // Apply the saved light/dark choice before first paint (see src/lib/theme.ts).
+      try { var t = JSON.parse(localStorage.getItem("cf:theme")); if (t === "dark" || t === "light") document.documentElement.dataset.theme = t; } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

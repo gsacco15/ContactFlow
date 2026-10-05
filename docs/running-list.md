@@ -59,6 +59,7 @@ What we're building, in order. Updated as each item lands. `[x]` done · `[~]` i
 - [x] "Use your own Claude key": header button + prompt when free use runs out; key kept in the browser, used per request, never stored
 - [x] Jev stays on for everyone; verification on, counted in the cap
 - [x] Site-styled dialogs instead of browser pop-ups; logo → homepage; flow diagram removed from How it works
+- [x] Dark mode for the app pages (follows the device; ◐ Auto / ☾ Dark / ☀ Light button); landing keeps its own look
 - [ ] **You:** Google OAuth consent screen → Publish app (so anyone can use Push to Google Sheets)
 - [ ] Saved examples that cost $0 (replay real results)
 

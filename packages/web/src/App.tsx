@@ -11,6 +11,7 @@ import { Privacy, SUPPORT_EMAIL, Support, Terms } from "./components/Legal.tsx";
 import { Landing } from "./components/Landing.tsx";
 import { load, save } from "./lib/storage.ts";
 import { getOwnKey } from "./lib/ownKey.ts";
+import { NEXT, getTheme, setTheme, type Theme } from "./lib/theme.ts";
 import { LimitBanner, OwnKeyDialog } from "./components/OwnKey.tsx";
 
 type Page = "home" | "app" | "how" | "privacy" | "terms" | "support";
@@ -29,6 +30,12 @@ export default function App() {
   const { state } = p;
   const [page, setPage] = useState<Page>(initialPage);
   const [keyOpen, setKeyOpen] = useState(false);
+  const [theme, setThemeState] = useState<Theme>(getTheme);
+  const cycleTheme = () => {
+    const t = NEXT[theme];
+    setTheme(t);
+    setThemeState(t);
+  };
   const [ownKey, setOwnKeyState] = useState(!!getOwnKey());
   const closeKey = () => {
     setKeyOpen(false);
@@ -55,7 +62,7 @@ export default function App() {
   if (page === "home") return <Landing onStart={start} onHow={() => go("how")} onPrivacy={() => go("privacy")} onTerms={() => go("terms")} />;
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="cf-app flex min-h-screen flex-col">
       <header className="border-b border-stone-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
           <h1 className="leading-none">
@@ -66,6 +73,14 @@ export default function App() {
           <p className="hidden text-sm text-stone-500 sm:block">Paste anything → emails you can trust.</p>
           <button onClick={() => go(page === "app" ? "how" : "app")} className="ml-auto text-xs text-stone-400 hover:text-stone-700">
             {page === "app" ? "How it works" : "Back to app"}
+          </button>
+          <button
+            onClick={cycleTheme}
+            className="rounded-md px-1.5 py-0.5 text-xs text-stone-500 hover:bg-stone-100 hover:text-stone-800"
+            title={`Theme: ${theme} (click for ${NEXT[theme]})`}
+            aria-label={`Theme: ${theme}. Switch to ${NEXT[theme]}`}
+          >
+            {theme === "dark" ? "☾ Dark" : theme === "light" ? "☀ Light" : "◐ Auto"}
           </button>
           <button
             onClick={() => setKeyOpen(true)}

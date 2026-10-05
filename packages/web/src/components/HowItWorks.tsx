@@ -79,7 +79,7 @@ export function HowItWorks({ onBack }: { onBack: () => void }) {
       </section>
 
       <p className="text-xs text-stone-500">
-        Emails are pattern-based guesses, not verified mailboxes. You are responsible for CAN-SPAM / GDPR compliance when you send.{" "}
+        Unless marked verified (or format proven) by a mailbox check, emails follow the company’s sourced format and aren’t guaranteed. You are responsible for CAN-SPAM / GDPR compliance when you send.{" "}
         <button className="font-medium text-stone-700 underline underline-offset-2" onClick={onBack}>
           Back to the app
         </button>

@@ -59,7 +59,7 @@ export function Modal({ title, children, onClose, labelId = "modal-title" }: { t
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-stone-900/40 p-4 backdrop-blur-[2px]" role="dialog" aria-modal="true" aria-labelledby={labelId} onClick={onClose}>
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4 backdrop-blur-[2px]" role="dialog" aria-modal="true" aria-labelledby={labelId} onClick={onClose}>
       <div className="w-full max-w-md rounded-2xl border border-black/5 bg-white p-5 shadow-[0_24px_60px_-20px_rgba(21,23,26,.45)]" onClick={(e) => e.stopPropagation()}>
         <h2 id={labelId} className="text-lg font-semibold tracking-tight text-stone-900">
           {title}
