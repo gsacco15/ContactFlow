@@ -44,6 +44,11 @@ export function Privacy() {
         and where from (up to a year, so repeat lookups are cheaper and more accurate), and usage counts — tokens, searches and checks per request, with a hashed IP
         and no names.
       </p>
+      <h3>Visitor counts</h3>
+      <p>
+        We use Vercel Web Analytics to count page views: page, referrer, country and device type. It uses no cookies, doesn’t track you across sites and never sees
+        what you paste.
+      </p>
       <h3>Google Sheets</h3>
       <p>Signing in happens in your browser. The app can only see spreadsheets it creates, and nothing from your Google account is stored on our server.</p>
     </Doc>
