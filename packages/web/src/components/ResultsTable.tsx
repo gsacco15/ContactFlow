@@ -290,7 +290,7 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
           <PatternInfo top={top} pattern={pattern} co={co} />
           {co?.verify_unclear && <Unclear />}
           {co?.verify_failed && <VerifierDown />}
-          <Why text={[c.email_source_url && c.candidates[0]?.pattern === "pasted" && `address from their profile page · ${ownCheck(c.candidates[0].verify_status)}`, c.bounced_email && bouncedNote(c), co?.verify_note, co?.pattern_conflict && `sources disagree: ${co.pattern_conflict}`, c.note, c.status !== "no_domain" && c.profile_note, co?.rescue_note, c.error].filter(Boolean).join(" · ")} />
+          <Why text={[c.email_source && c.candidates[0]?.pattern === "pasted" && `address ${c.email_source === "site" ? "on the firm’s site" : "from their profile page"} · ${ownCheck(c.candidates[0].verify_status)}`, c.bounced_email && bouncedNote(c), co?.verify_note, co?.pattern_conflict && `sources disagree: ${co.pattern_conflict}`, c.note, c.status !== "no_domain" && c.profile_note, co?.rescue_note, c.error].filter(Boolean).join(" · ")} />
           {(c.status === "skipped" || (failed && co)) && (
             <div className="flex gap-1">
               {c.status === "skipped" && (
@@ -329,10 +329,14 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
       <td className="hidden px-3 py-2 sm:table-cell">
         {c.candidates[0]?.pattern === "pasted" && (
           <div className="mb-1">
-            {c.email_source_url ? (
+            {c.email_source ? (
               <span className="inline-flex items-center gap-1">
-                <Pill tone="blue" title="This person’s own address, as shown on the profile page linked from your paste">on their profile page</Pill>
-                <LinkIcon href={c.email_source_url} title="Their profile page" />
+                {c.email_source === "site" ? (
+                  <Pill tone="blue" title="This person’s own address, as shown on the firm’s website">on the firm’s site</Pill>
+                ) : (
+                  <Pill tone="blue" title="This person’s own address, as shown on the profile page linked from your paste">on their profile page</Pill>
+                )}
+                <LinkIcon href={c.email_source_url} title={c.email_source === "site" ? "The page it was on" : "Their profile page"} />
               </span>
             ) : (
               <Pill tone="blue" title="This person’s own address, as it appeared in your paste">their address from paste</Pill>

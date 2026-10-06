@@ -1667,6 +1667,7 @@ async function readProfiles(people, companies, ctx, active) {
     }
     delete p.profile_note;
     p.email = email;
+    p.email_source = "profile";
     p.email_source_url = read.url;
     place(p, email, read.url);
   }
@@ -1719,6 +1720,7 @@ async function checkOwnEmails(people, ctx) {
     }
     p.bounced_email = cleanEmail(p.email);
     delete p.email;
+    delete p.email_source;
     delete p.email_source_url;
     delete p.email_status;
     bounced.add(p);
@@ -1783,7 +1785,7 @@ async function runPipeline(input, ctx, hooks = {}) {
     hooks.onCompany?.(co);
     if (!own.length && roleFilter && co.domain && co.mx_ok !== false) {
       const found = await findPeople(co, roleFilter, ctx);
-      if (found.ok && found.data) own.push(...await judgeFound(found.data.people.slice(0, Math.max(0, ctx.budget.maxContacts - contacts.length)), co, ctx));
+      if (found.ok && found.data) own.push(...await keepFound(found, co, ctx, Math.max(0, ctx.budget.maxContacts - contacts.length)));
       else if (!found.ok) co.error = `find_people: ${found.error}`;
     }
     for (const c of own) {
@@ -1827,7 +1829,7 @@ async function enrichCompany(co, ctx, people = []) {
     co.domain = fromPaste;
     co.domain_confidence = 0.9;
     co.domain_from_paste = true;
-    const viaProfile = people.find((p2) => p2.email_source_url && cleanEmail(p2.email)?.endsWith(`@${fromPaste}`));
+    const viaProfile = people.find((p2) => p2.email_source === "profile" && cleanEmail(p2.email)?.endsWith(`@${fromPaste}`));
     if (viaProfile) co.domain_from_profile = viaProfile.email_source_url;
     delete co.domain_source_url;
   } else if (fromName && !isAggregatorDomain(fromName)) {
@@ -2020,6 +2022,45 @@ async function judgeFound(found, co, ctx) {
     if (c.fit?.for !== want) c.fit = { p: 1, tier: "yes", by: "search", for: want, reason: "found by searching for this" };
   }
   return found;
+}
+async function keepFound(found, co, ctx, room) {
+  const onSite = (u) => {
+    const d = normalizeDomain(u);
+    return !!d && !!co.domain && (d === co.domain || d.endsWith(`.${co.domain}`));
+  };
+  const page = found.sources.find(onSite) ?? cleanUrl(co.website) ?? (co.domain ? `https://${co.domain}` : void 0);
+  const people = dedupePeople(found.data.people);
+  for (const p of people) {
+    if (!cleanEmail(p.email)) continue;
+    p.email_source = "site";
+    if (page) p.email_source_url = page;
+  }
+  let kept = await judgeFound(people, co, ctx);
+  const n = ctx.options?.perCompany;
+  if (n && n > 0) kept = [...kept].sort((a, b) => (b.fit?.p ?? 0.5) - (a.fit?.p ?? 0.5)).slice(0, n);
+  kept = kept.slice(0, room);
+  await checkOwnEmails(kept.filter((c) => isActive(c, ctx)), ctx);
+  return kept;
+}
+function dedupePeople(people) {
+  const first = (c) => asciiFold(c.first).replace(/[^a-z]/g, "");
+  const formal = (f) => nicknameVariant(f) && f.length < (nicknameVariant(f) ?? "").length ? nicknameVariant(f) : f;
+  const same2 = (a, b) => {
+    const ea = cleanEmail(a.email);
+    if (ea && ea === cleanEmail(b.email)) return true;
+    if (!a.last || asciiFold(a.last) !== asciiFold(b.last)) return false;
+    const [fa, fb] = [first(a), first(b)];
+    if (!fa || !fb) return false;
+    return fa === fb || formal(fa) === formal(fb) || Math.min(fa.length, fb.length) >= 3 && (fa.startsWith(fb) || fb.startsWith(fa));
+  };
+  const score = (c) => (c.title ? 2 : 0) + (c.email ? 2 : 0) + [c.first, c.middle, c.last].filter(Boolean).join(" ").length / 100;
+  const out = [];
+  for (const c of people) {
+    const i = out.findIndex((x) => same2(x, c));
+    if (i < 0) out.push(c);
+    else if (score(c) > score(out[i])) out[i] = { ...c, email: c.email ?? out[i].email };
+  }
+  return out;
 }
 function markSkipped(c, ctx) {
   const error = c.flag ? SKIPPED_FLAG : ctx && relevance(c, ctx.options?.roleFilter) === false ? c.fit?.reason ? `Not relevant: ${c.fit.reason} \u2014 click Include to look them up.` : SKIPPED_ROLE : "company not looked up";

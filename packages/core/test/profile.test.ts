@@ -239,3 +239,40 @@ describe("runPipeline with profile links", () => {
     expect(r.contacts[0].error).toMatch(/Couldn't read their profile page \(the page reader is unavailable right now\)/);
   });
 });
+
+describe("people found on a firm's own site", () => {
+  const team = (people: object[]) => ({ ...toolResponse("extract_contacts", { mode: "people", companies: [], people, urls: [], notes: "" }), sources: ["https://www.acme.com/our-team"] });
+  const format = toolResponse("report_patterns", { patterns: [{ template: "{f}{last}", confidence: 0.8, source_url: "https://rocketreach.co/acme" }] });
+  const acme = () => buildExtract({ companies: [{ name: "Acme", website: "https://acme.com" }] });
+  const staff = [
+    { first: "Pete", last: "Higgins", email: "ph@acme.com" },
+    { first: "Peter", middle: "F", last: "Higgins", title: "Of Counsel", email: "ph@acme.com" },
+    { first: "Jane", last: "Doe", title: "Partner", email: "jdoe@acme.com" },
+    { first: "Bo", last: "Li", title: "Partner" },
+    { first: "Al", last: "Kay", title: "Partner" },
+  ];
+
+  it("one row per person, addresses labelled as from the firm's site with the page", async () => {
+    const { ctx } = mockCtx({ discover_pattern: format, find_people: team(staff) }, { options: { roleFilter: "partners", rescue: false } });
+    const r = await runPipeline(acme(), ctx);
+    expect(r.contacts.map((c) => `${c.first} ${c.last}`)).toEqual(["Peter Higgins", "Jane Doe", "Bo Li", "Al Kay"]);
+    expect(r.contacts[0]).toMatchObject({ title: "Of Counsel", email_source: "site", email_source_url: "https://www.acme.com/our-team", primary_email: "ph@acme.com" });
+  });
+
+  it("People per company keeps that many", async () => {
+    const { ctx } = mockCtx({ discover_pattern: format, find_people: team(staff) }, { options: { roleFilter: "partners", rescue: false, perCompany: 2 } });
+    expect((await runPipeline(acme(), ctx)).contacts).toHaveLength(2);
+  });
+
+  it("Verify on: their site addresses are checked once; a bounce falls back to the firm's format", async () => {
+    const log: string[] = [];
+    const box = { name: "t", real: true, check: async (emails: string[]) => (log.push(...emails), Object.fromEntries(emails.map((e) => [e, e === "jdoe@acme.com" ? ("invalid" as const) : ("valid" as const)]))) };
+    const { ctx } = mockCtx({ discover_pattern: format, find_people: team(staff) }, { mailbox: box, options: { roleFilter: "partners", rescue: false, verifyMode: "auto" } });
+    const r = await runPipeline(acme(), ctx);
+    expect(log.slice(0, 2).sort()).toEqual(["jdoe@acme.com", "ph@acme.com"]);
+    const jane = r.contacts.find((c) => c.last === "Doe")!;
+    expect(jane.bounced_email).toBe("jdoe@acme.com");
+    expect(jane.candidates.map((x) => x.email)).not.toContain("jdoe@acme.com");
+    expect(r.contacts.find((c) => c.last === "Higgins")!.candidates[0]).toMatchObject({ email: "ph@acme.com", verify_status: "valid" });
+  });
+});

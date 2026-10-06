@@ -71,9 +71,10 @@ export function usePipeline() {
       shadow: client.shadow,
       evidence: client.evidence,
       mailbox: verifyMode !== "off" ? client.mailbox : undefined,
-      budget: BUDGET,
+      budget: { ...BUDGET, maxContacts: maxPeople() },
       options: {
         roleFilter: state.roleFilter,
+        perCompany: state.perCompany,
         nicknames: state.nicknames,
         usePasteEvidence: state.usePasteEvidence !== false,
         skipIrrelevant: state.skipIrrelevant !== false,
@@ -141,6 +142,9 @@ export function usePipeline() {
   }
 
   /** Run the preview (or the raw paste) as a new search; its results are added to the list. */
+  /** "Max people total" from More options, within the built-in limit. */
+  const maxPeople = () => Math.min(BUDGET.maxContacts, state.maxPeople || BUDGET.maxContacts);
+
   async function run(source?: ExtractResult, opts: { keepRows?: boolean } = {}) {
     abort.current = new AbortController();
     try {
@@ -164,7 +168,7 @@ export function usePipeline() {
         const listed = Object.values(state.contacts).filter((c) => done(c.id));
         const reuse = ex.companies.filter((c) => !ex!.people.some((p) => p.company_id === c.id)).flatMap((c) => listed.filter((x) => x.company_id === c.id).map((x) => x.id));
         const search = { id: `s${Date.now().toString(36)}`, label: searchLabel(ex), want: state.roleFilter.trim(), at: new Date().toISOString(), cost: 0 };
-        dispatch({ type: "run_start", extracted: ex, limit: BUDGET.maxContacts, search, skip, reuse });
+        dispatch({ type: "run_start", extracted: ex, limit: maxPeople(), search, skip, reuse });
         const people = ex.people.filter((p) => !skip.includes(p.id));
         // Companies whose people are all already done need nothing new.
         const finished = new Set([...ex.people.filter((p) => skip.includes(p.id)), ...reuse.map((id) => state.contacts[id])].map((p) => p.company_id));

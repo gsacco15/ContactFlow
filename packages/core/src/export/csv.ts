@@ -49,7 +49,8 @@ export function toRow(c: Contact, co: Company | undefined, opts: ExportOptions =
   const cands = visibleCandidates(c, opts);
   const primary = cands.find((x) => x.email === c.primary_email) ?? cands[0];
   const pasted = primary?.pattern === "pasted";
-  const viaProfile = pasted && !!c.email_source_url; // read from their profile page, not the paste
+  const viaProfile = pasted && !!c.email_source; // read from their profile page or the firm's site, not the paste
+  const where = c.email_source === "site" ? "from the firm's site" : "from their profile page";
   const pattern = primary ? co?.patterns.find((p) => p.template === primary.pattern) : undefined;
   return {
     first: c.first || "Unknown",
@@ -58,16 +59,16 @@ export function toRow(c: Contact, co: Company | undefined, opts: ExportOptions =
     company: co?.name ?? "",
     domain: co?.domain ?? "",
     email_1: cands[0]?.email ?? "",
-    verified: viaProfile && cands[0] === primary && !["valid", "catch_all", "risky"].includes(primary.verify_status ?? "") ? "from their profile page (not checked)" : verifiedLabel(cands[0], co),
+    verified: viaProfile && cands[0] === primary && !["valid", "catch_all", "risky"].includes(primary.verify_status ?? "") ? `${where} (not checked)` : verifiedLabel(cands[0], co),
     email_2: cands[1]?.email ?? "",
     email_3: cands[2]?.email ?? "",
     email_1_basis: cands[0]?.basis ?? "",
     email_2_basis: cands[1]?.basis ?? "",
     email_3_basis: cands[2]?.basis ?? "",
-    pattern: viaProfile ? "address on their profile page" : pasted ? "pasted address" : primary ? patternLabel(primary.pattern) : "",
+    pattern: viaProfile ? (c.email_source === "site" ? "address on the firm's site" : "address on their profile page") : pasted ? "pasted address" : primary ? patternLabel(primary.pattern) : "",
     pattern_confidence: pasted ? "" : pattern ? pattern.confidence.toFixed(2) : primary ? "default" : "",
     pattern_confidence_basis: pasted ? "" : confidenceBasis(pattern),
-    pattern_source_url: viaProfile ? c.email_source_url! : pasted || pattern?.from_paste ? "pasted text" : (pattern?.source_url ?? ""),
+    pattern_source_url: viaProfile ? (c.email_source_url ?? "") : pasted || pattern?.from_paste ? "pasted text" : (pattern?.source_url ?? ""),
     domain_source_url: co?.domain_from_profile ?? (co?.domain_from_paste ? "pasted text" : (co?.domain_source_url ?? "")),
     linkedin_url: c.linkedin_url ?? "",
     verify_status: primary?.verify_status ?? (primary ? "unverified" : ""),

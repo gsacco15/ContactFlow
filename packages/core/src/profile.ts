@@ -125,6 +125,7 @@ export async function readProfiles(people: Contact[], companies: Map<string, Com
     }
     delete p.profile_note;
     p.email = email;
+    p.email_source = "profile";
     p.email_source_url = read.url;
     place(p, email, read.url);
   }

@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { PRICE_PER_VERIFY, VERIFY_LIMITS } from "@cf/core";
+import { BUDGET } from "../config.ts";
 import { SAMPLES } from "../samples.ts";
 import type { Pipeline } from "../usePipeline.ts";
 import { Button } from "./ui.tsx";
@@ -7,6 +9,9 @@ export function Input({ p }: { p: Pipeline }) {
   const { state, dispatch } = p;
   const busy = state.parsing || state.running;
   const pending = state.order.filter((id) => state.contacts[id]?.status === "pending").length;
+  const [more, setMore] = useState(false);
+  // Options changed from their defaults, shown as a count on the closed menu.
+  const changed = [state.perCompany, state.maxPeople, state.skipIrrelevant === false, state.nicknames, state.usePasteEvidence === false].filter(Boolean).length;
 
   return (
     <section className="space-y-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm" aria-label="Input">
@@ -39,21 +44,61 @@ export function Input({ p }: { p: Pipeline }) {
             className="w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm outline-none transition placeholder:text-stone-400 focus:border-stone-400 focus:ring-4 focus:ring-stone-100"
           />
         </label>
-        <label
-          className={`flex items-center gap-1.5 text-sm ${state.roleFilter.trim() ? "text-stone-600" : "text-stone-400"}`}
-          title="When “Looking for” is filled in: people judged not relevant are not looked up, so nothing is spent on them. They stay in the table and can be included later. With the box empty, nobody is judged or skipped."
+        <button
+          type="button"
+          onClick={() => setMore(!more)}
+          aria-expanded={more}
+          className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-stone-600 hover:bg-stone-100 hover:text-stone-900"
+          title="People per company, total limit, and how the paste is used"
         >
-          <input type="checkbox" checked={state.skipIrrelevant !== false} onChange={(e) => dispatch({ type: "skip_irrelevant", on: e.target.checked })} />
-          Skip not-relevant before searching
-        </label>
-        <label className="flex items-center gap-1.5 text-sm text-stone-600" title="Adds Bob↔Robert style variants when a candidate slot is free">
-          <input type="checkbox" checked={state.nicknames} onChange={(e) => dispatch({ type: "nicknames", on: e.target.checked })} />
-          Nickname variants
-        </label>
-        <label className="flex items-center gap-1.5 text-sm text-stone-600" title="Emails next to a person and stated formats (e.g. “the firm uses jdoe@…”) become the pattern, skipping web search. Only work addresses that fit the person’s name count.">
-          <input type="checkbox" checked={state.usePasteEvidence !== false} onChange={(e) => dispatch({ type: "paste_evidence", on: e.target.checked })} />
-          Use emails &amp; formats found in my paste
-        </label>
+          More options{changed > 0 && <span className="rounded-full bg-stone-200 px-1.5 text-[11px] font-medium text-stone-700">{changed}</span>}
+          <span className={`text-xs transition-transform ${more ? "rotate-180" : ""}`}>▾</span>
+        </button>
+        {more && (
+          <div className="grid w-full gap-x-6 gap-y-3 rounded-lg border border-stone-200 bg-stone-50/60 p-3 sm:grid-cols-2">
+            <label className="flex items-center gap-2 text-sm text-stone-700" title="When we look people up on a firm's own site, keep this many — the best fit for “Looking for” first. Empty = everyone found.">
+              <span className="w-40 shrink-0">People per company</span>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                inputMode="numeric"
+                value={state.perCompany ?? ""}
+                placeholder="all"
+                onChange={(e) => dispatch({ type: "per_company", n: num(e.target.value, 50) })}
+                className="w-20 rounded-lg border border-stone-300 bg-white px-2 py-1 text-sm outline-none focus:border-stone-400 focus:ring-4 focus:ring-stone-100"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-sm text-stone-700" title={`The most people one search looks up, pasted and found together (up to ${BUDGET.maxContacts}).`}>
+              <span className="w-40 shrink-0">Max people total</span>
+              <input
+                type="number"
+                min={1}
+                max={BUDGET.maxContacts}
+                inputMode="numeric"
+                value={state.maxPeople ?? ""}
+                placeholder={String(BUDGET.maxContacts)}
+                onChange={(e) => dispatch({ type: "max_people", n: num(e.target.value, BUDGET.maxContacts) })}
+                className="w-20 rounded-lg border border-stone-300 bg-white px-2 py-1 text-sm outline-none focus:border-stone-400 focus:ring-4 focus:ring-stone-100"
+              />
+            </label>
+            <label
+              className={`flex items-center gap-1.5 text-sm ${state.roleFilter.trim() ? "text-stone-600" : "text-stone-400"}`}
+              title="When “Looking for” is filled in: people judged not relevant are not looked up, so nothing is spent on them. They stay in the table and can be included later. With the box empty, nobody is judged or skipped."
+            >
+              <input type="checkbox" checked={state.skipIrrelevant !== false} onChange={(e) => dispatch({ type: "skip_irrelevant", on: e.target.checked })} />
+              Skip not-relevant before searching
+            </label>
+            <label className="flex items-center gap-1.5 text-sm text-stone-600" title="Adds Bob↔Robert style variants when a candidate slot is free">
+              <input type="checkbox" checked={state.nicknames} onChange={(e) => dispatch({ type: "nicknames", on: e.target.checked })} />
+              Nickname variants
+            </label>
+            <label className="flex items-center gap-1.5 text-sm text-stone-600" title="Emails next to a person and stated formats (e.g. “the firm uses jdoe@…”) become the pattern, skipping web search. Only work addresses that fit the person’s name count.">
+              <input type="checkbox" checked={state.usePasteEvidence !== false} onChange={(e) => dispatch({ type: "paste_evidence", on: e.target.checked })} />
+              Use emails &amp; formats found in my paste
+            </label>
+          </div>
+        )}
         {p.verifyMode !== "off" && (
           <div className="w-full">
             <label className="flex items-center gap-1.5 text-sm text-stone-600" title="Checks one address per firm with a mailbox test. A valid result proves the format for everyone at that firm; firms proven before cost nothing.">
@@ -116,4 +161,10 @@ export function Input({ p }: { p: Pipeline }) {
       </div>
     </section>
   );
+}
+
+/** A whole number from 1 to max, or undefined for an empty box. */
+function num(v: string, max: number): number | undefined {
+  const n = Math.floor(Number(v));
+  return v.trim() && n > 0 ? Math.min(n, max) : undefined;
 }

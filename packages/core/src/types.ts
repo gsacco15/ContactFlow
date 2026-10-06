@@ -87,7 +87,8 @@ export type Contact = {
   fit?: Fit; // relevance to "Looking for", from the decision model
   linkedin_url?: string;
   profile_url?: string; // their own page on a directory or firm site, linked from their row in the paste
-  email_source_url?: string; // set when `email` was read from profile_url rather than the paste
+  email_source?: "profile" | "site"; // `email` came from their profile page, or the firm's own site (else: the paste)
+  email_source_url?: string; // …that page
   profile_note?: string; // why reading profile_url gave no email (shown on the row)
   email_status?: VerifyStatus; // mailbox check of `email` (Verify on); its candidate shows this
   bounced_email?: string; // their own address bounced, so it was dropped and they were looked up normally
@@ -175,6 +176,8 @@ export type Budget = {
 };
 
 export type RunOptions = {
+  /** People looked up on a firm's own site: keep at most this many per company, best fit first. Unset = everyone found. */
+  perCompany?: number;
   /** Company-first: titles to look for, e.g. "VP Sales, Head of Growth". */
   roleFilter?: string;
   /** Add a nickname/formal-name variant when a candidate slot is free. */

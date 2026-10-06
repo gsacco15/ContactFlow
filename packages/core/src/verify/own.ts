@@ -38,6 +38,7 @@ export async function checkOwnEmails(people: Contact[], ctx: Ctx): Promise<Set<C
     }
     p.bounced_email = cleanEmail(p.email);
     delete p.email;
+    delete p.email_source;
     delete p.email_source_url;
     delete p.email_status;
     bounced.add(p);
