@@ -16,6 +16,7 @@ import { judgeFit, relevance } from "./fit.ts";
 import { cleanEmail, domainFromPaste, mergePatterns, pastePatterns } from "./paste.ts";
 import { needsMiddle } from "./candidates.ts";
 import { readProfiles } from "./profile.ts";
+import { checkOwnEmails } from "./verify/own.ts";
 
 export type RunHooks = {
   onExtract?: (ex: ExtractResult) => void;
@@ -61,11 +62,22 @@ export async function runPipeline(input: string | ExtractResult, ctx: Ctx, hooks
 
   // Profile pages linked from the paste: their own address, and from it, their employer.
   const direct = await readProfiles(people, companies, ctx, (c) => isActive(c, ctx));
-  for (const c of direct) emit(c);
-  people = people.filter((p) => !direct.includes(p));
+  // "Verify emails" on: each person's own address is checked once; a bounce sends them down the normal path.
+  const bounced = await checkOwnEmails(people.filter((p) => isActive(p, ctx)), ctx);
+  const finished = direct.filter((p) => !bounced.has(p));
+  for (const c of finished) {
+    c.candidates[0].verify_status = c.email_status ?? "unverified";
+    emit(c);
+  }
+  for (const c of direct.filter((p) => bounced.has(p))) {
+    Object.assign(c, { status: "pending", candidates: [], primary_email: undefined, note: undefined });
+    if (!companies.has(c.company_id)) c.company_id = "";
+  }
+  people = people.filter((p) => !finished.includes(p));
 
   for (const c of people.filter((p) => !companies.has(p.company_id))) {
-    Object.assign(c, { status: "no_domain", candidates: [], error: c.profile_note ? `No company found. ${c.profile_note}` : "no company found for this person" });
+    const why = [c.profile_note, c.bounced_email && `Their address ${c.bounced_email} bounced.`].filter(Boolean).join(" ");
+    Object.assign(c, { status: "no_domain", candidates: [], error: why ? `No company found. ${why}` : "no company found for this person" });
     emit(c);
   }
 
@@ -132,6 +144,8 @@ export async function enrichCompany(co: Company, ctx: Ctx, people: Contact[] = [
   const usePaste = ctx.options?.usePasteEvidence !== false;
   const fromInput = normalizeDomain(co.website);
   const fromPaste = usePaste && !fromInput ? domainFromPaste(co, people) : undefined;
+  // A company named by its domain (filed from someone's address, or typed as "acme.com") needs no domain search.
+  const fromName = !fromInput && !fromPaste ? normalizeDomain(co.name) : undefined;
   delete co.domain_from_paste;
   delete co.domain_from_profile;
   if (fromInput && !isAggregatorDomain(fromInput)) {
@@ -145,6 +159,10 @@ export async function enrichCompany(co: Company, ctx: Ctx, people: Contact[] = [
     co.domain_from_paste = true;
     const viaProfile = people.find((p) => p.email_source_url && cleanEmail(p.email)?.endsWith(`@${fromPaste}`));
     if (viaProfile) co.domain_from_profile = viaProfile.email_source_url;
+    delete co.domain_source_url;
+  } else if (fromName && !isAggregatorDomain(fromName)) {
+    co.domain = fromName;
+    co.domain_confidence = 0.9;
     delete co.domain_source_url;
   } else {
     const cached: CompanyCache | undefined = bypass ? undefined : await ctx.cache.get(`company:${co.id}`);
@@ -290,7 +308,7 @@ export async function applyCompany(c: Contact, co: Company | undefined, ctx: Ctx
   const name = normalizeName([c.first, c.middle, c.last].filter(Boolean).join(" "));
   if (!name.first && ownHere) {
     // Email-only row from a firm list: the address itself is the answer.
-    c.candidates = [{ email: ownHere, pattern: "pasted", rank: 1, basis: "seen", verify_status: "unverified" }];
+    c.candidates = [{ email: ownHere, pattern: "pasted", rank: 1, basis: "seen", verify_status: c.email_status ?? "unverified" }];
     c.primary_email = ownHere;
     c.status = "ok";
     if (co.rescued) c.rescued = true;
@@ -308,10 +326,12 @@ export async function applyCompany(c: Contact, co: Company | undefined, ctx: Ctx
     return;
   }
   c.candidates = generateCandidates(name, co.domain, co.patterns, { nicknames: ctx.options?.nicknames });
+  // Their own address bounced: never offer it again, even when the firm's format rebuilds it.
+  if (c.bounced_email) c.candidates = c.candidates.filter((x) => x.email !== c.bounced_email).map((x, i) => ({ ...x, rank: (i + 1) as 1 | 2 | 3 }));
   // The person's own pasted work address goes first.
   if (ownHere) {
     const rest = c.candidates.filter((x) => x.email !== ownHere);
-    c.candidates = [{ email: ownHere, pattern: "pasted", rank: 1, basis: "seen" as const, verify_status: "unverified" as const }, ...rest]
+    c.candidates = [{ email: ownHere, pattern: "pasted", rank: 1, basis: "seen" as const, verify_status: c.email_status ?? ("unverified" as const) }, ...rest]
       .slice(0, 3)
       .map((x, i) => ({ ...x, rank: (i + 1) as 1 | 2 | 3 }));
   }
@@ -321,7 +341,7 @@ export async function applyCompany(c: Contact, co: Company | undefined, ctx: Ctx
   if (co.rescued) c.rescued = true;
   if (ctx.verifier && c.candidates.length) {
     const st = await ctx.verifier.verify(c.candidates.map((x) => x.email));
-    for (const x of c.candidates) x.verify_status = st[x.email] ?? "unverified";
+    for (const x of c.candidates) x.verify_status = x.pattern === "pasted" && c.email_status ? c.email_status : (st[x.email] ?? "unverified");
   }
   c.primary_email = (c.candidates.find((x) => x.verify_status === "valid") ?? c.candidates.find((x) => x.basis !== "guess") ?? c.candidates[0])?.email;
   if (c.candidates.some((x) => x.basis !== "guess")) c.status = "ok";

@@ -136,7 +136,13 @@ export const EVIDENCE_STRONG = { score: 1.5, margin: 2 };
  */
 export const VERIFY_MODE: "off" | "button" | "auto" = "button";
 /** At most this many checks per company per run: sample one person, try their emails in order. */
-export const VERIFY_LIMITS = { perCompany: 3, secondPerson: 1 };
+export const VERIFY_LIMITS = {
+  perCompany: 3,
+  secondPerson: 1,
+  /** People's own addresses (pasted, or on their profile page): checked once each, this many per call, at most ownPerRun a run. */
+  ownBatch: 10,
+  ownPerRun: 100,
+};
 /** Confidence shown for a format a mailbox check proved at this company. */
 export const VERIFIED_CONFIDENCE = 0.97;
 

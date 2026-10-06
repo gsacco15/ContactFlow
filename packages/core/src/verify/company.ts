@@ -15,6 +15,9 @@ import { evidenceFromVerification, scoreEvidence } from "../evidence.ts";
 
 export type VerifyOutcome = { checks: number; verified?: Template; catch_all?: boolean; statuses: Record<string, VerifyStatus> };
 
+/** Checks run during the search: the user ticked "Verify emails" (and a checker is set up). */
+export const autoVerify = (ctx: Ctx) => verifyOn(ctx, false);
+
 /** Automatic checks need "auto"; a click (Verify / Verify all) works in "button" or "auto". */
 const verifyOn = (ctx: Ctx, clicked: boolean) => {
   const mode = ctx.options?.verifyMode ?? VERIFY_MODE;

@@ -89,6 +89,8 @@ export type Contact = {
   profile_url?: string; // their own page on a directory or firm site, linked from their row in the paste
   email_source_url?: string; // set when `email` was read from profile_url rather than the paste
   profile_note?: string; // why reading profile_url gave no email (shown on the row)
+  email_status?: VerifyStatus; // mailbox check of `email` (Verify on); its candidate shows this
+  bounced_email?: string; // their own address bounced, so it was dropped and they were looked up normally
   raw_source: string; // the pasted chunk this came from, for debugging
   candidates: Candidate[]; // max 3
   primary_email?: string; // set when a candidate verifies, else candidates[0]

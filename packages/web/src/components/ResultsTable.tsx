@@ -290,7 +290,7 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
           <PatternInfo top={top} pattern={pattern} co={co} />
           {co?.verify_unclear && <Unclear />}
           {co?.verify_failed && <VerifierDown />}
-          <Why text={[c.email_source_url && c.candidates[0]?.pattern === "pasted" && "address from their profile page", co?.verify_note, co?.pattern_conflict && `sources disagree: ${co.pattern_conflict}`, c.note, c.status !== "no_domain" && c.profile_note, co?.rescue_note, c.error].filter(Boolean).join(" · ")} />
+          <Why text={[c.email_source_url && c.candidates[0]?.pattern === "pasted" && `address from their profile page · ${ownCheck(c.candidates[0].verify_status)}`, c.bounced_email && bouncedNote(c), co?.verify_note, co?.pattern_conflict && `sources disagree: ${co.pattern_conflict}`, c.note, c.status !== "no_domain" && c.profile_note, co?.rescue_note, c.error].filter(Boolean).join(" · ")} />
           {(c.status === "skipped" || (failed && co)) && (
             <div className="flex gap-1">
               {c.status === "skipped" && (
@@ -337,8 +337,10 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
             ) : (
               <Pill tone="blue" title="This person’s own address, as it appeared in your paste">their address from paste</Pill>
             )}
+            <div className="mt-0.5 text-xs text-stone-500">{ownCheck(c.candidates[0].verify_status)}</div>
           </div>
         )}
+        {c.bounced_email && <div className="mb-1 max-w-56 text-xs text-amber-700">✗ {bouncedNote(c)}</div>}
         {c.profile_note && c.status !== "no_domain" && <div className="mb-1 max-w-56 text-xs text-stone-500">{c.profile_note}</div>}
         <PatternInfo top={top} pattern={pattern} co={co} />
         {co?.pattern_conflict && <div className="mt-1 text-xs text-amber-700">⚠ sources disagree: {co.pattern_conflict}</div>}
@@ -375,6 +377,10 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
     </tr>
   );
 }
+
+/** A person's own address (paste or profile page): what the mailbox check said, in words. */
+const ownCheck = (s?: string) => (s === "valid" ? "✓ mailbox checked" : s === "catch_all" ? "accept-all server — can't be checked" : s === "risky" ? "flagged risky by the checker" : "not checked");
+const bouncedNote = (c: Contact) => `Their address ${c.bounced_email} bounced — looked up the usual way instead.`;
 
 function PatternInfo({ top, pattern, co }: { top?: Candidate; pattern?: Pattern; co?: Company }) {
   return (

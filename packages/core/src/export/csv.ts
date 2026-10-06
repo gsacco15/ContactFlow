@@ -31,8 +31,8 @@ export const confidenceBasis = (p?: Pattern) => (!p ? "" : p.verified ? "verifie
  */
 export function verifiedLabel(primary: Contact["candidates"][number] | undefined, co: Company | undefined): string {
   if (!primary) return "";
-  if (primary.pattern === "pasted") return "from your paste";
   const s = primary.verify_status;
+  if (primary.pattern === "pasted") return s === "valid" ? "yes" : s === "catch_all" ? "accept-all server" : s === "risky" ? "risky" : "from your paste (not checked)";
   if ((co?.verified_by === "demo" || co?.verified_by === "mock") && s && s !== "unverified") return "demo";
   if (s === "valid") return "yes";
   if (s === "invalid") return "no (bounced)";
@@ -58,7 +58,7 @@ export function toRow(c: Contact, co: Company | undefined, opts: ExportOptions =
     company: co?.name ?? "",
     domain: co?.domain ?? "",
     email_1: cands[0]?.email ?? "",
-    verified: viaProfile && cands[0] === primary ? "from their profile page" : verifiedLabel(cands[0], co),
+    verified: viaProfile && cands[0] === primary && !["valid", "catch_all", "risky"].includes(primary.verify_status ?? "") ? "from their profile page (not checked)" : verifiedLabel(cands[0], co),
     email_2: cands[1]?.email ?? "",
     email_3: cands[2]?.email ?? "",
     email_1_basis: cands[0]?.basis ?? "",

@@ -63,7 +63,7 @@ describe("csv", () => {
     const c = { ...contact, first: "", last: "", title: undefined, candidates: [{ email: "afishman@cm.law", pattern: "pasted", rank: 1 as const, basis: "seen" as const }] };
     const [, row] = toCsv([c], [company]).split("\r\n");
     expect(row.startsWith("Unknown,Unknown,,")).toBe(true);
-    expect(row).toContain("afishman@cm.law,from your paste,,,seen,");
+    expect(row).toContain("afishman@cm.law,from your paste (not checked),,,seen,");
   });
 
   it("tsv has no tabs or newlines inside cells", () => {

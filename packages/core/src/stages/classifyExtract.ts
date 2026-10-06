@@ -108,5 +108,27 @@ export async function classifyExtract(text: string, ctx: Ctx): Promise<StageResu
   if (!res) return fail(error ?? "llm error");
   const call = findCall(res, "extract_contacts");
   if (!call) return fail("model did not return extract_contacts", res);
-  return done(buildExtract(call.input), res);
+  return done(keepPastedEmailsOnly(buildExtract(call.input), text), res);
+}
+
+/**
+ * An email counts only if it is really in the paste (plain, or "name [at] firm [dot] com"). Stops a
+ * misread, an invented address, or instructions hidden in pasted text from putting an address on
+ * someone. Rows that were only an address and fail this are dropped.
+ */
+export function keepPastedEmailsOnly(ex: ExtractResult, text: string): ExtractResult {
+  const seen = text
+    .toLowerCase()
+    .replace(/\s*[\[(]\s*at\s*[\])]\s*/g, "@")
+    .replace(/\s*[\[(]\s*dot\s*[\])]\s*/g, ".");
+  const inPaste = (e?: string) => !!e && seen.includes(e);
+  for (const p of ex.people) if (p.email && !inPaste(p.email)) delete p.email;
+  ex.people = ex.people.filter((p) => p.first || p.email);
+  for (const c of ex.companies) {
+    if (!c.stated_formats) continue;
+    for (const f of c.stated_formats) if (f.example_email && !inPaste(f.example_email)) delete f.example_email;
+    c.stated_formats = c.stated_formats.filter((f) => f.template || f.example_email);
+    if (!c.stated_formats.length) delete c.stated_formats;
+  }
+  return ex;
 }

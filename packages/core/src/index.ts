@@ -10,7 +10,8 @@ export { runPipeline, runRescue, rerunCompany, verifyRow, enrichCompany, applyCo
 export { type DecisionProvider, type ScoredItem, ClaudeDecisions, JevDecisions, type JevTransport, type JevRequest, type JevResponse } from "./decisions/index.ts";
 export { judgeFit, relevance, personState, fitQuestion, looksLikeKeywords } from "./fit.ts";
 export { type Verifier, MxVerifier } from "./verify/index.ts";
-export { verifyCompany, type VerifyOutcome } from "./verify/company.ts";
+export { verifyCompany, autoVerify, type VerifyOutcome } from "./verify/company.ts";
+export { checkOwnEmails } from "./verify/own.ts";
 export { toCsv, toTable, toTsv, toRow, visibleCandidates, verifiedLabel, confidenceBasis, CSV_COLUMNS, type CsvRow, type ExportOptions } from "./export/csv.ts";
 export { type CrmAdapter, type CrmRecord, toCrmRecords } from "./crm/index.ts";
 export { memoryCache } from "./cache.ts";

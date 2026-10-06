@@ -505,7 +505,13 @@ var EVIDENCE_WEIGHTS = {
 var EVIDENCE_HALF_LIFE_DAYS = 180;
 var EVIDENCE_STRONG = { score: 1.5, margin: 2 };
 var VERIFY_MODE = "button";
-var VERIFY_LIMITS = { perCompany: 3, secondPerson: 1 };
+var VERIFY_LIMITS = {
+  perCompany: 3,
+  secondPerson: 1,
+  /** People's own addresses (pasted, or on their profile page): checked once each, this many per call, at most ownPerRun a run. */
+  ownBatch: 10,
+  ownPerRun: 100
+};
 var VERIFIED_CONFIDENCE = 0.97;
 
 // packages/core/src/normalize.ts
@@ -1198,7 +1204,20 @@ async function classifyExtract(text, ctx) {
   if (!res) return fail(error ?? "llm error");
   const call = findCall(res, "extract_contacts");
   if (!call) return fail("model did not return extract_contacts", res);
-  return done(buildExtract(call.input), res);
+  return done(keepPastedEmailsOnly(buildExtract(call.input), text), res);
+}
+function keepPastedEmailsOnly(ex, text) {
+  const seen = text.toLowerCase().replace(/\s*[\[(]\s*at\s*[\])]\s*/g, "@").replace(/\s*[\[(]\s*dot\s*[\])]\s*/g, ".");
+  const inPaste = (e) => !!e && seen.includes(e);
+  for (const p of ex.people) if (p.email && !inPaste(p.email)) delete p.email;
+  ex.people = ex.people.filter((p) => p.first || p.email);
+  for (const c of ex.companies) {
+    if (!c.stated_formats) continue;
+    for (const f of c.stated_formats) if (f.example_email && !inPaste(f.example_email)) delete f.example_email;
+    c.stated_formats = c.stated_formats.filter((f) => f.template || f.example_email);
+    if (!c.stated_formats.length) delete c.stated_formats;
+  }
+  return ex;
 }
 
 // packages/core/src/stages/resolveDomain.ts
@@ -1355,6 +1374,7 @@ function patternFromEvidence(v) {
 }
 
 // packages/core/src/verify/company.ts
+var autoVerify = (ctx) => verifyOn(ctx, false);
 var verifyOn = (ctx, clicked) => {
   const mode = ctx.options?.verifyMode ?? VERIFY_MODE;
   return !!ctx.mailbox && (mode === "auto" || clicked && mode === "button");
@@ -1670,6 +1690,42 @@ async function readProfiles(people, companies, ctx, active) {
   return direct;
 }
 
+// packages/core/src/verify/own.ts
+async function checkOwnEmails(people, ctx) {
+  const bounced = /* @__PURE__ */ new Set();
+  if (!autoVerify(ctx) || !ctx.mailbox || ctx.options?.usePasteEvidence === false) return bounced;
+  const own = people.filter((p) => cleanEmail(p.email) && !p.email_status).slice(0, VERIFY_LIMITS.ownPerRun);
+  const emails = [...new Set(own.map((p) => cleanEmail(p.email)))];
+  const status = {};
+  let checks = 0;
+  for (let i = 0; i < emails.length; i += VERIFY_LIMITS.ownBatch) {
+    if (ctx.signal?.aborted) break;
+    const batch = emails.slice(i, i + VERIFY_LIMITS.ownBatch);
+    try {
+      Object.assign(status, await ctx.mailbox.check(batch));
+      checks += batch.length;
+    } catch {
+      break;
+    }
+  }
+  if (checks) ctx.onUsage?.({ stage: "verify", model: `verifier:${ctx.mailbox.name}`, input_tokens: 0, output_tokens: 0, web_search_requests: 0, web_fetch_requests: 0, verifications: checks });
+  if (!ctx.mailbox.real) return bounced;
+  for (const p of own) {
+    const s2 = status[cleanEmail(p.email)];
+    if (!s2 || s2 === "unverified") continue;
+    if (s2 !== "invalid") {
+      p.email_status = s2;
+      continue;
+    }
+    p.bounced_email = cleanEmail(p.email);
+    delete p.email;
+    delete p.email_source_url;
+    delete p.email_status;
+    bounced.add(p);
+  }
+  return bounced;
+}
+
 // packages/core/src/runner.ts
 var clone = (v) => JSON.parse(JSON.stringify(v));
 var shadowed = /* @__PURE__ */ new Set();
@@ -1695,10 +1751,20 @@ async function runPipeline(input, ctx, hooks = {}) {
     hooks.onRow?.(c);
   };
   const direct = await readProfiles(people, companies, ctx, (c) => isActive(c, ctx));
-  for (const c of direct) emit(c);
-  people = people.filter((p) => !direct.includes(p));
+  const bounced = await checkOwnEmails(people.filter((p) => isActive(p, ctx)), ctx);
+  const finished = direct.filter((p) => !bounced.has(p));
+  for (const c of finished) {
+    c.candidates[0].verify_status = c.email_status ?? "unverified";
+    emit(c);
+  }
+  for (const c of direct.filter((p) => bounced.has(p))) {
+    Object.assign(c, { status: "pending", candidates: [], primary_email: void 0, note: void 0 });
+    if (!companies.has(c.company_id)) c.company_id = "";
+  }
+  people = people.filter((p) => !finished.includes(p));
   for (const c of people.filter((p) => !companies.has(p.company_id))) {
-    Object.assign(c, { status: "no_domain", candidates: [], error: c.profile_note ? `No company found. ${c.profile_note}` : "no company found for this person" });
+    const why = [c.profile_note, c.bounced_email && `Their address ${c.bounced_email} bounced.`].filter(Boolean).join(" ");
+    Object.assign(c, { status: "no_domain", candidates: [], error: why ? `No company found. ${why}` : "no company found for this person" });
     emit(c);
   }
   await pMap([...companies.values()], ctx.budget.concurrency, async (co) => {
@@ -1750,6 +1816,7 @@ async function enrichCompany(co, ctx, people = []) {
   const usePaste = ctx.options?.usePasteEvidence !== false;
   const fromInput = normalizeDomain(co.website);
   const fromPaste = usePaste && !fromInput ? domainFromPaste(co, people) : void 0;
+  const fromName = !fromInput && !fromPaste ? normalizeDomain(co.name) : void 0;
   delete co.domain_from_paste;
   delete co.domain_from_profile;
   if (fromInput && !isAggregatorDomain(fromInput)) {
@@ -1762,6 +1829,10 @@ async function enrichCompany(co, ctx, people = []) {
     co.domain_from_paste = true;
     const viaProfile = people.find((p2) => p2.email_source_url && cleanEmail(p2.email)?.endsWith(`@${fromPaste}`));
     if (viaProfile) co.domain_from_profile = viaProfile.email_source_url;
+    delete co.domain_source_url;
+  } else if (fromName && !isAggregatorDomain(fromName)) {
+    co.domain = fromName;
+    co.domain_confidence = 0.9;
     delete co.domain_source_url;
   } else {
     const cached2 = bypass ? void 0 : await ctx.cache.get(`company:${co.id}`);
@@ -1893,7 +1964,7 @@ async function applyCompany(c, co, ctx) {
   const ownHere = own?.endsWith(`@${co.domain}`) ? own : void 0;
   const name = normalizeName([c.first, c.middle, c.last].filter(Boolean).join(" "));
   if (!name.first && ownHere) {
-    c.candidates = [{ email: ownHere, pattern: "pasted", rank: 1, basis: "seen", verify_status: "unverified" }];
+    c.candidates = [{ email: ownHere, pattern: "pasted", rank: 1, basis: "seen", verify_status: c.email_status ?? "unverified" }];
     c.primary_email = ownHere;
     c.status = "ok";
     if (co.rescued) c.rescued = true;
@@ -1910,9 +1981,10 @@ async function applyCompany(c, co, ctx) {
     return;
   }
   c.candidates = generateCandidates(name, co.domain, co.patterns, { nicknames: ctx.options?.nicknames });
+  if (c.bounced_email) c.candidates = c.candidates.filter((x) => x.email !== c.bounced_email).map((x, i) => ({ ...x, rank: i + 1 }));
   if (ownHere) {
     const rest = c.candidates.filter((x) => x.email !== ownHere);
-    c.candidates = [{ email: ownHere, pattern: "pasted", rank: 1, basis: "seen", verify_status: "unverified" }, ...rest].slice(0, 3).map((x, i) => ({ ...x, rank: i + 1 }));
+    c.candidates = [{ email: ownHere, pattern: "pasted", rank: 1, basis: "seen", verify_status: c.email_status ?? "unverified" }, ...rest].slice(0, 3).map((x, i) => ({ ...x, rank: i + 1 }));
   }
   if (co.patterns[0] && needsMiddle(co.patterns[0].template) && !name.middle && !own) {
     c.note = "Top pattern uses a middle initial \u2014 add it to the name to get that address.";
@@ -1920,7 +1992,7 @@ async function applyCompany(c, co, ctx) {
   if (co.rescued) c.rescued = true;
   if (ctx.verifier && c.candidates.length) {
     const st = await ctx.verifier.verify(c.candidates.map((x) => x.email));
-    for (const x of c.candidates) x.verify_status = st[x.email] ?? "unverified";
+    for (const x of c.candidates) x.verify_status = x.pattern === "pasted" && c.email_status ? c.email_status : st[x.email] ?? "unverified";
   }
   c.primary_email = (c.candidates.find((x) => x.verify_status === "valid") ?? c.candidates.find((x) => x.basis !== "guess") ?? c.candidates[0])?.email;
   if (c.candidates.some((x) => x.basis !== "guess")) c.status = "ok";
@@ -2176,8 +2248,8 @@ function visibleCandidates(c, opts = {}) {
 var confidenceBasis = (p) => !p ? "" : p.verified ? "verified by mailbox check" : p.from_evidence ? "proven by earlier lookups" : p.from_paste ? "paste" : p.from_site ? "company website" : p.stated ? "stated by source" : "estimated";
 function verifiedLabel(primary, co) {
   if (!primary) return "";
-  if (primary.pattern === "pasted") return "from your paste";
   const s2 = primary.verify_status;
+  if (primary.pattern === "pasted") return s2 === "valid" ? "yes" : s2 === "catch_all" ? "accept-all server" : s2 === "risky" ? "risky" : "from your paste (not checked)";
   if ((co?.verified_by === "demo" || co?.verified_by === "mock") && s2 && s2 !== "unverified") return "demo";
   if (s2 === "valid") return "yes";
   if (s2 === "invalid") return "no (bounced)";

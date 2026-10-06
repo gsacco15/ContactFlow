@@ -125,16 +125,65 @@ describe("runPipeline with profile links", () => {
     expect(by("Lin")).toMatchObject({ status: "ok", primary_email: "rae.lin@gmail.com", note: "Personal address from your paste." });
   });
 
-  it("Verify never spends a check on people whose real address is known (no false 'no address exists')", async () => {
-    let checks = 0;
-    const box = { name: "test", real: true, check: async (emails: string[]) => ((checks += emails.length), Object.fromEntries(emails.map((e) => [e, "invalid" as const]))) };
-    const ex = buildExtract({ people: [{ first: "Nicholas", last: "Bringardner", profile_url: url(1) }, { first: "Thomas", last: "White", profile_url: url(2) }] });
+  describe("Verify on: each person's own address is checked once", () => {
+    const two = () => buildExtract({ people: [{ first: "Nicholas", last: "Bringardner", profile_url: url(1) }, { first: "Thomas", last: "White", profile_url: url(2) }] });
     const mail: Record<string, string> = { [url(1)]: "nbringardner@legalaidchicago.org", [url(2)]: "twhite@legalaidchicago.org" };
-    const { ctx } = mockCtx({}, { mailbox: box, options: { verifyMode: "auto", rescue: false }, profiles: async (urls) => urls.map((u) => page(u, [[mail[u], "member"]])) });
-    const r = await runPipeline(ex, ctx);
-    expect(checks).toBe(0);
-    expect(r.companies.find((c) => c.domain === "legalaidchicago.org")!.verify_note).toBeUndefined();
-    expect(r.contacts.map((c) => c.primary_email)).toEqual(["nbringardner@legalaidchicago.org", "twhite@legalaidchicago.org"]);
+    const profiles = async (urls: string[]) => urls.map((u) => page(u, [[mail[u], "member"]]));
+    const checker = (answers: Record<string, "valid" | "invalid" | "catch_all">, log: string[] = []) => ({
+      name: "test",
+      real: true,
+      check: async (emails: string[]) => (log.push(...emails), Object.fromEntries(emails.map((e) => [e, answers[e] ?? "invalid"]))),
+    });
+    const verifyOn = { verifyMode: "auto" as const, rescue: false };
+
+    it("valid: kept and marked, no format check and no false 'no address exists'", async () => {
+      const log: string[] = [];
+      const { ctx } = mockCtx({}, { mailbox: checker({ "nbringardner@legalaidchicago.org": "valid", "twhite@legalaidchicago.org": "valid" }, log), options: verifyOn, profiles });
+      const r = await runPipeline(two(), ctx);
+      expect(log.sort()).toEqual(["nbringardner@legalaidchicago.org", "twhite@legalaidchicago.org"]); // one check each, nothing else
+      expect(r.contacts.map((c) => [c.primary_email, c.candidates[0].verify_status])).toEqual([
+        ["nbringardner@legalaidchicago.org", "valid"],
+        ["twhite@legalaidchicago.org", "valid"],
+      ]);
+      expect(r.companies.find((c) => c.domain === "legalaidchicago.org")!.verify_note).toBeUndefined();
+    });
+
+    it("a bounce drops that address and looks the person up normally; the bounced address is never offered again", async () => {
+      const { ctx } = mockCtx(
+        { discover_pattern: toolResponse("report_patterns", { patterns: [{ template: "{first}.{last}", confidence: 0.8, source_url: "https://rocketreach.co/lac" }] }) },
+        { mailbox: checker({ "nbringardner@legalaidchicago.org": "valid", "thomas.white@legalaidchicago.org": "valid" }), options: verifyOn, profiles },
+      );
+      const r = await runPipeline(two(), ctx);
+      const thomas = r.contacts.find((c) => c.last === "White")!;
+      expect(thomas.bounced_email).toBe("twhite@legalaidchicago.org");
+      expect(thomas.candidates.map((x) => x.email)).not.toContain("twhite@legalaidchicago.org");
+      expect(thomas.company_id).toBe("legalaidchicago-org"); // the firm is still right
+      expect(thomas.status).toBe("ok");
+    });
+
+    it("asks a checker that hasn't said yet whether it is real; a demo checker's answers change nothing", async () => {
+      const answers = { "nbringardner@legalaidchicago.org": "invalid" as const, "twhite@legalaidchicago.org": "invalid" as const };
+      const learns = { name: "verifier", real: false, check: async (emails: string[]) => ((learns.real = true), Object.fromEntries(emails.map((e) => [e, answers[e as keyof typeof answers]]))) };
+      const { ctx } = mockCtx({ discover_pattern: toolResponse("report_patterns", { patterns: [] }) }, { mailbox: learns, options: verifyOn, profiles });
+      expect((await runPipeline(two(), ctx)).contacts.every((c) => !!c.bounced_email)).toBe(true);
+      const demo = { name: "demo", real: false, check: async (emails: string[]) => Object.fromEntries(emails.map((e) => [e, "invalid" as const])) };
+      const { ctx: d } = mockCtx({}, { mailbox: demo, options: verifyOn, profiles });
+      expect((await runPipeline(two(), d)).contacts.map((c) => c.primary_email)).toEqual(["nbringardner@legalaidchicago.org", "twhite@legalaidchicago.org"]);
+    });
+
+    it("an outage or accept-all server keeps the address; Verify off checks nothing", async () => {
+      const down = { name: "test", real: true, check: async () => { throw new Error("502"); } };
+      const { ctx } = mockCtx({}, { mailbox: down, options: verifyOn, profiles });
+      expect((await runPipeline(two(), ctx)).contacts.map((c) => c.primary_email)).toEqual(["nbringardner@legalaidchicago.org", "twhite@legalaidchicago.org"]);
+
+      const { ctx: all } = mockCtx({}, { mailbox: checker({ "nbringardner@legalaidchicago.org": "catch_all", "twhite@legalaidchicago.org": "catch_all" }), options: verifyOn, profiles });
+      expect((await runPipeline(two(), all)).contacts.map((c) => c.candidates[0].verify_status)).toEqual(["catch_all", "catch_all"]);
+
+      const log: string[] = [];
+      const { ctx: off } = mockCtx({}, { mailbox: checker({}, log), options: { verifyMode: "off", rescue: false }, profiles });
+      expect((await runPipeline(two(), off)).contacts.map((c) => c.primary_email)).toEqual(["nbringardner@legalaidchicago.org", "twhite@legalaidchicago.org"]);
+      expect(log).toHaveLength(0);
+    });
   });
 
   it("a team page with bio links on the firm's own site: the company stays and is looked up as usual", async () => {
