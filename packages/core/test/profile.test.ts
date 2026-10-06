@@ -276,3 +276,9 @@ describe("people found on a firm's own site", () => {
     expect(r.contacts.find((c) => c.last === "Higgins")!.candidates[0]).toMatchObject({ email: "ph@acme.com", verify_status: "valid" });
   });
 });
+
+it("a firm whose website can't be found says so instead of disappearing", async () => {
+  const { ctx } = mockCtx({ resolve_domain: toolResponse("report_domain", { domain: null, confidence: 0, source_url: null, alternatives: [] }) }, { options: { roleFilter: "partners", rescue: false } });
+  const r = await runPipeline(buildExtract({ companies: [{ name: "Massucci, Blomquist, Anderson & Dunn" }] }), ctx);
+  expect(r.companies[0].skipped).toMatch(/couldn't find the firm's website/);
+});

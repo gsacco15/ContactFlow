@@ -1782,6 +1782,7 @@ async function runPipeline(input, ctx, hooks = {}) {
     }
     delete co.skipped;
     await enrichCompany(co, ctx, active);
+    if (!own.length && !co.domain && !co.error) co.skipped = NO_SITE;
     hooks.onCompany?.(co);
     if (!own.length && roleFilter && co.domain && co.mx_ok !== false) {
       const found = await findPeople(co, roleFilter, ctx);
@@ -2003,6 +2004,7 @@ async function applyCompany(c, co, ctx) {
     c.error = co.error;
   } else c.status = "no_pattern";
 }
+var NO_SITE = "couldn't find the firm's website \u2014 add it to your paste, e.g. \u201CAcme (acme.com)\u201D, then Retry";
 var INCOMPLETE_LAST = "Last name is incomplete (e.g. \u201CMaria O.\u201D) \u2014 click the name to fill it in.";
 var rescues = /* @__PURE__ */ new WeakMap();
 var SKIPPED_FLAG = "\u26A0 may not work here \u2014 click Include to look them up.";

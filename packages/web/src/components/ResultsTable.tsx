@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { patternLabel, sourceName, visibleCandidates, type Candidate, type Company, type Contact, type Pattern } from "@cf/core";
 import { FitBadge } from "./FitBadge.tsx";
 import { LOW_DOMAIN_CONFIDENCE } from "../config.ts";
@@ -93,6 +93,7 @@ export function ResultsTable({ p }: { p: Pipeline }) {
   const shown = visibleSearches(state);
   const listed = listedRows(state);
   const withRows = new Set(listed.map((c) => c.company_id));
+  const emptyRef = useRef<HTMLDetailsElement>(null);
   const empty = Object.values(state.companies).filter(
     (c) => (state.companySearches[c.id] ?? []).some((x) => shown.has(x)) && !withRows.has(c.id) && (c.fetched_at || c.error || c.domain || c.mx_ok === false || c.skipped),
   );
@@ -123,6 +124,18 @@ export function ResultsTable({ p }: { p: Pipeline }) {
         <span className="tabular text-sm text-stone-500">
           {total} {total === 1 ? "person" : "people"} · {ok} with email{state.searches.length > 1 ? ` · ${shown.size} of ${state.searches.length} searches shown` : ""}
         </span>
+        {empty.length > 0 && !state.running && (
+          <button
+            type="button"
+            className="text-sm text-stone-500 underline decoration-stone-300 underline-offset-2 hover:text-stone-800"
+            onClick={() => {
+              if (emptyRef.current) emptyRef.current.open = true;
+              emptyRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }}
+          >
+            {empty.length} {empty.length === 1 ? "company" : "companies"} found nobody — see why
+          </button>
+        )}
         <Button
           variant="ghost"
           className="ml-auto !px-1.5 !py-0.5 text-xs"
@@ -209,7 +222,7 @@ export function ResultsTable({ p }: { p: Pipeline }) {
         </table>
       </div>
       {empty.length > 0 && (
-        <details open={empty.length <= 5} className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm">
+        <details ref={emptyRef} open={empty.length <= 5} className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm">
           <summary className="mb-1 cursor-pointer text-xs font-semibold uppercase tracking-wide text-stone-500">Companies with no contacts ({empty.length})</summary>
           <ul className="space-y-0.5">
             {empty.map((c) => (

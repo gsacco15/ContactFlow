@@ -100,6 +100,7 @@ export async function runPipeline(input: string | ExtractResult, ctx: Ctx, hooks
     }
     delete co.skipped;
     await enrichCompany(co, ctx, active);
+    if (!own.length && !co.domain && !co.error) co.skipped = NO_SITE;
     hooks.onCompany?.(co);
 
     if (!own.length && roleFilter && co.domain && co.mx_ok !== false) {
@@ -350,6 +351,9 @@ export async function applyCompany(c: Contact, co: Company | undefined, ctx: Ctx
     c.error = co.error;
   } else c.status = "no_pattern";
 }
+
+/** A firm with nobody pasted whose website couldn't be found: said, not silently left out. */
+const NO_SITE = "couldn't find the firm's website — add it to your paste, e.g. “Acme (acme.com)”, then Retry";
 
 const INCOMPLETE_LAST = "Last name is incomplete (e.g. “Maria O.”) — click the name to fill it in.";
 
@@ -612,6 +616,7 @@ export async function rerunCompany(co: Company, contacts: Contact[], ctx: Ctx, h
   }
   delete co.skipped;
   await enrichCompany(co, fresh, active);
+  if (!contacts.length && !co.domain && !co.error) co.skipped = NO_SITE;
   hooks.onCompany?.(co);
   const roleFilter = ctx.options?.roleFilter?.trim() || co.role_hint;
   if (!contacts.length && roleFilter && co.domain && co.mx_ok !== false) {
