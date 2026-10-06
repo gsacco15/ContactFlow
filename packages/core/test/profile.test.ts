@@ -17,6 +17,11 @@ describe("profileEmail", () => {
     expect(profileEmail(person("Rachel", "Granetz", "F"), [{ email: "rfg.law@gmail.com", context: "Rachel F Granetz rfg.law@gmail.com" }])).toBe("rfg.law@gmail.com");
   });
 
+  it("needs their surname as a whole word nearby (\"Shi\" is not in \"membership\")", () => {
+    expect(profileEmail(person("Kasey", "Shi"), [{ email: "yis10@illinois.edu", context: "Membership: active · yis10@illinois.edu" }])).toBeUndefined();
+    expect(profileEmail(person("Kasey", "Shi"), [{ email: "yis10@illinois.edu", context: "Kasey Shi yis10@illinois.edu" }])).toBe("yis10@illinois.edu");
+  });
+
   it("takes nothing when it can't tell: two fitting addresses, someone else's, or a shared inbox", () => {
     expect(profileEmail(person("Jane", "Doe"), [{ email: "jdoe@a.com", context: "" }, { email: "jane.doe@b.com", context: "" }])).toBeUndefined();
     expect(profileEmail(person("Jane", "Doe"), [{ email: "bsmith@a.com", context: "Board: Bob Smith" }])).toBeUndefined();
@@ -99,6 +104,37 @@ describe("runPipeline with profile links", () => {
     expect(calls).toHaveLength(0);
     expect(r.contacts.find((c) => c.last === "Barker")!.company_id).toBe("example-employment-com");
     expect(r.contacts.find((c) => c.last === "Coleman")).toMatchObject({ company_id: "", status: "no_domain", candidates: [] }); // no guess at someone else's firm
+  });
+
+  it("an email pasted next to someone with no company files them under that employer (Column1 in the NELA paste)", async () => {
+    const ex = buildExtract({
+      people: [
+        { first: "Jamison", last: "Barker", email: "jbarker5@hawk.illinoistech.edu", profile_url: url(1) },
+        { first: "Max", last: "Belovol", email: "max@chicagoemploymentlawyer.org" },
+        { first: "Rae", last: "Lin", email: "rae.lin@gmail.com" },
+      ],
+    });
+    let read = 0;
+    const { ctx, calls } = mockCtx({}, { profiles: async (urls) => ((read += urls.length), []) });
+    const r = await runPipeline(ex, ctx);
+    const by = (last: string) => r.contacts.find((c) => c.last === last)!;
+    expect(read).toBe(0); // already has an address: no page to read
+    expect(calls).toHaveLength(0);
+    expect(by("Barker")).toMatchObject({ status: "ok", primary_email: "jbarker5@hawk.illinoistech.edu", company_id: "hawk-illinoistech-edu" });
+    expect(by("Belovol")).toMatchObject({ status: "ok", primary_email: "max@chicagoemploymentlawyer.org" });
+    expect(by("Lin")).toMatchObject({ status: "ok", primary_email: "rae.lin@gmail.com", note: "Personal address from your paste." });
+  });
+
+  it("Verify never spends a check on people whose real address is known (no false 'no address exists')", async () => {
+    let checks = 0;
+    const box = { name: "test", real: true, check: async (emails: string[]) => ((checks += emails.length), Object.fromEntries(emails.map((e) => [e, "invalid" as const]))) };
+    const ex = buildExtract({ people: [{ first: "Nicholas", last: "Bringardner", profile_url: url(1) }, { first: "Thomas", last: "White", profile_url: url(2) }] });
+    const mail: Record<string, string> = { [url(1)]: "nbringardner@legalaidchicago.org", [url(2)]: "twhite@legalaidchicago.org" };
+    const { ctx } = mockCtx({}, { mailbox: box, options: { verifyMode: "auto", rescue: false }, profiles: async (urls) => urls.map((u) => page(u, [[mail[u], "member"]])) });
+    const r = await runPipeline(ex, ctx);
+    expect(checks).toBe(0);
+    expect(r.companies.find((c) => c.domain === "legalaidchicago.org")!.verify_note).toBeUndefined();
+    expect(r.contacts.map((c) => c.primary_email)).toEqual(["nbringardner@legalaidchicago.org", "twhite@legalaidchicago.org"]);
   });
 
   it("a team page with bio links on the firm's own site: the company stays and is looked up as usual", async () => {

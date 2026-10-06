@@ -1360,7 +1360,7 @@ var verifyOn = (ctx, clicked) => {
   return !!ctx.mailbox && (mode === "auto" || clicked && mode === "button");
 };
 function sample(contacts, skip) {
-  return contacts.filter((c) => c !== skip && (c.status === "ok" || c.status === "no_pattern") && c.first && c.last && c.candidates.some((x) => x.basis !== "seen")).sort((a, b) => `${b.first}${b.last}`.length - `${a.first}${a.last}`.length)[0];
+  return contacts.filter((c) => c !== skip && (c.status === "ok" || c.status === "no_pattern") && c.first && c.last && c.candidates[0]?.basis !== "seen" && c.candidates.some((x) => x.basis !== "seen")).sort((a, b) => `${b.first}${b.last}`.length - `${a.first}${a.last}`.length)[0];
 }
 async function verifyCompany(co, contacts, ctx, rebuild, opts = {}) {
   const out = { checks: 0, statuses: {} };
@@ -1578,8 +1578,9 @@ function profileEmail(c, emails) {
   }
   const byName = [...found.keys()].filter((e) => inferTemplates(name, e.split("@")[0]).length > 0);
   if (byName.length) return byName.length === 1 ? byName[0] : void 0;
-  const last = name.last.replace(/-/g, " ");
-  const near = last.length >= 2 ? [...found].filter(([, ctx]) => ctx.includes(last)).map(([e]) => e) : [];
+  const last = name.last.replace(/-/g, " ").replace(/[^a-z ]/g, "");
+  const word = new RegExp(`(^|[^a-z])${last}([^a-z]|$)`);
+  const near = last.length >= 2 ? [...found].filter(([, ctx]) => word.test(ctx)).map(([e]) => e) : [];
   return near.length === 1 ? near[0] : void 0;
 }
 function domainFitsCompany(co, domain, pageUrl) {
@@ -1594,14 +1595,14 @@ function domainFitsCompany(co, domain, pageUrl) {
 }
 var isPersonal = (domain) => FREEMAIL_DOMAINS.includes(domain);
 async function readProfiles(people, companies, ctx, active) {
-  if (!ctx.profiles) return [];
-  const targets = people.filter((p) => p.profile_url && !cleanEmail(p.email) && active(p)).slice(0, PROFILE_LIMITS.perRun);
-  if (!targets.length) return [];
+  const targets = ctx.profiles ? people.filter((p) => p.profile_url && !cleanEmail(p.email) && active(p)).slice(0, PROFILE_LIMITS.perRun) : [];
+  const pastedOnly = people.filter((p) => !companies.has(p.company_id) && cleanEmail(p.email) && active(p) && ctx.options?.usePasteEvidence !== false);
+  if (!targets.length && !pastedOnly.length) return [];
   const urls = [...new Set(targets.map((p) => p.profile_url))];
   const batches = [];
   for (let i = 0; i < urls.length; i += PROFILE_LIMITS.perRequest) batches.push(urls.slice(i, i + PROFILE_LIMITS.perRequest));
   const reads = /* @__PURE__ */ new Map();
-  await pMap(batches, PROFILE_LIMITS.concurrency, async (batch) => {
+  if (batches.length) await pMap(batches, PROFILE_LIMITS.concurrency, async (batch) => {
     if (ctx.signal?.aborted) return;
     try {
       for (const r of await ctx.profiles(batch)) reads.set(r.url, r);
@@ -1613,6 +1614,26 @@ async function readProfiles(people, companies, ctx, active) {
   const left = /* @__PURE__ */ new Map();
   const stayed = /* @__PURE__ */ new Map();
   const bump = (m, k) => m.set(k, (m.get(k) ?? 0) + 1);
+  const place = (p, email, pageUrl) => {
+    const domain = email.split("@")[1];
+    const from = companies.get(p.company_id);
+    if (isPersonal(domain)) {
+      if (from) bump(left, from.id);
+      direct.push(p);
+      return;
+    }
+    if (from && domainFitsCompany(from, domain, pageUrl)) {
+      bump(stayed, from.id);
+      return;
+    }
+    if (from) bump(left, from.id);
+    let to = [...companies.values()].find((c) => c.domain === domain || normalizeDomain(c.website) === domain);
+    if (!to && !isAggregatorDomain(domain)) {
+      to = { id: slug(domain), name: domain, patterns: [] };
+      companies.set(to.id, to);
+    }
+    if (to) p.company_id = to.id;
+  };
   for (const p of targets) {
     const read = reads.get(p.profile_url);
     if (!read?.ok) {
@@ -1627,25 +1648,9 @@ async function readProfiles(people, companies, ctx, active) {
     delete p.profile_note;
     p.email = email;
     p.email_source_url = read.url;
-    const domain = email.split("@")[1];
-    const from = companies.get(p.company_id);
-    if (isPersonal(domain)) {
-      if (from) bump(left, from.id);
-      direct.push(p);
-      continue;
-    }
-    if (from && domainFitsCompany(from, domain, read.url)) {
-      bump(stayed, from.id);
-      continue;
-    }
-    if (from) bump(left, from.id);
-    let to = [...companies.values()].find((c) => c.domain === domain || normalizeDomain(c.website) === domain);
-    if (!to && !isAggregatorDomain(domain)) {
-      to = { id: slug(domain), name: domain, patterns: [] };
-      companies.set(to.id, to);
-    }
-    if (to) p.company_id = to.id;
+    place(p, email, read.url);
   }
+  for (const p of pastedOnly) place(p, cleanEmail(p.email));
   for (const [id, n] of left) {
     if (n < 2 || stayed.get(id)) continue;
     for (const p of people) if (p.company_id === id) p.company_id = "";
@@ -1659,7 +1664,7 @@ async function readProfiles(people, companies, ctx, active) {
       candidates: [{ email: p.email, pattern: "pasted", rank: 1, basis: "seen", verify_status: "unverified" }],
       primary_email: p.email,
       status: "ok",
-      note: "Personal address from their profile page."
+      note: p.email_source_url ? "Personal address from their profile page." : "Personal address from your paste."
     });
   }
   return direct;

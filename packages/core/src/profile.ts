@@ -31,8 +31,10 @@ export function profileEmail(c: Contact, emails: ProfileEmail[]): string | undef
   }
   const byName = [...found.keys()].filter((e) => inferTemplates(name, e.split("@")[0]).length > 0);
   if (byName.length) return byName.length === 1 ? byName[0] : undefined;
-  const last = name.last.replace(/-/g, " ");
-  const near = last.length >= 2 ? [...found].filter(([, ctx]) => ctx.includes(last)).map(([e]) => e) : [];
+  // Their surname as a whole word nearby ("shi" must not match "membership").
+  const last = name.last.replace(/-/g, " ").replace(/[^a-z ]/g, "");
+  const word = new RegExp(`(^|[^a-z])${last}([^a-z]|$)`);
+  const near = last.length >= 2 ? [...found].filter(([, ctx]) => word.test(ctx)).map(([e]) => e) : [];
   return near.length === 1 ? near[0] : undefined;
 }
 
@@ -57,21 +59,23 @@ export function domainFitsCompany(co: Company, domain: string, pageUrl?: string)
 const isPersonal = (domain: string) => FREEMAIL_DOMAINS.includes(domain);
 
 /**
- * Read the profile pages of people with a profile link and no address yet. Fills `email` and
- * `email_source_url`, moves each person to the employer their address shows, and returns the people
- * whose address is personal (gmail…): their row is finished, no company lookup needed.
+ * Read the profile pages of people with a profile link and no address yet (fills `email` and
+ * `email_source_url`), then file everyone whose address is known — from a profile page, or pasted
+ * next to someone with no company — under the employer that address shows. Returns the people whose
+ * address is personal (gmail…): their row is finished, no company lookup needed.
  * Mutates `companies` (adds employers, drops a heading shown to be a directory) and the people.
  */
 export async function readProfiles(people: Contact[], companies: Map<string, Company>, ctx: Ctx, active: (c: Contact) => boolean): Promise<Contact[]> {
-  if (!ctx.profiles) return [];
-  const targets = people.filter((p) => p.profile_url && !cleanEmail(p.email) && active(p)).slice(0, PROFILE_LIMITS.perRun);
-  if (!targets.length) return [];
+  const targets = ctx.profiles ? people.filter((p) => p.profile_url && !cleanEmail(p.email) && active(p)).slice(0, PROFILE_LIMITS.perRun) : [];
+  // A work address pasted next to someone with no company tells us where they work.
+  const pastedOnly = people.filter((p) => !companies.has(p.company_id) && cleanEmail(p.email) && active(p) && (ctx.options?.usePasteEvidence !== false));
+  if (!targets.length && !pastedOnly.length) return [];
 
   const urls = [...new Set(targets.map((p) => p.profile_url!))];
   const batches: string[][] = [];
   for (let i = 0; i < urls.length; i += PROFILE_LIMITS.perRequest) batches.push(urls.slice(i, i + PROFILE_LIMITS.perRequest));
   const reads = new Map<string, ProfileRead>();
-  await pMap(batches, PROFILE_LIMITS.concurrency, async (batch) => {
+  if (batches.length) await pMap(batches, PROFILE_LIMITS.concurrency, async (batch) => {
     if (ctx.signal?.aborted) return;
     try {
       for (const r of await ctx.profiles!(batch)) reads.set(r.url, r);
@@ -85,6 +89,28 @@ export async function readProfiles(people: Contact[], companies: Map<string, Com
   const left = new Map<string, number>();
   const stayed = new Map<string, number>();
   const bump = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1);
+
+  /** File a person under the employer their address shows (or finish them: a personal address). */
+  const place = (p: Contact, email: string, pageUrl?: string) => {
+    const domain = email.split("@")[1];
+    const from = companies.get(p.company_id);
+    if (isPersonal(domain)) {
+      if (from) bump(left, from.id);
+      direct.push(p);
+      return;
+    }
+    if (from && domainFitsCompany(from, domain, pageUrl)) {
+      bump(stayed, from.id);
+      return;
+    }
+    if (from) bump(left, from.id);
+    let to = [...companies.values()].find((c) => c.domain === domain || normalizeDomain(c.website) === domain);
+    if (!to && !isAggregatorDomain(domain)) {
+      to = { id: slug(domain), name: domain, patterns: [] };
+      companies.set(to.id, to);
+    }
+    if (to) p.company_id = to.id;
+  };
 
   for (const p of targets) {
     const read = reads.get(p.profile_url!);
@@ -100,25 +126,9 @@ export async function readProfiles(people: Contact[], companies: Map<string, Com
     delete p.profile_note;
     p.email = email;
     p.email_source_url = read.url;
-    const domain = email.split("@")[1];
-    const from = companies.get(p.company_id);
-    if (isPersonal(domain)) {
-      if (from) bump(left, from.id);
-      direct.push(p);
-      continue;
-    }
-    if (from && domainFitsCompany(from, domain, read.url)) {
-      bump(stayed, from.id);
-      continue;
-    }
-    if (from) bump(left, from.id);
-    let to = [...companies.values()].find((c) => c.domain === domain || normalizeDomain(c.website) === domain);
-    if (!to && !isAggregatorDomain(domain)) {
-      to = { id: slug(domain), name: domain, patterns: [] };
-      companies.set(to.id, to);
-    }
-    if (to) p.company_id = to.id;
+    place(p, email, read.url);
   }
+  for (const p of pastedOnly) place(p, cleanEmail(p.email)!);
 
   // A pasted heading (a member directory, an association) whose people turn out to work elsewhere:
   // it isn't their employer, so the rest of its people get no company rather than a wrong guess.
@@ -137,7 +147,7 @@ export async function readProfiles(people: Contact[], companies: Map<string, Com
       candidates: [{ email: p.email!, pattern: "pasted", rank: 1, basis: "seen", verify_status: "unverified" }],
       primary_email: p.email,
       status: "ok",
-      note: "Personal address from their profile page.",
+      note: p.email_source_url ? "Personal address from their profile page." : "Personal address from your paste.",
     });
   }
   return direct;

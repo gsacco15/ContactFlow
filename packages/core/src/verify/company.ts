@@ -27,8 +27,10 @@ const verifyOn = (ctx: Ctx, clicked: boolean) => {
  * where checks help most.
  */
 function sample(contacts: Contact[], skip?: Contact): Contact | undefined {
+  // Someone whose own address is known (pasted, or on their profile page) is never sampled: checking
+  // their backup guesses proves nothing, and a bounce there would wrongly blame the format.
   return contacts
-    .filter((c) => c !== skip && (c.status === "ok" || c.status === "no_pattern") && c.first && c.last && c.candidates.some((x) => x.basis !== "seen"))
+    .filter((c) => c !== skip && (c.status === "ok" || c.status === "no_pattern") && c.first && c.last && c.candidates[0]?.basis !== "seen" && c.candidates.some((x) => x.basis !== "seen"))
     .sort((a, b) => `${b.first}${b.last}`.length - `${a.first}${a.last}`.length)[0];
 }
 
