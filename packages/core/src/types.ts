@@ -34,6 +34,7 @@ export type Company = {
   role_hint?: string; // e.g. "CFO" from "Beta Corp — need CFO"
   stated_formats?: StatedFormat[]; // "the firm uses first initial + last name" lines in the paste
   domain_from_paste?: boolean; // domain taken from a pasted work email
+  domain_from_profile?: string; // …and that email was read from this person's profile page (URL)
   domain?: string;
   domain_confidence?: number;
   domain_source_url?: string;
@@ -85,6 +86,9 @@ export type Contact = {
   drop?: boolean; // user marked them not relevant, whatever the judge said
   fit?: Fit; // relevance to "Looking for", from the decision model
   linkedin_url?: string;
+  profile_url?: string; // their own page on a directory or firm site, linked from their row in the paste
+  email_source_url?: string; // set when `email` was read from profile_url rather than the paste
+  profile_note?: string; // why reading profile_url gave no email (shown on the row)
   raw_source: string; // the pasted chunk this came from, for debugging
   candidates: Candidate[]; // max 3
   primary_email?: string; // set when a candidate verifies, else candidates[0]
@@ -206,6 +210,8 @@ export type Ctx = {
   evidence?: EvidenceStore;
   /** Mailbox checks (edge /verify, paid provider). Used only when VERIFY_MODE / options.verifyMode isn't "off". */
   mailbox?: MailboxChecker;
+  /** Read people's profile pages linked from the paste (edge /profiles). Free; no AI. Unset = step off. */
+  profiles?: (urls: string[]) => Promise<import("./profile.ts").ProfileRead[]>;
 };
 
 export interface MailboxChecker {

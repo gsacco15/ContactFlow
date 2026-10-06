@@ -34,6 +34,24 @@ describe("buildExtract", () => {
     expect(ex.urls).toEqual(["https://stripe.com/about"]);
   });
 
+  it("keeps a person's own profile link (never LinkedIn), and a profile link is not a company to look up", () => {
+    const url = "https://www.nela-illinois.org/content.aspx?page_id=80&club_id=853437&member_id=9918828";
+    const ex = buildExtract({
+      mode: "people",
+      companies: [],
+      people: [
+        { first: "Nicholas", last: "Bringardner", profile_url: url },
+        { first: "Jamison", last: "Barker+A7:D23", profile_url: "https://www.linkedin.com/in/jbarker" },
+      ],
+      urls: [url, "https://acme.com/team"],
+      notes: "",
+    });
+    expect(ex.people[0]).toMatchObject({ first: "Nicholas", last: "Bringardner", company_id: "", profile_url: url });
+    expect(ex.people[1]).toMatchObject({ last: "Barker" });
+    expect(ex.people[1].profile_url).toBeUndefined();
+    expect(ex.urls).toEqual(["https://acme.com/team"]);
+  });
+
   it("falls back to a sensible mode", () => {
     expect(buildExtract({ mode: "weird", people: [{ first: "A", last: "B" }] }).mode).toBe("people");
     expect(buildExtract({ companies: [{ name: "A" }] }).mode).toBe("companies");

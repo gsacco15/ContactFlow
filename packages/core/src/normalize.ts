@@ -29,6 +29,7 @@ export function cleanDisplayName(raw: string): string {
     .replace(/\b(1st|2nd|3rd\+?)\b/gi, " ")
     .replace(/\b(she|he|they)\s*\/\s*(her|him|them|hers|his|theirs)\b/gi, " ")
     .replace(/\p{Extended_Pictographic}|\p{Emoji_Modifier}|‍|️/gu, " ")
+    .replace(/[+=]\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?\b|\b[A-Z]{1,3}\d+:[A-Z]{1,3}\d+\b/g, " ") // spreadsheet leftovers ("Barker+A7:D23", "A7:D23")
     .replace(/\s+/g, " ")
     .trim();
 }

@@ -80,6 +80,7 @@ var TOOLS = {
               title: str("Job title exactly as written"),
               company: str("Company name; must match a name in companies[]"),
               linkedin_url: str("LinkedIn profile URL if present"),
+              profile_url: str("Link to this person's own profile or bio page on a site other than LinkedIn, if their row has one"),
               raw: str("The source line this person came from, max 80 characters")
             },
             required: ["first", "last"],
@@ -239,6 +240,7 @@ var FREEMAIL_DOMAINS = [
   "mail.com",
   "yandex.com"
 ];
+var PROFILE_LIMITS = { perRun: 50, perRequest: 10, concurrency: 2 };
 var FIT_THRESHOLDS = { yes: 0.6, no: 0.3 };
 var MIN_SOURCED_CONFIDENCE = 0.4;
 var GENERIC_LOCAL_PARTS = [
@@ -543,7 +545,7 @@ function asciiFold(s2) {
   return s2.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[øæœßłđðþı]/g, (c) => SPECIAL[c] ?? c);
 }
 function cleanDisplayName(raw) {
-  return raw.replace(/\(.*?\)|\[.*?\]/g, " ").replace(/["“”«»][^"“”«»]*["“”«»]/g, " ").replace(/[•·]\s*(1st|2nd|3rd\+?)\b/gi, " ").replace(/\b(1st|2nd|3rd\+?)\b/gi, " ").replace(/\b(she|he|they)\s*\/\s*(her|him|them|hers|his|theirs)\b/gi, " ").replace(new RegExp("\\p{Extended_Pictographic}|\\p{Emoji_Modifier}|\u200D|\uFE0F", "gu"), " ").replace(/\s+/g, " ").trim();
+  return raw.replace(/\(.*?\)|\[.*?\]/g, " ").replace(/["“”«»][^"“”«»]*["“”«»]/g, " ").replace(/[•·]\s*(1st|2nd|3rd\+?)\b/gi, " ").replace(/\b(1st|2nd|3rd\+?)\b/gi, " ").replace(/\b(she|he|they)\s*\/\s*(her|him|them|hers|his|theirs)\b/gi, " ").replace(new RegExp("\\p{Extended_Pictographic}|\\p{Emoji_Modifier}|\u200D|\uFE0F", "gu"), " ").replace(/[+=]\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?\b|\b[A-Z]{1,3}\d+:[A-Z]{1,3}\d+\b/g, " ").replace(/\s+/g, " ").trim();
 }
 function normalizeName(raw) {
   let s2 = cleanDisplayName(raw).replace(/,.*$/, "");
@@ -1181,9 +1183,12 @@ function buildExtract(input, fallbackCompany) {
     if (flag) contact.flag = flag;
     const li = cleanUrl(p?.linkedin_url);
     if (li) contact.linkedin_url = li;
+    const profile = cleanUrl(p?.profile_url);
+    if (profile && !isBlockedUrl(profile)) contact.profile_url = profile;
     people.set(id, contact);
   }
-  const urls = (Array.isArray(input?.urls) ? input.urls : []).map(cleanUrl).filter((u) => !!u);
+  const profiles = new Set([...people.values()].map((p) => p.profile_url).filter(Boolean));
+  const urls = (Array.isArray(input?.urls) ? input.urls : []).map(cleanUrl).filter((u) => !!u && !profiles.has(u));
   const mode = INPUT_MODES.includes(input?.mode) ? input.mode : people.size ? "people" : "companies";
   return { mode, companies: [...companies.values()], people: [...people.values()], urls: [...new Set(urls)], notes: str2(input?.notes) };
 }
@@ -1562,6 +1567,104 @@ function looksLikeKeywords(s2) {
   return terms.length > 0 && terms.every((t) => t.replace(/^-/, "").split(/\s+/).length <= 3 && !/[.:!?]/.test(t));
 }
 
+// packages/core/src/profile.ts
+function profileEmail(c, emails) {
+  const name = normalizeName([c.first, c.middle, c.last].filter(Boolean).join(" "));
+  if (!name.first) return void 0;
+  const found = /* @__PURE__ */ new Map();
+  for (const e of emails) {
+    const email = cleanEmail(e.email);
+    if (email && !isGenericEmail(email) && !found.has(email)) found.set(email, asciiFold(e.context ?? ""));
+  }
+  const byName = [...found.keys()].filter((e) => inferTemplates(name, e.split("@")[0]).length > 0);
+  if (byName.length) return byName.length === 1 ? byName[0] : void 0;
+  const last = name.last.replace(/-/g, " ");
+  const near = last.length >= 2 ? [...found].filter(([, ctx]) => ctx.includes(last)).map(([e]) => e) : [];
+  return near.length === 1 ? near[0] : void 0;
+}
+function domainFitsCompany(co, domain, pageUrl) {
+  if (co.domain === domain || normalizeDomain(co.website) === domain) return true;
+  const page = normalizeDomain(pageUrl);
+  if (page && (page === domain || page.endsWith(`.${domain}`))) return true;
+  const label = domain.split(".").slice(0, -1).join("").replace(/[^a-z0-9]/g, "");
+  const words = asciiFold(co.name).split(/[^a-z0-9]+/).filter((w) => w && !["the", "and", "of", "for"].includes(w));
+  if (words[0] && words[0].length >= 3 && label.startsWith(words[0])) return true;
+  const initials = words.map((w) => w[0]).join("");
+  return initials.length >= 3 && (label.startsWith(initials) || initials.length > 4 && label.startsWith(initials.slice(0, 4)));
+}
+var isPersonal = (domain) => FREEMAIL_DOMAINS.includes(domain);
+async function readProfiles(people, companies, ctx, active) {
+  if (!ctx.profiles) return [];
+  const targets = people.filter((p) => p.profile_url && !cleanEmail(p.email) && active(p)).slice(0, PROFILE_LIMITS.perRun);
+  if (!targets.length) return [];
+  const urls = [...new Set(targets.map((p) => p.profile_url))];
+  const batches = [];
+  for (let i = 0; i < urls.length; i += PROFILE_LIMITS.perRequest) batches.push(urls.slice(i, i + PROFILE_LIMITS.perRequest));
+  const reads = /* @__PURE__ */ new Map();
+  await pMap(batches, PROFILE_LIMITS.concurrency, async (batch) => {
+    if (ctx.signal?.aborted) return;
+    try {
+      for (const r of await ctx.profiles(batch)) reads.set(r.url, r);
+    } catch (e) {
+      for (const url of batch) reads.set(url, { url, ok: false, note: "the page reader is unavailable right now", emails: [] });
+    }
+  });
+  const direct = [];
+  const left = /* @__PURE__ */ new Map();
+  const stayed = /* @__PURE__ */ new Map();
+  const bump = (m, k) => m.set(k, (m.get(k) ?? 0) + 1);
+  for (const p of targets) {
+    const read = reads.get(p.profile_url);
+    if (!read?.ok) {
+      p.profile_note = `Couldn't read their profile page${read?.note ? ` (${read.note})` : ""}.`;
+      continue;
+    }
+    const email = profileEmail(p, read.emails);
+    if (!email) {
+      p.profile_note = read.emails.length ? "Their profile page shows an address, but not clearly theirs." : "No email on their profile page.";
+      continue;
+    }
+    delete p.profile_note;
+    p.email = email;
+    p.email_source_url = read.url;
+    const domain = email.split("@")[1];
+    const from = companies.get(p.company_id);
+    if (isPersonal(domain)) {
+      if (from) bump(left, from.id);
+      direct.push(p);
+      continue;
+    }
+    if (from && domainFitsCompany(from, domain, read.url)) {
+      bump(stayed, from.id);
+      continue;
+    }
+    if (from) bump(left, from.id);
+    let to = [...companies.values()].find((c) => c.domain === domain || normalizeDomain(c.website) === domain);
+    if (!to && !isAggregatorDomain(domain)) {
+      to = { id: slug(domain), name: domain, patterns: [] };
+      companies.set(to.id, to);
+    }
+    if (to) p.company_id = to.id;
+  }
+  for (const [id, n] of left) {
+    if (n < 2 || stayed.get(id)) continue;
+    for (const p of people) if (p.company_id === id) p.company_id = "";
+  }
+  for (const id of left.keys()) {
+    const co = companies.get(id);
+    if (co && !co.role_hint && !people.some((p) => p.company_id === id && !direct.includes(p))) companies.delete(id);
+  }
+  for (const p of direct) {
+    Object.assign(p, {
+      candidates: [{ email: p.email, pattern: "pasted", rank: 1, basis: "seen", verify_status: "unverified" }],
+      primary_email: p.email,
+      status: "ok",
+      note: "Personal address from their profile page."
+    });
+  }
+  return direct;
+}
+
 // packages/core/src/runner.ts
 var clone = (v) => JSON.parse(JSON.stringify(v));
 var shadowed = /* @__PURE__ */ new Set();
@@ -1575,7 +1678,7 @@ async function runPipeline(input, ctx, hooks = {}) {
   hooks.onExtract?.(ex);
   const companies = new Map(ex.companies.map((c) => [c.id, c]));
   addUrlCompanies(ex.urls, companies);
-  const people = ex.people.slice(0, ctx.budget.maxContacts);
+  let people = ex.people.slice(0, ctx.budget.maxContacts);
   const want = ctx.options?.roleFilter?.trim();
   if (want && people.length) {
     await judgeFit(people, want, ctx.decisions, (c) => companies.get(c.company_id)?.name).catch(() => {
@@ -1586,8 +1689,11 @@ async function runPipeline(input, ctx, hooks = {}) {
     contacts.push(c);
     hooks.onRow?.(c);
   };
+  const direct = await readProfiles(people, companies, ctx, (c) => isActive(c, ctx));
+  for (const c of direct) emit(c);
+  people = people.filter((p) => !direct.includes(p));
   for (const c of people.filter((p) => !companies.has(p.company_id))) {
-    Object.assign(c, { status: "no_domain", candidates: [], error: "no company found for this person" });
+    Object.assign(c, { status: "no_domain", candidates: [], error: c.profile_note ? `No company found. ${c.profile_note}` : "no company found for this person" });
     emit(c);
   }
   await pMap([...companies.values()], ctx.budget.concurrency, async (co) => {
@@ -1640,6 +1746,7 @@ async function enrichCompany(co, ctx, people = []) {
   const fromInput = normalizeDomain(co.website);
   const fromPaste = usePaste && !fromInput ? domainFromPaste(co, people) : void 0;
   delete co.domain_from_paste;
+  delete co.domain_from_profile;
   if (fromInput && !isAggregatorDomain(fromInput)) {
     co.domain = fromInput;
     co.domain_confidence = 1;
@@ -1648,6 +1755,8 @@ async function enrichCompany(co, ctx, people = []) {
     co.domain = fromPaste;
     co.domain_confidence = 0.9;
     co.domain_from_paste = true;
+    const viaProfile = people.find((p2) => p2.email_source_url && cleanEmail(p2.email)?.endsWith(`@${fromPaste}`));
+    if (viaProfile) co.domain_from_profile = viaProfile.email_source_url;
     delete co.domain_source_url;
   } else {
     const cached2 = bypass ? void 0 : await ctx.cache.get(`company:${co.id}`);
@@ -2343,6 +2452,8 @@ function edgeClient(o) {
     mx: async (domain) => (await post("mx", { domain })).ok,
     /** The company's own public pages, read by the edge function (no AI, no cost). */
     site: (domain) => post("site", { domain, maxPages: SITE_MAX_PAGES, bioPages: SITE_BIO_PAGES }),
+    /** People's own profile pages linked from the paste: the addresses on them (no AI, no cost). */
+    profiles: async (urls) => (await post("profiles", { urls })).pages,
     /** Site-reading trial log (domain-level only). */
     shadow: async (row) => void await post("shadow", row),
     /** Mailbox checks through the provider set in the edge function (CF_VERIFIER). `real` is

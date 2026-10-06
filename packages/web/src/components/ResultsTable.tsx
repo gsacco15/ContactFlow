@@ -251,7 +251,9 @@ function GroupHeader({ title, sub, color, folded, onToggle }: { title: string; s
 }
 
 function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color?: string }) {
-  const top = c.candidates.find((x) => x.pattern !== "pasted");
+  // When email 1 is the person's own address (paste or profile page), a guessed backup format beside it only confuses.
+  const own = c.candidates[0]?.pattern === "pasted";
+  const top = c.candidates.find((x) => x.pattern !== "pasted" && !(own && x.basis === "guess"));
   const pattern = top ? co?.patterns.find((x) => x.template === top.pattern) : undefined;
   const failed = c.status !== "ok" && c.status !== "pending" && c.status !== "skipped";
   const shown = visibleCandidates(c, { includeGuesses: !!p.state.filters.includeGuesses });
@@ -288,7 +290,7 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
           <PatternInfo top={top} pattern={pattern} co={co} />
           {co?.verify_unclear && <Unclear />}
           {co?.verify_failed && <VerifierDown />}
-          <Why text={[co?.verify_note, co?.pattern_conflict && `sources disagree: ${co.pattern_conflict}`, c.note, co?.rescue_note, c.error].filter(Boolean).join(" · ")} />
+          <Why text={[c.email_source_url && c.candidates[0]?.pattern === "pasted" && "address from their profile page", co?.verify_note, co?.pattern_conflict && `sources disagree: ${co.pattern_conflict}`, c.note, c.status !== "no_domain" && c.profile_note, co?.rescue_note, c.error].filter(Boolean).join(" · ")} />
           {(c.status === "skipped" || (failed && co)) && (
             <div className="flex gap-1">
               {c.status === "skipped" && (
@@ -309,7 +311,17 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
         <div>{co?.name ?? <span className="text-stone-400">—</span>}</div>
         {co?.domain && (
           <div className={`flex items-center gap-1 ${co.domain_confidence !== undefined && co.domain_confidence < LOW_DOMAIN_CONFIDENCE ? "text-red-600" : "text-stone-500"}`} title={co.domain_confidence !== undefined ? `domain confidence ${co.domain_confidence.toFixed(2)}` : undefined}>
-            {co.domain} {co.domain_from_paste ? <Pill tone="blue" title="Taken from a work email in your paste">from paste</Pill> : <LinkIcon href={co.domain_source_url} title="Where the domain came from" />}
+            {co.domain}{" "}
+            {co.domain_from_profile ? (
+              <span className="inline-flex items-center gap-1">
+                <Pill tone="blue" title="Taken from a work email on someone’s profile page">from profile</Pill>
+                <LinkIcon href={co.domain_from_profile} title="The profile page" />
+              </span>
+            ) : co.domain_from_paste ? (
+              <Pill tone="blue" title="Taken from a work email in your paste">from paste</Pill>
+            ) : (
+              <LinkIcon href={co.domain_source_url} title="Where the domain came from" />
+            )}
           </div>
         )}
         {co?.mx_ok === false && <div className="text-xs text-red-600">no MX records</div>}
@@ -317,9 +329,17 @@ function Row({ c, co, p, color }: { c: Contact; co?: Company; p: Pipeline; color
       <td className="hidden px-3 py-2 sm:table-cell">
         {c.candidates[0]?.pattern === "pasted" && (
           <div className="mb-1">
-            <Pill tone="blue" title="This person’s own address, as it appeared in your paste">their address from paste</Pill>
+            {c.email_source_url ? (
+              <span className="inline-flex items-center gap-1">
+                <Pill tone="blue" title="This person’s own address, as shown on the profile page linked from your paste">on their profile page</Pill>
+                <LinkIcon href={c.email_source_url} title="Their profile page" />
+              </span>
+            ) : (
+              <Pill tone="blue" title="This person’s own address, as it appeared in your paste">their address from paste</Pill>
+            )}
           </div>
         )}
+        {c.profile_note && c.status !== "no_domain" && <div className="mb-1 max-w-56 text-xs text-stone-500">{c.profile_note}</div>}
         <PatternInfo top={top} pattern={pattern} co={co} />
         {co?.pattern_conflict && <div className="mt-1 text-xs text-amber-700">⚠ sources disagree: {co.pattern_conflict}</div>}
         {co?.verify_unclear && <div className="mt-1"><Unclear /></div>}

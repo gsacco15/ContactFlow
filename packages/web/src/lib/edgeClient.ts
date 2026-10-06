@@ -1,6 +1,6 @@
 // HTTP client for the `pipeline` edge function. No React; also used by scripts/smoke.ts.
 import { SITE_BIO_PAGES, SITE_MAX_PAGES } from "@cf/core";
-import type { Cache, Evidence, EvidenceStore, MailboxChecker, VerifyStatus, JevRequest, JevResponse, LlmRequest, LlmResponse, SiteRead, SiteShadowRow } from "@cf/core";
+import type { Cache, Evidence, EvidenceStore, MailboxChecker, VerifyStatus, JevRequest, JevResponse, LlmRequest, LlmResponse, ProfileRead, SiteRead, SiteShadowRow } from "@cf/core";
 
 export type EdgeOptions = {
   url: string;
@@ -64,6 +64,8 @@ export function edgeClient(o: EdgeOptions) {
     mx: async (domain: string) => (await post<{ ok: boolean }>("mx", { domain })).ok,
     /** The company's own public pages, read by the edge function (no AI, no cost). */
     site: (domain: string) => post<SiteRead>("site", { domain, maxPages: SITE_MAX_PAGES, bioPages: SITE_BIO_PAGES }),
+    /** People's own profile pages linked from the paste: the addresses on them (no AI, no cost). */
+    profiles: async (urls: string[]) => (await post<{ pages: ProfileRead[] }>("profiles", { urls })).pages,
     /** Site-reading trial log (domain-level only). */
     shadow: async (row: SiteShadowRow) => void (await post("shadow", row)),
     /** Mailbox checks through the provider set in the edge function (CF_VERIFIER). `real` is

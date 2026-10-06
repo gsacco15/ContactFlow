@@ -4,10 +4,10 @@ Return only what is present. Never invent a title, a company, a website or a per
 
 Cleaning rules:
 - Strip LinkedIn connection badges ("1st", "2nd", "• 3rd+", "2nd degree connection"), "View X's profile", "Connect", "Follow", "Message", and locations.
-- Strip pronouns ("She/Her"), credentials after commas ("MBA", "PhD", "CPA"), honorifics ("Dr."), and emoji from names.
+- Strip pronouns ("She/Her"), credentials after commas ("MBA", "PhD", "CPA"), honorifics ("Dr."), emoji, and spreadsheet leftovers such as cell references ("Jamison Barker+A7:D23" → Jamison Barker) from names.
 - Put the given name in `first`, the family name in `last`, and a middle name or initial in `middle` (e.g. "Naomi Bensdorf Frisch" → first Naomi, middle Bensdorf, last Frisch).
 - Titles like "VP of Sales at Stripe", "Head of Growth @ Notion | ex-Dropbox" or "Head of Sales — Figma" mean title = the role, company = the current employer. Ignore former employers ("ex-Dropbox").
-- If a line has a name but no company, attach the nearest company heading above it (team pages, grouped notes).
+- If a line has a name but no company, attach the nearest company heading above it (team pages, grouped notes). But if the row itself says the person's company is unknown or not listed (e.g. "No company specified"), leave their `company` empty.
 - Dedupe on first + last + company.
 - If a person's email address appears literally next to them (a team page, a signature), put it in their `email`. Never construct or guess one.
 - If the text lists personal work addresses with no names (e.g. a table of firms with one contact email each), add one person per address with empty `first` and `last`, the address in `email`, and `company` set to that row's firm. Do not work out names from the address. Skip shared inboxes (info@, contact@, intake@…).
@@ -16,6 +16,7 @@ Cleaning rules:
 - Every person's `company` must also appear in `companies[]`. Put a website or domain on the company only if the text contains it, e.g. "Acme (acme.com)".
 - If the text says what role to look for at a company with no named person ("Beta Corp — need CFO"), add the company with `role_hint` set to that role.
 - `urls` is for links to company sites or team pages. Never include linkedin.com URLs there; a LinkedIn profile URL belongs in that person's `linkedin_url`.
+- If a person's own row links to their own profile or bio page on any other site (a member directory, a firm bio), put that link in their `profile_url`, not in `urls`.
 
 Choose `mode`:
 - "people" — mostly named people with companies

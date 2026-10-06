@@ -15,6 +15,7 @@ import { siteFormat } from "./site.ts";
 import { judgeFit, relevance } from "./fit.ts";
 import { cleanEmail, domainFromPaste, mergePatterns, pastePatterns } from "./paste.ts";
 import { needsMiddle } from "./candidates.ts";
+import { readProfiles } from "./profile.ts";
 
 export type RunHooks = {
   onExtract?: (ex: ExtractResult) => void;
@@ -46,7 +47,7 @@ export async function runPipeline(input: string | ExtractResult, ctx: Ctx, hooks
   const companies = new Map(ex.companies.map((c) => [c.id, c]));
   addUrlCompanies(ex.urls, companies);
 
-  const people = ex.people.slice(0, ctx.budget.maxContacts);
+  let people = ex.people.slice(0, ctx.budget.maxContacts);
   const want = ctx.options?.roleFilter?.trim();
   if (want && people.length) {
     // One batch: who is worth looking up? Failures fall back to keyword matching.
@@ -58,8 +59,13 @@ export async function runPipeline(input: string | ExtractResult, ctx: Ctx, hooks
     hooks.onRow?.(c);
   };
 
+  // Profile pages linked from the paste: their own address, and from it, their employer.
+  const direct = await readProfiles(people, companies, ctx, (c) => isActive(c, ctx));
+  for (const c of direct) emit(c);
+  people = people.filter((p) => !direct.includes(p));
+
   for (const c of people.filter((p) => !companies.has(p.company_id))) {
-    Object.assign(c, { status: "no_domain", candidates: [], error: "no company found for this person" });
+    Object.assign(c, { status: "no_domain", candidates: [], error: c.profile_note ? `No company found. ${c.profile_note}` : "no company found for this person" });
     emit(c);
   }
 
@@ -127,6 +133,7 @@ export async function enrichCompany(co: Company, ctx: Ctx, people: Contact[] = [
   const fromInput = normalizeDomain(co.website);
   const fromPaste = usePaste && !fromInput ? domainFromPaste(co, people) : undefined;
   delete co.domain_from_paste;
+  delete co.domain_from_profile;
   if (fromInput && !isAggregatorDomain(fromInput)) {
     co.domain = fromInput;
     co.domain_confidence = 1;
@@ -136,6 +143,8 @@ export async function enrichCompany(co: Company, ctx: Ctx, people: Contact[] = [
     co.domain = fromPaste;
     co.domain_confidence = 0.9;
     co.domain_from_paste = true;
+    const viaProfile = people.find((p) => p.email_source_url && cleanEmail(p.email)?.endsWith(`@${fromPaste}`));
+    if (viaProfile) co.domain_from_profile = viaProfile.email_source_url;
     delete co.domain_source_url;
   } else {
     const cached: CompanyCache | undefined = bypass ? undefined : await ctx.cache.get(`company:${co.id}`);

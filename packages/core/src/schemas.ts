@@ -147,6 +147,7 @@ export const TOOLS: Record<string, ToolDef> = {
               title: str("Job title exactly as written"),
               company: str("Company name; must match a name in companies[]"),
               linkedin_url: str("LinkedIn profile URL if present"),
+              profile_url: str("Link to this person's own profile or bio page on a site other than LinkedIn, if their row has one"),
               raw: str("The source line this person came from, max 80 characters"),
             },
             required: ["first", "last"],

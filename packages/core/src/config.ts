@@ -21,6 +21,13 @@ export const FREEMAIL_DOMAINS = [
   "icloud.com", "me.com", "aol.com", "proton.me", "protonmail.com", "gmx.com", "mail.com", "yandex.com",
 ];
 
+/**
+ * Profile pages linked from a paste (a member directory, a firm bio), read for the person's own
+ * address. Free (no AI), but each page is a fetch: at most perRun per run, perRequest per call to
+ * the edge function, concurrency calls at a time.
+ */
+export const PROFILE_LIMITS = { perRun: 50, perRequest: 10, concurrency: 2 };
+
 /** Relevance judge: p ≥ yes → ✓, p < no → ✗ (skipped), in between → ? (kept). */
 export const FIT_THRESHOLDS = { yes: 0.6, no: 0.3 };
 

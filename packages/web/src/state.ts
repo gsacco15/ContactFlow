@@ -24,6 +24,7 @@ export type State = {
   roleFilter: string;
   nicknames: boolean;
   usePasteEvidence: boolean; // use emails / stated formats found in the paste
+  readProfiles?: boolean; // open people's profile pages linked from the paste (default on)
   skipIrrelevant: boolean; // skip people judged not relevant before any search
   verify?: boolean; // run mailbox checks during the search (one per firm)
   judge?: string; // decision provider in use: "jev" or "claude"
@@ -54,6 +55,7 @@ export type Action =
   | { type: "nicknames"; on: boolean }
   | { type: "verify"; on: boolean }
   | { type: "paste_evidence"; on: boolean }
+  | { type: "read_profiles"; on: boolean }
   | { type: "skip_irrelevant"; on: boolean }
   | { type: "judge"; name: string }
   | { type: "judging"; on: boolean }
@@ -143,6 +145,8 @@ export function reducer(s: State, a: Action): State {
       return { ...s, verify: a.on };
     case "paste_evidence":
       return { ...s, usePasteEvidence: a.on };
+    case "read_profiles":
+      return { ...s, readProfiles: a.on };
     case "skip_irrelevant":
       return { ...s, skipIrrelevant: a.on };
     case "judge":

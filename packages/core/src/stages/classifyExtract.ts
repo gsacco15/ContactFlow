@@ -1,7 +1,7 @@
 import { INPUT_MODES } from "../schemas.ts";
 import type { Company, Contact, Ctx, ExtractResult, InputMode, StageResult, StatedFormat } from "../types.ts";
 import { cleanDisplayName, slug } from "../normalize.ts";
-import { cleanUrl, isTemplate, normalizeDomain } from "../validate.ts";
+import { cleanUrl, isBlockedUrl, isTemplate, normalizeDomain } from "../validate.ts";
 import { cleanEmail, isGenericEmail } from "../paste.ts";
 import { callLlm, done, fail, findCall } from "./util.ts";
 import { cleanPaste } from "../clean.ts";
@@ -84,12 +84,17 @@ export function buildExtract(input: any, fallbackCompany?: Company): ExtractResu
     if (flag) contact.flag = flag;
     const li = cleanUrl(p?.linkedin_url);
     if (li) contact.linkedin_url = li;
+    // Their own page elsewhere (never LinkedIn or a data vendor): read later for an address.
+    const profile = cleanUrl(p?.profile_url);
+    if (profile && !isBlockedUrl(profile)) contact.profile_url = profile;
     people.set(id, contact);
   }
 
+  // A person's profile link is not a company to look up, even if the model listed it in urls too.
+  const profiles = new Set([...people.values()].map((p) => p.profile_url).filter(Boolean));
   const urls = (Array.isArray(input?.urls) ? input.urls : [])
     .map(cleanUrl)
-    .filter((u: string | undefined): u is string => !!u);
+    .filter((u: string | undefined): u is string => !!u && !profiles.has(u));
   const mode: InputMode = (INPUT_MODES as readonly string[]).includes(input?.mode) ? input.mode : people.size ? "people" : "companies";
 
   return { mode, companies: [...companies.values()], people: [...people.values()], urls: [...new Set<string>(urls)], notes: str(input?.notes) };

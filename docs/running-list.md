@@ -57,6 +57,7 @@ What we're building, in order. Updated as each item lands. `[x]` done · `[~]` i
 
 - [x] Dollar cap on free use: $20/day for the whole site, shared by everyone; no per-visitor cap (`pricing.ts` FREE_TIER; `CF_DAILY_BUDGET_USD` / `CF_FREE_PER_VISITOR_USD` secrets override). Real cost per row in `cf_usage.cost_usd` (edge v27)
 - [x] Admin page `#admin`: today's spend vs the cap, 30 days of spend/visitors/searches/checks, cap hits, own-key use, ChatGPT lookups, recent sessions (per browser, 7 days), all-time totals (older rows backfilled with costs from pricing.ts, migration 20261006010000). Password = the `CF_ADMIN_KEY` Supabase secret (page is off until it's set). `cf_admin_stats()` + `cf_limit_hits` (migration 20261006000000), edge v32
+- [x] Profile links in a paste (member directories, firm bios): extraction keeps each person's `profile_url`; the free edge `/profiles` route reads the pages (robots.txt, blocked sites, login walls respected; addresses only) and `core/src/profile.ts` takes the address that fits the person's name, files them under the employer it shows, and drops a pasted heading as "the company" only when 2+ of its people work elsewhere and none there. Preview shows a notice + toggle. Edge v34
 - [x] "Use your own Claude key": header button + prompt when free use runs out; key kept in the browser, used per request, never stored
 - [x] Jev stays on for everyone; verification on, counted in the cap
 - [x] Site-styled dialogs instead of browser pop-ups; logo → homepage; flow diagram removed from How it works

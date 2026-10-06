@@ -67,6 +67,7 @@ export function usePipeline() {
       decisions: decisionsFor(llm, onUsage),
       verifier: new MxVerifier(client.mx),
       site: client.site,
+      profiles: state.readProfiles !== false ? client.profiles : undefined,
       shadow: client.shadow,
       evidence: client.evidence,
       mailbox: verifyMode !== "off" ? client.mailbox : undefined,

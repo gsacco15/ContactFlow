@@ -348,10 +348,11 @@ export function pageText(html: string): string {
 export type SiteEmail = { email: string; context: string; page: string };
 
 /**
- * Addresses at the company's domain on one page, with ~160 characters of surrounding text for
- * name matching. Reads mailto: links, plain text, and "name [at] firm [dot] com" styles.
+ * Addresses at the company's domain on one page (any domain when `domain` is null, for a person's
+ * profile page), with ~160 characters of surrounding text for name matching. Reads mailto: links,
+ * plain text, and "name [at] firm [dot] com" styles.
  */
-export function extractEmails(html: string, domain: string, page: string): SiteEmail[] {
+export function extractEmails(html: string, domain: string | null, page: string): SiteEmail[] {
   const text = pageText(html);
   const deob = text
     .replace(/\s*[\[(]\s*at\s*[\])]\s*/gi, "@")
@@ -361,7 +362,7 @@ export function extractEmails(html: string, domain: string, page: string): SiteE
   const add = (email: string, ctx: string) => {
     const e = email.toLowerCase().replace(/^mailto:/, "").replace(/[.,;:]+$/, "");
     const d = e.split("@")[1];
-    if (!d || !sameSite(d, domain) || found.has(e)) return;
+    if (!d || !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(d) || (domain && !sameSite(d, domain)) || found.has(e)) return;
     found.set(e, { email: e, context: ctx.replace(/\s+/g, " ").trim().slice(0, 320), page });
   };
   for (const m of html.matchAll(/mailto:([^"'?\s>]+@[^"'?\s>]+)/gi)) {
@@ -378,6 +379,31 @@ export function extractEmails(html: string, domain: string, page: string): SiteE
     add(m[0], deob.slice(Math.max(0, m.index! - 160), m.index! + m[0].length + 80));
   }
   return [...found.values()];
+}
+
+// ── Profile pages linked from a paste (a member directory, a firm bio) ──
+
+export const PROFILE_MAX_BATCH = 10;
+
+/** Body of /profiles: 1–10 http(s) links, de-duplicated. */
+export function parseProfilesBody(raw: any): string[] {
+  const list = raw?.urls;
+  if (!Array.isArray(list) || !list.length) throw new HttpError(400, "urls[] required");
+  if (list.length > PROFILE_MAX_BATCH) throw new HttpError(413, `at most ${PROFILE_MAX_BATCH} urls per request`);
+  const out = list.map((u: unknown) => String(u ?? "").trim());
+  for (const u of out) {
+    let ok = false;
+    try {
+      ok = u.length <= 500 && /^https?:$/.test(new URL(u).protocol);
+    } catch { /* not a URL */ }
+    if (!ok) throw new HttpError(400, "invalid url in list");
+  }
+  return [...new Set<string>(out)];
+}
+
+/** A sign-in form: the page wants a login, so whatever it hides isn't ours to read. */
+export function needsLogin(html: string): boolean {
+  return /<input\b[^>]*type\s*=\s*["']?password/i.test(html);
 }
 
 // ── Evidence engine (domain-level facts about email formats) ──

@@ -1,12 +1,12 @@
 // Supabase Edge Function `pipeline` — the only server code in v1 and the only place the
-// Anthropic API key exists. Routes: POST /llm, /mx, /cache, /site, /shadow, /evidence, /verify, /jev, /admin; GET /health.
+// Anthropic API key exists. Routes: POST /llm, /mx, /cache, /site, /profiles, /shadow, /evidence, /verify, /jev, /admin; GET /health.
 import Anthropic from "npm:@anthropic-ai/sdk@0.131.0";
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { STAGES, type StageName } from "./_core/schemas.ts";
 import { BUNDLED_PROMPTS } from "./_core/prompts.ts";
 import { FREE_TIER, PRICE_PER_VERIFY, estimateCost } from "./_core/pricing.ts";
 import {
-  CACHE_KEY, DOMAIN, FETCH_BLOCKED_DOMAINS, evidenceRow, type EvidenceRow, VERIFY_PROVIDERS, mockVerify, parseVerifyBody, type VerifyStatusWire, HttpError, JEV_URL, bioLinks, extractEmails, pickLinks, slugName, robotsAllows, sameSite, sitemapLinks, type SiteEmail, RateLimiter, addUsage, sameSecret, buildParams, corsHeaders, mxFromDoh, mxFromRecords,
+  CACHE_KEY, DOMAIN, FETCH_BLOCKED_DOMAINS, evidenceRow, type EvidenceRow, VERIFY_PROVIDERS, mockVerify, parseVerifyBody, type VerifyStatusWire, HttpError, JEV_URL, bioLinks, extractEmails, pickLinks, slugName, robotsAllows, sameSite, sitemapLinks, type SiteEmail, RateLimiter, addUsage, sameSecret, needsLogin, parseProfilesBody, buildParams, corsHeaders, mxFromDoh, mxFromRecords,
   parseBody, parseJevBatch, readContent, zeroUsage, type Env, type LlmBody,
 } from "./lib.ts";
 
@@ -283,6 +283,46 @@ async function readSite(domain: string, maxPages: number, bioPages: number) {
   return { emails: [...emails.values()].slice(0, 60), pages };
 }
 
+// ── /profiles (a person's own page linked from the paste; no AI, no cost) ──
+
+type ProfileRead = { url: string; ok: boolean; note?: string; emails: { email: string; context: string }[] };
+
+/**
+ * One profile page → the addresses on it with nearby text. Never blocked sites (LinkedIn, data
+ * vendors), never against robots.txt, nothing behind a login. Returns addresses only, not the page.
+ */
+async function readProfile(url: string, robotsFor: (origin: string) => Promise<{ ok: boolean; text: string }>): Promise<ProfileRead> {
+  const fail = (note: string): ProfileRead => ({ url, ok: false, note, emails: [] });
+  const u = new URL(url);
+  if (FETCH_BLOCKED_DOMAINS.some((b) => sameSite(u.hostname, b))) return fail("this site is never read");
+  const robots = await robotsFor(u.origin);
+  if (robots.ok && !robotsAllows(robots.text, u.pathname + u.search)) return fail("the site's robots.txt asks readers not to");
+  const page = await getText(url, 6000);
+  if (!page.ok) return fail("the page didn't load");
+  if (/cf-browser-verification|challenge-platform|captcha/i.test(page.text.slice(0, 20000))) return fail("the site blocks automated readers");
+  const emails = extractEmails(page.text, null, page.url).map(({ email, context }) => ({ email, context }));
+  if (!emails.length && needsLogin(page.text)) return fail("it needs a login");
+  return { url, ok: true, emails: emails.slice(0, 20) };
+}
+
+async function readProfiles(urls: string[]): Promise<ProfileRead[]> {
+  const robots = new Map<string, Promise<{ ok: boolean; text: string }>>();
+  const robotsFor = (origin: string) => {
+    if (!robots.has(origin)) robots.set(origin, getText(`${origin}/robots.txt`, 3000));
+    return robots.get(origin)!;
+  };
+  // A few at a time: these are often all on one directory site.
+  const out: ProfileRead[] = new Array(urls.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(3, urls.length) }, async () => {
+    while (next < urls.length) {
+      const i = next++;
+      out[i] = await readProfile(urls[i], robotsFor).catch(() => ({ url: urls[i], ok: false, note: "the page didn't load", emails: [] }));
+    }
+  }));
+  return out;
+}
+
 // ── /verify (mailbox checks through CF_VERIFIER; the key never leaves this function) ──
 
 async function runVerify(emails: string[]): Promise<{ provider: string; real: boolean; results: Record<string, VerifyStatusWire>; details: string[]; providerDown?: boolean }> {
@@ -364,6 +404,7 @@ Deno.serve(async (req) => {
       if (!DOMAIN.test(domain)) throw new HttpError(400, "bad domain");
       return json(await readSite(domain, Math.min(8, Math.max(1, Number(body?.maxPages ?? 6))), Math.min(6, Math.max(0, Number(body?.bioPages ?? 4)))));
     }
+    if (path.endsWith("/profiles")) return json({ pages: await readProfiles(parseProfilesBody(body)) });
     if (path.endsWith("/shadow")) {
       // Site-reading trial log: domain-level formats and counts only — never names or addresses.
       const r = body ?? {};

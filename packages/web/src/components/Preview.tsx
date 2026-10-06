@@ -1,4 +1,4 @@
-import { relevance, slug, type Company, type Contact, type ExtractResult } from "@cf/core";
+import { PROFILE_LIMITS, relevance, slug, type Company, type Contact, type ExtractResult } from "@cf/core";
 import { FitBadge } from "./FitBadge.tsx";
 import { BUDGET, LARGE_PASTE_CONTACTS } from "../config.ts";
 import type { Pipeline } from "../usePipeline.ts";
@@ -20,6 +20,7 @@ export function Preview({ p }: { p: Pipeline }) {
   const stale = roles && ex.people.some((x) => x.title && !x.keep && !x.drop && x.fit?.for !== roles);
   const judgeName = p.state.judge === "jev" ? "Jev" : "Claude";
   const pastedEmails = ex.people.filter((x) => x.email).length;
+  const profiles = ex.people.filter((x) => x.profile_url && !x.email).length;
   // People already in the list with an email: Run reuses them instead of looking them up again.
   const known = ex.people.filter((x) => p.state.contacts[x.id]?.status === "ok" && p.state.companies[x.company_id]?.domain).length;
   const statements = ex.companies.reduce((n, c) => n + (c.stated_formats?.length ?? 0), 0);
@@ -86,6 +87,20 @@ export function Preview({ p }: { p: Pipeline }) {
           {statements > 0 && `${statements} stated email format${statements > 1 ? "s" : ""}`}
           {p.state.usePasteEvidence === false ? " (ignored — the setting is off)" : " — used instead of a web search where they fit."}
         </p>
+      )}
+      {profiles > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900" role="status">
+          <span>
+            {profiles} {profiles === 1 ? "person has a link" : "people have links"} to their own profile page.{" "}
+            {p.state.readProfiles !== false
+              ? `Find emails will open ${profiles === 1 ? "it" : "them"} and use the address shown there (free, no search${profiles > PROFILE_LIMITS.perRun ? `; the first ${PROFILE_LIMITS.perRun}` : ""}).`
+              : "They won't be opened (the setting is off)."}
+          </span>
+          <label className="ml-auto flex items-center gap-1.5 text-xs font-medium">
+            <input type="checkbox" checked={p.state.readProfiles !== false} onChange={(e) => p.dispatch({ type: "read_profiles", on: e.target.checked })} />
+            Read profile pages
+          </label>
+        </div>
       )}
       {ex.people.length === 0 && (
         <Banner tone="warn">

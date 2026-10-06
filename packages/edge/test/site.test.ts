@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bioLinks, extractEmails, pickLinks, slugName, robotsAllows, sameSite, sitemapLinks } from "../supabase/functions/pipeline/lib.ts";
+import { bioLinks, extractEmails, needsLogin, parseProfilesBody, pickLinks, slugName, robotsAllows, sameSite, sitemapLinks } from "../supabase/functions/pipeline/lib.ts";
 
 const HOME = `<html><body><nav>
   <a href="/our-team">Our Team</a> <a href="/about-us">About</a> <a href="https://acme.com/contact">Contact us</a>
@@ -76,5 +76,37 @@ describe("bio pages", () => {
     expect(slugName("https://acme.com/attorneys/kate-sedey")).toBe("Kate Sedey");
     expect(slugName("https://acme.com/our-team/jane-q-doe/")).toBe("Jane Q Doe");
     expect(slugName("https://acme.com/practice-areas/employment-law")).toBeUndefined();
+  });
+});
+
+describe("profile pages", () => {
+  // Shaped like a ClubExpress member bio (nela-illinois.org): the address sits under the name.
+  const bio = `<header><a href="content.aspx?page_id=31&club_id=853437&action=login">Member Login</a></header>
+    <h1>Member Bio</h1><div class="name">Nicholas Bringardner</div>
+    <div><a href="mailto:nbringardner@legalaidchicago.org">nbringardner@legalaidchicago.org</a> | No Published Number</div>
+    <h2>Contact Information</h2><dl><dt>Member Number</dt><dd>499</dd><dt>Email Address</dt><dd>nbringardner@legalaidchicago.org</dd></dl>`;
+
+  it("extractEmails with no domain reads any address, once, with the name nearby", () => {
+    const found = extractEmails(bio, null, "https://www.nela-illinois.org/content.aspx?page_id=80&member_id=9918828");
+    expect(found.map((e) => e.email)).toEqual(["nbringardner@legalaidchicago.org"]);
+    expect(found[0].context).toContain("Nicholas Bringardner");
+  });
+
+  it("needsLogin spots a sign-in form, not a link to one", () => {
+    expect(needsLogin(bio)).toBe(false);
+    expect(needsLogin('<form><input type="password" name="pw"></form>')).toBe(true);
+  });
+
+  it("parseProfilesBody: 1–10 http(s) links, de-duplicated", () => {
+    expect(parseProfilesBody({ urls: ["https://a.org/p?id=1", "https://a.org/p?id=1", "http://b.org/x"] })).toEqual(["https://a.org/p?id=1", "http://b.org/x"]);
+    expect(() => parseProfilesBody({ urls: [] })).toThrow(/urls/);
+    expect(() => parseProfilesBody({ urls: ["javascript:alert(1)"] })).toThrow(/invalid url/);
+    expect(() => parseProfilesBody({ urls: Array.from({ length: 11 }, (_, i) => `https://a.org/${i}`) })).toThrow(/at most 10/);
+  });
+
+  it("robots.txt rules apply to the page's path and query", () => {
+    const robots = "User-agent: *\nDisallow: /content.aspx?page_id=80";
+    expect(robotsAllows(robots, "/content.aspx?page_id=80&member_id=1")).toBe(false);
+    expect(robotsAllows(robots, "/content.aspx?page_id=78")).toBe(true);
   });
 });
